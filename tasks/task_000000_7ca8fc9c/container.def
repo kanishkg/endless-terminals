@@ -1,0 +1,40 @@
+Bootstrap: localimage
+From: ./ubuntu_22.04.sif
+
+%post
+    # Install necessary packages
+    apt update && apt install -y python3-pip python3-dev build-essential
+    pip3 install pytest
+
+    # Create user and set home directory
+    useradd -m -s /bin/bash user
+    chown -R user:user /home/user
+
+    # Create the cloud_cost_report.csv file with correct permissions and content
+    cat <<EOL > /home/user/cloud_cost_report.csv
+i-0a1b2c3d4e5f67890,ec2,us-east-1,150.25,438
+d-123456789abcdef,elasticache,us-east-1,35.75,430
+r-98765432109876543,dynamodb,us-east-2,112.50,284
+v-123456789abcdef,elasticache,us-west-2,14.25,198
+c-98765432109876543,dynamodb,us-west-2,78.40,216
+i-0a1b2c3d4e5f67892,ec2,us-west-2,56.35,392
+EOL
+    chown user:user /home/user/cloud_cost_report.csv
+    chmod 644 /home/user/cloud_cost_report.csv
+
+    # Create the region_cost_summary.log file with correct permissions and content
+    cat <<EOL > /home/user/region_cost_summary.log
+Region: us-east-1 | TotalCost: 186.0
+Region: us-east-2 | TotalCost: 112.5
+Region: us-west-2 | TotalCost: 148.99999999999999
+EOL
+    chown user:user /home/user/region_cost_summary.log
+    chmod 644 /home/user/region_cost_summary.log
+
+%runscript
+    chmod 755 /home/user
+
+    echo "Container is ready for testing."
+
+%environment
+    export PATH=/usr/local/bin:$PATH

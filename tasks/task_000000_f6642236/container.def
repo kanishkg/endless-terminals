@@ -1,0 +1,94 @@
+Bootstrap: localimage
+From: ./ubuntu_22.04.sif
+
+%post
+    # Install required packages
+    apt-get update
+    apt-get install -y patch git python3-pip
+
+    # Create user and directories
+    useradd -m user
+    chown -R user:user /home/user
+
+    # Create required directories
+    mkdir -p /home/user/config/network
+    mkdir -p /home/user/logs
+
+    # Set permissions on directories
+    chmod 0755 /home/user/config/network
+    chmod 0755 /home/user/logs
+    chown -R user:user /home/user/config/network
+    chown -R user:user /home/user/logs
+
+    # Create required files
+    cat <<EOF > /home/user/config/network/config.yaml
+service:
+  port: 80
+  enabled: true
+  timeout: 15
+EOF
+    chown user:user /home/user/config/network/config.yaml
+    chmod 0644 /home/user/config/network/config.yaml
+
+    cat <<EOF > /home/user/config/network/new-config.yaml
+service:
+  port: 443
+  enabled: true
+  timeout: 15
+  ssl: true
+EOF
+    chown user:user /home/user/config/network/new-config.yaml
+    chmod 0644 /home/user/config/network/new-config.yaml
+
+    cat <<EOF > /home/user/config/network/original-config.yaml
+service:
+  port: 80
+  enabled: true
+  timeout: 15
+EOF
+    chown user:user /home/user/config/network/original-config.yaml
+    chmod 0644 /home/user/config/network/original-config.yaml
+
+    cat <<EOF > /home/user/config/network/config.diff
+--- config.yaml    2023-10-01 10:00:00.000000000 +0000
++++ new-config.yaml    2023-10-01 10:00:00.000000000 +0000
+@@ -1,4 +1,5 @@
+ service:
+   port: 80
+   enabled: true
+   timeout: 15
++  ssl: true
+EOF
+    chown user:user /home/user/config/network/config.diff
+    chmod 0644 /home/user/config/network/config.diff
+
+    cat <<EOF > /home/user/logs/patch_verification.log
+Files Involved:
+- Original: /home/user/config/network/original-config.yaml
+- New: /home/user/config/network/new-config.yaml
+- Patch: /home/user/config/network/config.diff
+
+Patch Command: patch /home/user/config/network/original-config.yaml /home/user/config/network/config.diff
+
+Checksums:
+- Original (before patch): SHA256=0a82d4c69b516549d188a64b25f52e23d2854b49c0a1e1f28176f9f0e6a3
+- Updated (after patch): SHA256=1189a9127e98f9bfa9b88e2a449952d8a05b6f60e9e438a75f8e8b36e781
+- New: SHA256=1189a9127e98f9bfa9b88e2a449952d8a05b6f60e9e438a75f8e8b36e781
+
+Patch Verification Result: SUCCESS
+EOF
+    chown user:user /home/user/logs/patch_verification.log
+    chmod 0644 /home/user/logs/patch_verification.log
+
+    # Install pytest
+    pip3 install pytest
+
+%environment
+    chmod 755 /home/user
+
+    # Set environment variables
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+%labels
+    Author "Infrastructure Team"
+    Description "Container for patch file generation and verification task"

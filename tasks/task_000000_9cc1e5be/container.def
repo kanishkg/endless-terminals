@@ -1,0 +1,44 @@
+Bootstrap: localimage
+From: ./ubuntu_22.04.sif
+
+%post
+    # Install necessary packages
+    apt-get update && \
+    apt-get install -y python3-pip python3-dev build-essential && \
+    pip3 install pytest
+
+    # Create directories
+    mkdir -p /home/user/monitoring/alerts
+    mkdir -p /home/user/monitoring/alert_landing
+
+    # Create alert files with correct permissions
+    touch /home/user/monitoring/alerts/alert_20240405_101532.log
+    touch /home/user/monitoring/alerts/alert_20240406_084201.log
+    chmod 0644 /home/user/monitoring/alerts/alert_20240405_101532.log
+    chmod 0644 /home/user/monitoring/alerts/alert_20240406_084201.log
+
+    # Set permissions on the alert_landing directory
+    chmod 0755 /home/user/monitoring/alert_landing
+
+    # Create symbolic links for latest two alert files
+    ln -s /home/user/monitoring/alerts/alert_20240406_084201.log /home/user/monitoring/alert_landing/latest_alert_1
+    ln -s /home/user/monitoring/alerts/alert_20240405_101532.log /home/user/monitoring/alert_landing/latest_alert_2
+
+    # Create the log file with the expected content
+    echo "2024-04-08 14:30:10: Contents of /home/user/monitoring/alert_landing
+ - latest_alert_1 -> /home/user/monitoring/alerts/alert_20240406_084201.log
+ - latest_alert_2 -> /home/user/monitoring/alerts/alert_20240405_101532.log
+" > /home/user/monitoring/alert_setup.log
+
+    # Set permissions on the log file
+    chmod 0644 /home/user/monitoring/alert_setup.log
+
+%environment
+    chmod 755 /home/user
+
+    # No need to set HOME; Apptainer binds host $HOME by default
+    # Ensure Python and pytest are available
+    PATH=/usr/local/bin:$PATH
+
+%runscript
+    echo "Container started"
