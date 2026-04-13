@@ -1,0 +1,94 @@
+"""Module to setup access to Claude models on AICore. Important: Make sure that the aicore config has been saved before accessing these models."""
+import enum
+
+import requests
+from gen_ai_hub.proxy.native.amazon.clients import Session
+import os
+from dotenv import load_dotenv
+
+load_dotenv() 
+
+DEPLOYMENT_ID_OPUS = os.getenv("DEPLOYMENT_ID_OPUS")
+
+DEFAULT_MESSAGES = [
+    {
+        "role": "system",
+        "content": "You are a helpful assistant that designs SAP CAP CDS models and JS handlers. "
+                   "Return code in JSON format like {'schema': <code>, 'service': <code>, 'service_js': <code>}, "
+                   "do not include irrelevant text."
+    },
+    {
+        "role": "user",
+        "content": "Design a CDS model for a book purchasing order management system. "
+                   "Entities are like Book, Author, Customer, Order."
+    }
+]
+
+
+class ClaudeModels(enum.Enum):
+    """Enum for Claude AI models with aliases and deployment IDs."""
+    CLAUDE_OPUS = ("claude_opus", "anthropic--claude-4.5-opus", DEPLOYMENT_ID_OPUS)
+
+    def __init__(self, alias: str, model_name: str, deployment_id: str):
+        """Initialize Claude model with deployment ID.
+
+        Args:
+            alias (str): The alias of the model.
+            model_name (str): The name of the model.
+            deployment_id (str): The deployment ID of the model.
+        """
+        self.alias = alias
+        self.model_name = model_name
+        self.deployment_id = deployment_id
+
+model_aliases = [m.alias for m in ClaudeModels]
+
+
+def get_anthropic_completion(
+    messages: list[dict] = DEFAULT_MESSAGES,
+    model: str = "claude_4",
+    temperature: float = 0.8,
+    max_tokens: int = 4000,
+    top_p: float = 0.9,
+) -> str:
+    """Access the Anthropic Sonnet model through Gen AI Hub.
+
+    Args:
+        messages (list[dict]): The list of messages in the conversation.
+        model (str): The model name to use, e.g. "claude_4".
+        temperature (float): Sampling temperature.
+        max_tokens (int): Maximum number of tokens to generate.
+        top_p (float): Nucleus sampling parameter.
+
+    Returns:
+        str: The generated response from the model or raises an error.
+    """
+    if model not in model_aliases:
+        raise ValueError(f"Model name must be one of {model_aliases}")
+
+    # Bedrock converse() requires system messages passed separately
+    system_messages = [{"text": m["content"]} for m in messages if m["role"] == "system"]
+    formatted_messages = [
+        {"role": m["role"], "content": [{"text": m["content"]}]} for m in messages if m["role"] != "system"
+    ]
+
+    model_id = next(m.model_name for m in ClaudeModels if m.alias == model)
+    deployment_id = next(m.deployment_id for m in ClaudeModels if m.alias == model)
+
+    try:
+        bedrock = Session().client(model_name=model_id, deployment_id=deployment_id)
+        converse_kwargs = dict(
+            messages=formatted_messages,
+            inferenceConfig={
+                "maxTokens": max_tokens,
+                "temperature": temperature,
+            },
+        )
+        if system_messages:
+            converse_kwargs["system"] = system_messages
+        response = bedrock.converse(**converse_kwargs)
+        return response["output"]["message"]["content"][0]["text"]
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"RequestException occurred while fetching Anthropic completion: {e}") from e
+    except Exception as e:
+        raise RuntimeError(f"Unexpected error occurred while fetching Anthropic completion: {e}") from e
