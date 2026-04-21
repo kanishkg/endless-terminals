@@ -1,0 +1,21 @@
+```json
+{
+  "analysis": "I can see the package lists. There are 31 installed packages and 9 required packages. I need to identify which of the 22 extra packages can be safely removed (not dependencies of required packages). I'll need to check dependencies up to 3 levels deep for each required package.",
+  "plan": "First, let me get the list of packages that are installed but not required. Then I'll check the dependency tree of each required package to see which 'extra' packages are actually needed as dependencies. I'll use apt-cache depends recursively.",
+  "commands": [
+    {
+      "keystrokes": "comm -23 <(sort installed_packages.txt) <(sort required_packages.txt)\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat > /tmp/analyze_deps.sh << 'EOF'\n#!/bin/bash\n\n# Get all dependencies of a package up to 3 levels deep\nget_deps() {\n    local pkg=$1\n    local level=$2\n    local max_level=3\n    \n    if [ $level -gt $max_level ]; then\n        return\n    fi\n    \n    # Get direct dependencies\n    local deps=$(apt-cache depends \"$pkg\" 2>/dev/null | grep -E \"^\\s+Depends:\" | sed 's/.*Depends: //' | sed 's/<\\|>//g' | cut -d':' -f1)\n    \n    for dep in $deps; do\n        echo \"$dep\"\n        get_deps \"$dep\" $((level + 1))\n    done\n}\n\n# Read required packages and collect all their dependencies\nwhile read -r pkg; do\n    [ -z \"$pkg\" ] && continue\n    get_deps \"$pkg\" 1\ndone < /home/user/migration/required_packages.txt | sort -u\nEOF\nchmod +x /tmp/analyze_deps.sh\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "bash /tmp/analyze_deps.sh > /tmp/all_deps.txt 2>/dev/null && echo 'Dependencies collected:' && cat /tmp/all_deps.txt\n",
+      "duration": 5.0
+    }
+  ],
+  "task_complete": false
+}
+```

@@ -1,0 +1,144 @@
+You are an AI assistant tasked with solving command-line tasks in a Linux environment. You will be given a task description and the output from previously executed commands. Your goal is to solve the task by providing batches of shell commands.
+
+Format your response as JSON with the following structure:
+
+{
+  "analysis": "Analyze the current state based on the terminal output provided. What do you see? What has been accomplished? What still needs to be done?",
+  "plan": "Describe your plan for the next steps. What commands will you run and why? Be specific about what you expect each command to accomplish.",
+  "commands": [
+    {
+      "keystrokes": "ls -la\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cd project\n",
+      "duration": 0.1
+    }
+  ],
+  "task_complete": true
+}
+
+Required fields:
+- "analysis": Your analysis of the current situation
+- "plan": Your plan for the next steps
+- "commands": Array of command objects to execute
+
+Optional fields:
+- "task_complete": Boolean indicating if the task is complete (defaults to false if not present)
+
+Command object structure:
+- "keystrokes": String containing the exact keystrokes to send to the terminal (required)
+- "duration": Number of seconds to wait for the command to complete before the next command will be executed (defaults to 1.0 if not present)
+
+IMPORTANT: The text inside "keystrokes" will be used completely verbatim as keystrokes. Write commands exactly as you want them sent to the terminal:
+- You must end every command with a newline (\n) or it will not execute.
+- For special key sequences, use tmux-style escape sequences:
+  - C-c for Ctrl+C
+  - C-d for Ctrl+D
+
+The "duration" attribute specifies the number of seconds to wait for the command to complete (default: 1.0) before the next command will be executed. On immediate tasks (e.g., cd, ls, echo, cat) set a duration of 0.1 seconds. On commands (e.g., gcc, find, rustc) set a duration of 1.0 seconds. On slow commands (e.g., make, python3 [long running script], wget [file]) set an appropriate duration as you determine necessary.
+
+It is better to set a smaller duration than a longer duration. It is always possible to wait again if the prior output has not finished, by running {"keystrokes": "", "duration": 10.0} on subsequent requests to wait longer. Never wait longer than 60 seconds; prefer to poll to see intermediate result status.
+
+Important notes:
+- Each command's keystrokes are sent exactly as written to the terminal
+- Do not include extra whitespace before or after the keystrokes unless it's part of the intended command
+- Extra text before or after the JSON will generate warnings but be tolerated
+- The JSON must be valid - use proper escaping for quotes and special characters within strings
+- Commands array can be empty if you want to wait without taking action
+
+Task Description:
+I'm an SRE and our monitoring stack just alerted me that several services need their configuration updated across two different config formats. We use a YAML file for our Prometheus alerting rules and a TOML file for our uptime checker daemon.
+
+Here's what I need done:
+
+**1. Prometheus Alerting Rules (YAML) at /etc/monitoring/alerts.yaml:**
+
+The file currently has some alerting rules, but I need the following changes:
+- Find the alert rule named `HighLatency` and change its `for` duration from whatever it currently is to `3m`
+- Find the alert rule named `ServiceDown` and add a new label `escalation_level: critical` under its `labels` section (keep existing labels)
+- Add a completely new alert rule in the same `rules` list with these exact specs:
+  - alert: `DiskSpaceLow`
+  - expr: `node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1`
+  - for: `10m`
+  - labels:
+    - severity: `warning`
+    - team: `infrastructure`
+  - annotations:
+    - summary: `Disk space below 10% on {{ $labels.instance }}`
+
+**2. Uptime Checker Config (TOML) at /etc/monitoring/uptime.toml:**
+
+This file configures which endpoints we check. I need:
+- In the `[global]` section, change `check_interval` from its current value to `30`
+- In the `[global]` section, add a new key `timeout = 10` if it doesn't exist
+- Find the endpoint entry with `name = "api-gateway"` and change its `expected_status` to `200` and add `critical = true` to that same endpoint table
+- Add a new endpoint to the `[[endpoints]]` array with:
+  - name: `"payment-service"`
+  - url: `"https://payments.internal.example.com/health"`
+  - expected_status: `200`
+  - critical: `true`
+  - headers: a table containing `Authorization = "Bearer ${PAYMENTS_TOKEN}"`
+
+**3. Validation Log:**
+
+After making all changes, write a validation log to /home/user/config_changes.log with this exact format:
+```
+YAML_CHANGES:
+- alerts.yaml: HighLatency for duration updated
+- alerts.yaml: ServiceDown escalation_level added
+- alerts.yaml: DiskSpaceLow alert added
+TOML_CHANGES:
+- uptime.toml: global.check_interval updated to 30
+- uptime.toml: global.timeout added
+- uptime.toml: api-gateway endpoint modified
+- uptime.toml: payment-service endpoint added
+VALIDATION: COMPLETE
+```
+
+Make sure both config files remain valid YAML and TOML respectively after your edits — I'll be loading them into our monitoring services. Preserve the overall structure and any comments in the files.
+
+
+Current terminal state:
+Current Terminal Screen:
+root@beec0d9caecb:/home/user#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

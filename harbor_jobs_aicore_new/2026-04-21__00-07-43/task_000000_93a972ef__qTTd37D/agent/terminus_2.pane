@@ -1,0 +1,448 @@
+[?2004hroot@27c1ff3091ad:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@27c1ff3091ad:/home/user# clear
+[?2004l[H[J[?2004hroot@27c1ff3091ad:/home/user# cat /etc/monitoring/alerts.yaml
+[?2004l# Prometheus alerting rules
+groups:
+  - name: service_alerts
+    rules:
+      - alert: HighLatency
+        expr: http_request_duration_seconds > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency detected on {{ $labels.instance }}"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+
+      - alert: HighMemoryUsage
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage critical on {{ $labels.instance }}"
+[?2004hroot@27c1ff3091ad:/home/user# cat /etc/monitoring/uptime.toml
+[?2004l# Uptime checker daemon configuration
+
+[global]
+check_interval = 60
+retry_count = 3
+log_level = "info"
+
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 204
+method = "GET"
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+[?2004hroot@27c1ff3091ad:/home/user# python3 << 'EOF'
+[?2004l[?2004h> import yaml
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read the YAML file
+[?2004l[?2004h> with open('/etc/monitoring/alerts.yaml', 'r') as f:
+[?2004l[?2004h>     content = f.read()
+[?2004l[?2004h>     
+[?2004l[?2004h> # Parse YAML
+[?2004l[?2004h> data = yaml.safe_load(content)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find and modify the rules
+[?2004l[?2004h> for group in data.get('groups', []):
+[?2004l[?2004h>     if group.get('name') == 'service_alerts':
+[?2004l[?2004h>         for rule in group.get('rules', []):
+[?2004l[?2004h>             # Change HighLatency 'for' to 3m
+[?2004l[?2004h>             if rule.get('alert') == 'HighLatency':
+[?2004l[?2004h>                 rule['for'] = '3m'
+[?2004l[?2004h>             # Add escalation_level to ServiceDown
+[?2004l[?2004h>             elif rule.get('alert') == 'ServiceDown':
+[?2004l[?2004h>                 rule['labels']['escalation_level'] = 'critical'
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Add new DiskSpaceLow alert
+[?2004l[?2004h>         new_alert = {
+[?2004l[?2004h>             'alert': 'DiskSpaceLow',
+[?2004l[?2004h>             'expr': 'node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1',
+[?2004l[?2004h>             'for': '10m',
+[?2004l[?2004h>             'labels': {
+[?2004l[?2004h>                 'severity': 'warning',
+[?2004l[?2004h>                 'team': 'infrastructure'
+[?2004l[?2004h>             },
+[?2004l[?2004h>             'annotations': {
+[?2004l[?2004h>                 'summary': 'Disk space below 10% on {{ $labels.instance }}'
+[?2004l[?2004h>             }
+[?2004l[?2004h>         }
+[?2004l[?2004h>         group['rules'].append(new_alert)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write back with preserved formatting
+[?2004l[?2004h> with open('/etc/monitoring/alerts.yaml', 'w') as f:
+[?2004l[?2004h>     f.write('# Prometheus alerting rules\n')
+[?2004l[?2004h>     yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('YAML file updated successfully')
+[?2004l[?2004h> EOF
+[?2004lYAML file updated successfully
+[?2004hroot@27c1ff3091ad:/home/user# cat /etc/monitoring/alerts.yaml
+[?2004l# Prometheus alerting rules
+groups:
+- name: service_alerts
+  rules:
+  - alert: HighLatency
+    expr: http_request_duration_seconds > 0.5
+    for: 3m
+    labels:
+      severity: warning
+    annotations:
+      summary: High latency detected on {{ $labels.instance }}
+  - alert: ServiceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+      team: platform
+      escalation_level: critical
+    annotations:
+      summary: Service {{ $labels.job }} is down
+  - alert: HighMemoryUsage
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Memory usage critical on {{ $labels.instance }}
+  - alert: DiskSpaceLow
+    expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}
+      < 0.1
+    for: 10m
+    labels:
+      severity: warning
+      team: infrastructure
+    annotations:
+      summary: Disk space below 10% on {{ $labels.instance }}
+[?2004hroot@27c1ff3091ad:/home/user# python3 << 'EOF'
+[?2004l[?2004h> import toml
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read the TOML file
+[?2004l[?2004h> with open('/etc/monitoring/uptime.toml', 'r') as f:
+[?2004l[?2004h>     content = f.read()
+[?2004l[?2004h> 
+[?2004l[?2004h> # Parse TOML
+[?2004l[?2004h> data = toml.loads(content)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Modify global section
+[?2004l[?2004h> data['global']['check_interval'] = 30
+[?2004l[?2004h> data['global']['timeout'] = 10
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find and modify api-gateway endpoint
+[?2004l[?2004h> for endpoint in data.get('endpoints', []):
+[?2004l[?2004h>     if endpoint.get('name') == 'api-gateway':
+[?2004l[?2004h>         endpoint['expected_status'] = 200
+[?2004l[?2004h>         endpoint['critical'] = True
+[?2004l[?2004h> 
+[?2004l[?2004h> # Add new payment-service endpoint
+[?2004l[?2004h> new_endpoint = {
+[?2004l[?2004h>     'name': 'payment-service',
+[?2004l[?2004h>     'url': 'https://payments.internal.example.com/health',
+[?2004l[?2004h>     'expected_status': 200,
+[?2004l[?2004h>     'critical': True,
+[?2004l[?2004h>     'headers': {
+[?2004l[?2004h>         'Authorization': 'Bearer ${PAYMENTS_TOKEN}'
+[?2004l[?2004h>     }
+[?2004l[?2004h> }
+[?2004l[?2004h> data['endpoints'].append(new_endpoint)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write back
+[?2004l[?2004h> with open('/etc/monitoring/uptime.toml', 'w') as f:
+[?2004l[?2004h>     f.write('# Uptime checker daemon configuration\n\n')
+[?2004l[?2004h>     toml.dump(data, f)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('TOML file updated successfully')
+[?2004l[?2004h> EOF
+[?2004lTOML file updated successfully
+[?2004hroot@27c1ff3091ad:/home/user# cat /etc/monitoring/uptime.toml
+[?2004l# Uptime checker daemon configuration
+
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 200
+method = "GET"
+critical = true
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+
+[[endpoints]]
+name = "payment-service"
+url = "https://payments.internal.example.com/health"
+expected_status = 200
+critical = true
+
+[endpoints.headers]
+Authorization = "Bearer ${PAYMENTS_TOKEN}"
+
+[global]
+check_interval = 30
+retry_count = 3
+log_level = "info"
+timeout = 10
+[?2004hroot@27c1ff3091ad:/home/user# cat > /etc/monitoring/uptime.toml << 'EOF'
+[?2004l[?2004h> # Uptime checker daemon configuration
+[?2004l[?2004h> 
+[?2004l[?2004h> [global]
+[?2004l[?2004h> check_interval = 30
+[?2004l[?2004h> retry_count = 3
+[?2004l[?2004h> log_level = "info"
+[?2004l[?2004h> timeout = 10
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "api-gateway"
+[?2004l[?2004h> url = "https://api.example.com/health"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> method = "GET"
+[?2004l[?2004h> critical = true
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "auth-service"
+[?2004l[?2004h> url = "https://auth.internal.example.com/ping"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> critical = false
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "frontend"
+[?2004l[?2004h> url = "https://www.example.com"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "payment-service"
+[?2004l[?2004h> url = "https://payments.internal.example.com/health"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> critical = true
+[?2004l[?2004h> 
+[?2004l[?2004h> [endpoints.headers]
+[?2004l[?2004h> Authorization = "Bearer ${PAYMENTS_TOKEN}"
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@27c1ff3091ad:/home/user# cat > /etc/monitoring/uptime.toml << 'EOF'
+[?2004l[?2004h> # Uptime checker daemon configuration
+[?2004l[?2004h> 
+[?2004l[?2004h> [global]
+[?2004l[?2004h> check_interval = 30
+[?2004l[?2004h> retry_count = 3
+[?2004l[?2004h> log_level = "info"
+[?2004l[?2004h> timeout = 10
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "api-gateway"
+[?2004l[?2004h> url = "https://api.example.com/health"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> method = "GET"
+[?2004l[?2004h> critical = true
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "auth-service"
+[?2004l[?2004h> url = "https://auth.internal.example.com/ping"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> critical = false
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "frontend"
+[?2004l[?2004h> url = "https://www.example.com"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "payment-service"
+[?2004l[?2004h> url = "https://payments.internal.example.com/health"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> critical = true
+[?2004l[?2004h> headers = { Authorization = "Bearer \${PAYMENTS_TOKEN}" }
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@27c1ff3091ad:/home/user# cat /etc/monitoring/uptime.toml
+[?2004l# Uptime checker daemon configuration
+
+[global]
+check_interval = 30
+retry_count = 3
+log_level = "info"
+timeout = 10
+
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 200
+method = "GET"
+critical = true
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+
+[[endpoints]]
+name = "payment-service"
+url = "https://payments.internal.example.com/health"
+expected_status = 200
+critical = true
+headers = { Authorization = "Bearer \${PAYMENTS_TOKEN}" }
+[?2004hroot@27c1ff3091ad:/home/user# cat > /etc/monitoring/uptime.toml << 'ENDOFFILE'
+[?2004l[?2004h> # Uptime checker daemon configuration
+[?2004l[?2004h> 
+[?2004l[?2004h> [global]
+[?2004l[?2004h> check_interval = 30
+[?2004l[?2004h> retry_count = 3
+[?2004l[?2004h> log_level = "info"
+[?2004l[?2004h> timeout = 10
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "api-gateway"
+[?2004l[?2004h> url = "https://api.example.com/health"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> method = "GET"
+[?2004l[?2004h> critical = true
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "auth-service"
+[?2004l[?2004h> url = "https://auth.internal.example.com/ping"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> critical = false
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "frontend"
+[?2004l[?2004h> url = "https://www.example.com"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> 
+[?2004l[?2004h> [[endpoints]]
+[?2004l[?2004h> name = "payment-service"
+[?2004l[?2004h> url = "https://payments.internal.example.com/health"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> critical = true
+[?2004l[?2004h> headers = { Authorization = "Bearer ${PAYMENTS_TOKEN}" }
+[?2004l[?2004h> ENDOFFILE
+[?2004l[?2004hroot@27c1ff3091ad:/home/user# python3 -c "import yaml; yaml.safe_load(open('/etc/monitoring/alerts.yaml')); print('YAML valid')"
+[?2004lYAML valid
+[?2004hroot@27c1ff3091ad:/home/user# python3 -c "import toml; toml.load('/etc/monitoring/uptime.toml'); print('TOML valid')"
+[?2004lTOML valid
+[?2004hroot@27c1ff3091ad:/home/user# cat > /home/user/config_changes.log << 'EOF'
+[?2004l[?2004h> YAML_CHANGES:
+[?2004l[?2004h> - alerts.yaml: HighLatency for duration updated
+[?2004l[?2004h> - alerts.yaml: ServiceDown escalation_level added
+[?2004l[?2004h> - alerts.yaml: DiskSpaceLow alert added
+[?2004l[?2004h> TOML_CHANGES:
+[?2004l[?2004h> - uptime.toml: global.check_interval updated to 30
+[?2004l[?2004h> - uptime.toml: global.timeout added
+[?2004l[?2004h> - uptime.toml: api-gateway endpoint modified
+[?2004l[?2004h> - uptime.toml: payment-service endpoint added
+[?2004l[?2004h> VALIDATION: COMPLETE
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@27c1ff3091ad:/home/user# cat /home/user/config_changes.log
+[?2004lYAML_CHANGES:
+- alerts.yaml: HighLatency for duration updated
+- alerts.yaml: ServiceDown escalation_level added
+- alerts.yaml: DiskSpaceLow alert added
+TOML_CHANGES:
+- uptime.toml: global.check_interval updated to 30
+- uptime.toml: global.timeout added
+- uptime.toml: api-gateway endpoint modified
+- uptime.toml: payment-service endpoint added
+VALIDATION: COMPLETE
+[?2004hroot@27c1ff3091ad:/home/user# cat /etc/monitoring/alerts.yaml
+[?2004l# Prometheus alerting rules
+groups:
+- name: service_alerts
+  rules:
+  - alert: HighLatency
+    expr: http_request_duration_seconds > 0.5
+    for: 3m
+    labels:
+      severity: warning
+    annotations:
+      summary: High latency detected on {{ $labels.instance }}
+  - alert: ServiceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+      team: platform
+      escalation_level: critical
+    annotations:
+      summary: Service {{ $labels.job }} is down
+  - alert: HighMemoryUsage
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Memory usage critical on {{ $labels.instance }}
+  - alert: DiskSpaceLow
+    expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}
+      < 0.1
+    for: 10m
+    labels:
+      severity: warning
+      team: infrastructure
+    annotations:
+      summary: Disk space below 10% on {{ $labels.instance }}
+[?2004hroot@27c1ff3091ad:/home/user# cat /etc/monitoring/uptime.toml
+[?2004l# Uptime checker daemon configuration
+
+[global]
+check_interval = 30
+retry_count = 3
+log_level = "info"
+timeout = 10
+
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 200
+method = "GET"
+critical = true
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+
+[[endpoints]]
+name = "payment-service"
+url = "https://payments.internal.example.com/health"
+expected_status = 200
+critical = true
+headers = { Authorization = "Bearer ${PAYMENTS_TOKEN}" }
+[?2004hroot@27c1ff3091ad:/home/user# 

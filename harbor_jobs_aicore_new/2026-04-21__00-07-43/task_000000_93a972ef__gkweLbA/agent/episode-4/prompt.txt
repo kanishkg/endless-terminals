@@ -1,0 +1,106 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@beec0d9caecb:/home/user# python3 << 'EOF'
+> # Read the TOML file
+> with open('/etc/monitoring/uptime.toml', 'r') as f:
+>     lines = f.readlines()
+>
+> output_lines = []
+> i = 0
+> in_global = False
+> in_api_gateway = False
+> global_timeout_added = False
+> api_gateway_critical_added = False
+>
+> while i < len(lines):
+>     line = lines[i]
+>     stripped = line.strip()
+>
+>     # Track sections
+>     if stripped == '[global]':
+>         in_global = True
+>         in_api_gateway = False
+>         output_lines.append(line)
+>         i += 1
+>         continue
+>     elif stripped == '[[endpoints]]':
+>         # Before leaving global section, check if we need to add timeout
+>         if in_global and not global_timeout_added:
+>             output_lines.append('timeout = 10\n')
+>             global_timeout_added = True
+>         in_global = False
+>         # Check if we were in api-gateway and need to add critical
+>         if in_api_gateway and not api_gateway_critical_added:
+>             output_lines.append('critical = true\n')
+>             api_gateway_critical_added = True
+>         in_api_gateway = False
+>         output_lines.append(line)
+>         i += 1
+>         continue
+>
+>     # In global section
+>     if in_global:
+>         if stripped.startswith('check_interval'):
+>             output_lines.append('check_interval = 30\n')
+>             i += 1
+>             continue
+>         elif stripped.startswith('timeout'):
+>             output_lines.append('timeout = 10\n')
+>             global_timeout_added = True
+>             i += 1
+>             continue
+>
+>     # Check for api-gateway endpoint
+>     if 'name = "api-gateway"' in stripped:
+>         in_api_gateway = True
+>         output_lines.append(line)
+>         i += 1
+>         continue
+>
+>     # In api-gateway section
+>     if in_api_gateway:
+>         if stripped.startswith('expected_status'):
+>             output_lines.append('expected_status = 200\n')
+>             i += 1
+>             continue
+>         elif stripped.startswith('critical'):
+>             output_lines.append('critical = true\n')
+>             api_gateway_critical_added = True
+>             i += 1
+>             continue
+>         elif stripped.startswith('method'):
+>             # Add critical before method if not added
+>             if not api_gateway_critical_added:
+>                 output_lines.append('critical = true\n')
+>                 api_gateway_critical_added = True
+>             output_lines.append(line)
+>             i += 1
+>             continue
+>
+>     output_lines.append(line)
+>     i += 1
+>
+> # Add new payment-service endpoint at the end
+> new_endpoint = '''\n[[endpoints]]
+> name = "payment-service"
+> url = "https://payments.internal.example.com/health"
+> expected_status = 200
+> critical = true
+>
+> [endpoints.headers]
+> Authorization = "Bearer ${PAYMENTS_TOKEN}"
+> '''
+>
+> output_lines.append(new_endpoint)
+>
+> with open('/etc/monitoring/uptime.toml', 'w') as f:
+>     f.writelines(output_lines)
+>
+> print('TOML file updated')
+> EOF
+TOML file updated
+root@beec0d9caecb:/home/user#

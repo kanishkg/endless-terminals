@@ -1,0 +1,33 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@cf10977cfab6:~$ cat > /home/user/docs_workspace/verify_permissions.sh << 'EOF'
+> #!/bin/bash
+>
+> MANIFEST="/home/user/docs_workspace/permissions_manifest.txt"
+>
+> while IFS=: read -r path expected_perm; do
+>     # Skip header lines and empty lines
+>     [[ "$path" == "DIRECTORY_PERMISSIONS" ]] && continue
+>     [[ "$path" == "FILE_PERMISSIONS" ]] && continue
+>     [[ -z "$path" ]] && continue
+>
+>     # Get actual permissions in octal
+>     actual_perm=$(stat -c "%a" "$path" 2>/dev/null)
+>
+>     if [[ "$actual_perm" != "$expected_perm" ]]; then
+>         echo "FAIL: $path"
+>         exit 1
+>     fi
+> done < "$MANIFEST"
+>
+> echo "PASS"
+> exit 0
+> EOF
+user@cf10977cfab6:~$ chmod 755 /home/user/docs_workspace/verify_permissions.sh
+user@cf10977cfab6:~$ /home/user/docs_workspace/verify_permissions.sh
+PASS
+user@cf10977cfab6:~$

@@ -1,0 +1,12 @@
+```json
+{
+  "analysis": "I can now see both configuration files:\n\n**alerts.yaml:**\n- HighLatency alert has `for: 5m` - needs to change to `3m`\n- ServiceDown alert has labels (severity: critical, team: platform) - needs `escalation_level: critical` added\n- Need to add new DiskSpaceLow alert to the rules list\n\n**uptime.toml:**\n- global.check_interval is 60 - needs to change to 30\n- global.timeout doesn't exist - needs to be added with value 10\n- api-gateway has expected_status = 204 - needs to change to 200, and add critical = true\n- Need to add new payment-service endpoint",
+  "plan": "I'll use Python to properly parse and modify both files to ensure they remain valid YAML and TOML. This is safer than sed/awk for structured data. I'll:\n1. Create a Python script to modify the YAML file\n2. Create a Python script to modify the TOML file\n3. Write the validation log",
+  "commands": [
+    {
+      "keystrokes": "python3 << 'EOF'\nimport yaml\n\n# Read the file\nwith open('/etc/monitoring/alerts.yaml', 'r') as f:\n    content = f.read()\n    \n# Parse YAML\ndata = yaml.safe_load(content)\n\n# Find and modify rules\nfor group in data['groups']:\n    if group['name'] == 'service_alerts':\n        for rule in group['rules']:\n            # Change HighLatency for duration to 3m\n            if rule['alert'] == 'HighLatency':\n                rule['for'] = '3m'\n            # Add escalation_level to ServiceDown\n            elif rule['alert'] == 'ServiceDown':\n                rule['labels']['escalation_level'] = 'critical'\n        \n        # Add new DiskSpaceLow alert\n        new_alert = {\n            'alert': 'DiskSpaceLow',\n            'expr': 'node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"} < 0.1',\n            'for': '10m',\n            'labels': {\n                'severity': 'warning',\n                'team': 'infrastructure'\n            },\n            'annotations': {\n                'summary': 'Disk space below 10% on {{ $labels.instance }}'\n            }\n        }\n        group['rules'].append(new_alert)\n\n# Write back with comment preserved\nwith open('/etc/monitoring/alerts.yaml', 'w') as f:\n    f.write('# Prometheus alerting rules\\n')\n    yaml.dump(data, f, default_flow_style=False, sort_keys=False)\n\nprint('YAML file updated successfully')\nEOF\n",
+      "duration": 1.0
+    }
+  ]
+}
+```

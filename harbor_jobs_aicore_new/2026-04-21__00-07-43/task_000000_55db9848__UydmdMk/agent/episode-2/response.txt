@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "I can see all 24 lines. The last 7 lines are directories (they have 4096 bytes and match directory paths). The files are the first 17 lines. Now I need to create the three reports:\n1. Large files (>=10485760 bytes): app.log (15MB), full_backup.tar.gz (50MB), incremental.tar.gz (10MB), session_data.db (20MB), presentation.pptx (15MB), 2023_archive.tar.gz (100MB), 2022_archive.tar.gz (30MB)\n2. Extension summary - group by extension, sum bytes\n3. Directory rollup - sum by immediate subdirectory of /var/data",
+  "plan": "Create Report 1: Filter files >= 10485760 bytes (excluding directories), convert to MB (floor), sort by size desc then path asc. I'll identify directories by checking if the path appears as a prefix for other entries or by the 4096 size pattern, but safer to check if it's not a directory entry.",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\n$1 >= 10485760 && $2 !~ /\\/$/ && $2 != \"/var/data\" && $2 != \"/var/data/logs\" && $2 != \"/var/data/backups\" && $2 != \"/var/data/cache\" && $2 != \"/var/data/cache/thumbnails\" && $2 != \"/var/data/uploads\" && $2 != \"/var/data/archives\" {\n  mb = int($1 / 1048576)\n  print mb, $1, $2\n}' /home/user/disk_inventory.txt | sort -t' ' -k2,2nr -k3,3 | awk '{print $1\"MB \" $3}' > /home/user/reports/large_files.txt\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/large_files.txt\n",
+      "duration": 0.1
+    }
+  ]
+}
+```

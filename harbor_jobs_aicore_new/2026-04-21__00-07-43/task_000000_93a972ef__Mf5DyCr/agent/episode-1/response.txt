@@ -1,0 +1,12 @@
+```json
+{
+  "analysis": "I can now see both configuration files. For alerts.yaml:\n- HighLatency has 'for: 5m' which needs to change to '3m'\n- ServiceDown has labels (severity: critical, team: platform) and needs 'escalation_level: critical' added\n- Need to add a new DiskSpaceLow alert rule\n\nFor uptime.toml:\n- global.check_interval is 60, needs to be 30\n- global.timeout doesn't exist, needs to be added\n- api-gateway has expected_status = 204, needs to be 200, and needs critical = true added\n- Need to add a new payment-service endpoint",
+  "plan": "I'll use Python to properly parse and modify both files while preserving structure and comments. Python has good libraries for YAML (ruamel.yaml preserves comments) and TOML. Let me create a Python script to handle both modifications.",
+  "commands": [
+    {
+      "keystrokes": "python3 << 'EOF'\nimport re\n\n# Read the YAML file\nwith open('/etc/monitoring/alerts.yaml', 'r') as f:\n    yaml_content = f.read()\n\n# 1. Change HighLatency 'for' duration from 5m to 3m\nyaml_content = re.sub(\n    r'(- alert: HighLatency\\n.*?\\n.*?for: )5m',\n    r'\\g<1>3m',\n    yaml_content,\n    flags=re.DOTALL\n)\n\n# 2. Add escalation_level: critical to ServiceDown labels\n# Find ServiceDown and add the new label after existing labels\nyaml_content = re.sub(\n    r'(- alert: ServiceDown\\n.*?labels:\\n.*?severity: critical\\n.*?team: platform)',\n    r'\\1\\n          escalation_level: critical',\n    yaml_content,\n    flags=re.DOTALL\n)\n\n# 3. Add DiskSpaceLow alert before the closing of rules list (after HighMemoryUsage)\nnew_alert = '''      - alert: DiskSpaceLow\n        expr: node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"} < 0.1\n        for: 10m\n        labels:\n          severity: warning\n          team: infrastructure\n        annotations:\n          summary: \"Disk space below 10% on {{ $labels.instance }}\"'''\n\n# Add after HighMemoryUsage alert\nyaml_content = re.sub(\n    r'(- alert: HighMemoryUsage\\n.*?summary: \"Memory usage critical on \\{\\{ \\$labels.instance \\}\\}\")',\n    r'\\1\\n\\n' + new_alert,\n    yaml_content,\n    flags=re.DOTALL\n)\n\nwith open('/etc/monitoring/alerts.yaml', 'w') as f:\n    f.write(yaml_content)\n\nprint(\"YAML file updated successfully\")\nEOF\n",
+      "duration": 1.0
+    }
+  ]
+}
+```

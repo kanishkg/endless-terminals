@@ -1,0 +1,207 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@e69a682ce0a5:~/migration$ cat > /home/user/migration/analyze_packages.sh << 'SCRIPT'
+> #!/bin/bash
+>
+> cd /home/user/migration
+>
+> # Read package lists
+> mapfile -t INSTALLED < installed_packages.txt
+> mapfile -t REQUIRED < required_packages.txt
+>
+> echo "Total installed: ${#INSTALLED[@]}"
+> echo "Total required: ${#REQUIRED[@]}"
+>
+> # Find packages not in required list
+> declare -a NOT_REQUIRED
+> for pkg in "${INSTALLED[@]}"; do
+>     found=0
+>     for req in "${REQUIRED[@]}"; do
+>         if [[ "$pkg" == "$req" ]]; then
+>             found=1
+>             break
+>         fi
+>     done
+>     if [[ $found -eq 0 ]]; then
+>         NOT_REQUIRED+=("$pkg")
+>     fi
+> done
+>
+> echo "Packages not in required list: ${#NOT_REQUIRED[@]}"
+> echo "${NOT_REQUIRED[@]}"
+>
+> # Get dependencies of required packages (up to 3 levels deep)
+> declare -A ALL_DEPS
+>
+> get_deps() {
+>     local pkg="$1"
+>     local level="$2"
+>     if [[ $level -gt 3 ]]; then
+>         return
+>     fi
+>
+>     # Get direct dependencies using apt-cache depends
+>     local deps=$(apt-cache depends "$pkg" 2>/dev/null | grep -E "^\s*(Depends|PreDepends):" | sed 's/.*: //' | sed 's/<[^>]*>//g' | tr -d ' ')
+>
+>     for dep in $deps; do
+>         # Skip empty or virtual packages
+>         [[ -z "$dep" ]] && continue
+>         [[ "$dep" == *"|"* ]] && continue
+>
+>         if [[ -z "${ALL_DEPS[$dep]}" ]]; then
+>             ALL_DEPS["$dep"]="$pkg"
+>             get_deps "$dep" $((level + 1))
+>         fi
+>     done
+> }
+>
+> echo ""
+> echo "Collecting dependencies of required packages (up to 3 levels)..."
+> for req in "${REQUIRED[@]}"; do
+>     echo "  Processing: $req"
+>     get_deps "$req" 1
+> done
+>
+> echo ""
+> echo "Total unique dependencies found: ${#ALL_DEPS[@]}"
+>
+> # Separate removable from dependency-protected
+> declare -a REMOVABLE
+> declare -A PROTECTED
+>
+> for pkg in "${NOT_REQUIRED[@]}"; do
+>     if [[ -n "${ALL_DEPS[$pkg]}" ]]; then
+>         PROTECTED["$pkg"]="${ALL_DEPS[$pkg]}"
+>     else
+>         REMOVABLE+=("$pkg")
+>     fi
+> done
+>
+> echo ""
+> echo "Removable packages: ${#REMOVABLE[@]}"
+> echo "Dependency-protected packages: ${#PROTECTED[@]}"
+>
+> # Sort removable packages
+> IFS=$'\n' REMOVABLE_SORTED=($(sort <<<"${REMOVABLE[*]}"))
+> unset IFS
+>
+> # Get package info for removable packages
+> echo ""
+> echo "Getting package info..."
+>
+> declare -a REMOVABLE_JSON
+> total_size=0
+>
+> for pkg in "${REMOVABLE_SORTED[@]}"; do
+>     # Get installed version
+>     version=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo "unknown")
+>
+>     # Get installed size in KB
+>     size=$(dpkg-query -W -f='${Installed-Size}' "$pkg" 2>/dev/null || echo "0")
+>     [[ -z "$size" ]] && size=0
+>     total_size=$((total_size + size))
+>
+>     # Check for security updates
+>     has_security="false"
+>     policy=$(apt-cache policy "$pkg" 2>/dev/null)
+>     if echo "$policy" | grep -q "security"; then
+>         candidate=$(echo "$policy" | grep "Candidate:" | awk '{print $2}')
+>         installed=$(echo "$policy" | grep "Installed:" | awk '{print $2}')
+>         if [[ "$candidate" != "$installed" ]] && echo "$policy" | grep -A1 "$candidate" | grep -q "security"; then
+>             has_security="true"
+>         fi
+>     fi
+>
+>     REMOVABLE_JSON+=("    {\n      \"name\": \"$pkg\",\n      \"installed_version\": \"$version\",\n      \"size_kb\": $size,\n      \"has_security_update\":
+$has_security\n    }")
+>     echo "  $pkg: version=$version, size=${size}KB, security_update=$has_security"
+> done
+>
+> # Build dependency protected JSON
+> declare -a PROTECTED_JSON
+> PROTECTED_KEYS=($(echo "${!PROTECTED[@]}" | tr ' ' '\n' | sort))
+>
+> for pkg in "${PROTECTED_KEYS[@]}"; do
+>     # Find all required packages that need this dependency
+>     required_by=""
+>     for req in "${REQUIRED[@]}"; do
+>         deps=$(apt-cache depends "$req" 2>/dev/null | grep -E "Depends:|PreDepends:" | grep -w "$pkg")
+>         if [[ -n "$deps" ]]; then
+>             [[ -n "$required_by" ]] && required_by+=", "
+>             required_by+="\"$req\""
+>         fi
+>     done
+>     # If not direct, use the stored dependency chain
+>     if [[ -z "$required_by" ]]; then
+>         required_by="\"${PROTECTED[$pkg]}\""
+>     fi
+>     PROTECTED_JSON+=("    {\n      \"name\": \"$pkg\",\n      \"required_by\": [$required_by]\n    }")
+> done
+>
+> # Generate JSON report
+> echo ""
+> echo "Generating removal_report.json..."
+>
+> removable_json_str=$(IFS=','; echo "${REMOVABLE_JSON[*]}" | sed 's/,/,\n/g')
+> protected_json_str=$(IFS=','; echo "${PROTECTED_JSON[*]}" | sed 's/,/,\n/g')
+>
+> cat > removal_report.json << EOF
+> {
+>   "summary": {
+>     "total_installed": ${#INSTALLED[@]},
+>     "total_required": ${#REQUIRED[@]},
+>     "removable_count": ${#REMOVABLE[@]},
+>     "kept_as_dependencies": ${#PROTECTED[@]},
+>     "total_space_savings_kb": $total_size
+>   },
+>   "removable_packages": [
+> $(IFS=','; echo -e "${REMOVABLE_JSON[*]}" | sed 's/},{/},\n{/g')
+>   ],
+>   "dependency_protected": [
+> $(IFS=','; echo -e "${PROTECTED_JSON[*]}" | sed 's/},{/},\n{/g')
+>   ]
+> }
+> EOF
+>
+> # Generate removal script
+> echo "Generating remove_packages.sh..."
+> cat > remove_packages.sh << EOF2
+> #!/bin/bash
+> # Auto-generated script to remove unnecessary packages
+> # Generated on: $(date)
+>
+> PACKAGES="${REMOVABLE_SORTED[*]}"
+>
+> echo "The following packages will be removed:"
+> echo "\$PACKAGES"
+> echo ""
+> echo "Performing dry-run first..."
+> apt-get remove --dry-run \$PACKAGES
+>
+> echo ""
+> echo "Proceeding with actual removal..."
+> apt-get remove -y \$PACKAGES
+> EOF2
+>
+> chmod +x remove_packages.sh
+>
+> echo ""
+> echo "Done! Files created:"
+> ls -la removal_report.json remove_packages.sh
+> SCRIPT
+user@e69a682ce0a5:~/migration$ chmod +x /home/user/migration/analyze_packages.sh && bash /home/user/migration/analyze_packages.sh
+Total installed: 31
+Total required: 9
+Packages not in required list: 22
+wget vim nano git htop tree ncdu nodejs npm apache2 mysql-client postgresql-client redis-tools netcat-openbsd tcpdump strace lsof dnsutils iputils-ping libssl3
+zlib1g libc6
+
+Collecting dependencies of required packages (up to 3 levels)...
+  Processing: curl
+  Processing: python3
+  Processing: python3-pip
+

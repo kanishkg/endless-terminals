@@ -1,0 +1,298 @@
+[?2004hroot@2c3a681423e2:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@2c3a681423e2:/home/user# clear
+[?2004l[H[J[?2004hroot@2c3a681423e2:/home/user# ls -la /home/user/audit/
+[?2004ltotal 12
+drwxrwxrwx 1 root root 4096 Apr 20 23:09 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 20 23:09 [34;42m..[0m
+-rw-r--r-- 1 root root 3450 Apr 20 23:09 raw_transactions.jsonl
+[?2004hroot@2c3a681423e2:/home/user# cat /home/user/audit/raw_transactions.jsonl
+[?2004l{"transaction_id": "TXN-00000001", "timestamp": "2024-03-15T09:00:00Z", "account_id": "ACC-001", "amount": 150.00, "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000002", "timestamp": "2024-03-15T09:05:30Z", "account_id": "ACC-002", "amount": -75.50, "currency": "EUR", "status": "completed"}
+{"transaction_id": "TXN-00000003", "timestamp": "2024-03-15T08:30:00Z", "account_id": "ACC-001", "amount": 200.00, "currency": "GBP", "status": "pending"}
+this is not valid json at all
+{"transaction_id": "TXN-00000005", "timestamp": "2024-03-15T10:00:00Z", "account_id": "", "amount": 50.00, "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000006", "timestamp": "2024-03-15T10:15:00Z", "account_id": "ACC-003", "amount": 300.00, "currency": "usd", "status": "completed"}
+{"transaction_id": "INVALID-ID", "timestamp": "2024-03-15T10:30:00Z", "account_id": "ACC-004", "amount": 125.75, "currency": "CAD", "status": "completed"}
+{"transaction_id": "TXN-00000008", "timestamp": "2024-03-15T10:45:00Z", "account_id": "ACC-005", "amount": "not_a_number", "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000009", "timestamp": "2024-03-15T11:00:00Z", "account_id": "ACC-006", "amount": 500.00, "currency": "JPY", "status": "completed"}
+{"transaction_id": "TXN-00000010", "timestamp": "invalid-timestamp", "account_id": "ACC-007", "amount": 250.00, "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000011", "timestamp": "2024-03-15T11:30:00Z", "account_id": "ACC-008", "amount": -1000.00, "currency": "USD", "status": "reversed"}
+{"transaction_id": "TXN-00000012", "timestamp": "2024-03-15T11:45:00Z", "account_id": "ACC-009", "amount": 75.25, "currency": "USD", "status": "unknown_status"}
+{malformed json with missing quotes: value}
+{"transaction_id": "TXN-00000014", "timestamp": "2024-03-15T12:00:00Z", "account_id": "ACC-010", "amount": 999.99, "currency": "CHF", "status": "failed"}
+{"timestamp": "2024-03-15T12:15:00Z", "account_id": "ACC-011", "amount": 50.00, "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000016", "timestamp": "2024-03-15T12:30:00Z", "account_id": "ACC-012", "amount": 175.00, "currency": "USD", "status": "pending"}
+{"transaction_id": "TXN-00000017", "timestamp": "2024-03-15T12:45:00Z", "account_id": "ACC-013", "amount": 0.01, "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000018", "account_id": "ACC-014", "amount": 100.00, "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000019", "timestamp": "2024-03-15T13:15:00Z", "account_id": "ACC-015", "amount": -25.00, "currency": "AUD", "status": "completed"}
+{"transaction_id": "TXN-00000020", "timestamp": "2024-03-15T13:30:00Z", "account_id": "ACC-016", "amount": 450.00, "currency": "TOOLONG", "status": "completed"}
+{"transaction_id": "TXN-00000021", "timestamp": "2024-03-15T13:45:00Z", "account_id": "ACC-017", "amount": 600.00, "currency": "NZD", "status": "completed"}
+
+{"transaction_id": "TXN-00000023", "timestamp": "2024-03-15T14:15:00Z", "account_id": "ACC-018", "amount": 85.50, "currency": "USD", "status": "completed"}
+{"transaction_id": "TXN-00000024", "timestamp": "2024-03-15T14:30:00Z", "account_id": "ACC-019", "amount": 320.00, "currency": "EUR", "status": "pending"}
+{"transaction_id": "TXN-00000025", "timestamp": "2024-03-15T07:00:00Z", "account_id": "ACC-020", "amount": 1500.00, "currency": "USD", "status": "completed"}
+[?2004hroot@2c3a681423e2:/home/user# cat > /home/user/audit/process_audit.py << 'EOF'
+[?2004lor_type': 'invalid_format',
+                'error_detail': f"invalid currency format: {record['currency']}", 'raw_content': truncate(raw_line)}
+    
+    # Validate status
+    if not isinstance(record['status'], str) or record['status'] not in VALID_STATUSES:
+        return {'line_number': line_num, 'error_type': 'invalid_value',
+                'error_detail': f"invalid status value: {record['status']}", 'raw_content': truncate(raw_line)}
+    
+    return None  # No errors
+
+def main():
+    valid_records = []
+    error_records = []
+    error_counts = {'malformed_json': 0, 'missing_field': 0, 'invalid_format': 0, 'invalid_value': 0}
+    
+    processing_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    
+    with open(INPUT_FILE, 'r') as f:
+        lines = f.readlines()
+    
+    total_lines = len(lines)
+    
+    for line_num, raw_line in enumerate(lines, 1):
+        raw_line = raw_line.rstrip('\n')
+        
+        # Skip empty lines - treat as malformed JSON
+        if raw_line.strip() == '':
+            error = {'line_number': line_num, 'e[?2004h> import json
+[?2004l[?2004h> import hashlib
+[?2004l[?2004h> import re
+[?2004l[?2004h> from datetime import datetime, timezone
+[?2004l[?2004h> 
+[?2004l[?2004h> INPUT_FILE = '/home/user/audit/raw_transactions.jsonl'
+[?2004l[?2004h> OUTPUT_FILE = '/home/user/audit/clean_audit.jsonl'
+[?2004l[?2004h> ERROR_FILE = '/home/user/audit/error_log.jsonl'
+[?2004l[?2004h> SUMMARY_FILE = '/home/user/audit/processing_summary.txt'
+[?2004l[?2004h> 
+[?2004l[?2004h> REQUIRED_FIELDS = ['transaction_id', 'timestamp', 'account_id', 'amount', 'currency', 'status']
+[?2004l[?2004h> VALID_STATUSES = {'completed', 'pending', 'failed', 'reversed'}
+[?2004l[?2004h> TXN_ID_PATTERN = re.compile(r'^TXN-[0-9]{8}$')
+[?2004l[?2004h> CURRENCY_PATTERN = re.compile(r'^[A-Z]{3}$')
+[?2004l[?2004h> ISO8601_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
+[?2004l[?2004h> 
+[?2004l[?2004h> def validate_iso8601(ts):
+[?2004l[?2004h>     if not ISO8601_PATTERN.match(ts):
+[?2004l[?2004h>         return False
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         datetime.strptime(ts, '%Y-%m-%dT%H:%M:%SZ')
+[?2004l[?2004h>         return True
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         return False
+[?2004l[?2004h> 
+[?2004l[?2004h> def truncate(s, max_len=200):
+[?2004l[?2004h>     return s[:max_len] if len(s) > max_len else s
+[?2004l[?2004h> 
+[?2004l[?2004h> def compute_hash(record):
+[?2004l[?2004h>     amount_str = f"{record['amount']:.2f}"
+[?2004l[?2004h>     canonical = f"{record['transaction_id']}|{record['timestamp']}|{record['account_id']}|{amount_str}|{record['currency']}|{record['status']}"
+[?2004l[?2004h>     return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+[?2004l[?2004h> 
+[?2004l[?2004h> def validate_record(record, line_num, raw_line):
+[?2004l[?2004h>     errors = []
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check missing fields
+[?2004l[?2004h>     for field in REQUIRED_FIELDS:
+[?2004l[?2004h>         if field not in record:
+[?2004l[?2004h>             return {'line_number': line_num, 'error_type': 'missing_field', 
+[?2004l[?2004h>                     'error_detail': f'missing field: {field}', 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Validate transaction_id format
+[?2004l[?2004h>     if not isinstance(record['transaction_id'], str) or not TXN_ID_PATTERN.match(record['transaction_id']):
+[?2004l[?2004h>         return {'line_number': line_num, 'error_type': 'invalid_format',
+[?2004l[?2004h>                 'error_detail': f"invalid transaction_id format: {record['transaction_id']}", 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Validate timestamp format
+[?2004l[?2004h>     if not isinstance(record['timestamp'], str) or not validate_iso8601(record['timestamp']):
+[?2004l[?2004h>         return {'line_number': line_num, 'error_type': 'invalid_format',
+[?2004l[?2004h>                 'error_detail': f"invalid timestamp format: {record['timestamp']}", 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Validate account_id (non-empty string)
+[?2004l[?2004h>     if not isinstance(record['account_id'], str) or record['account_id'] == '':
+[?2004l[?2004h>         return {'line_number': line_num, 'error_type': 'invalid_value',
+[?2004l[?2004h>                 'error_detail': f"invalid account_id: empty or not a string", 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Validate amount (number)
+[?2004l[?2004h>     if not isinstance(record['amount'], (int, float)) or isinstance(record['amount'], bool):
+[?2004l[?2004h>         return {'line_number': line_num, 'error_type': 'invalid_format',
+[?2004l[?2004h>                 'error_detail': f"invalid amount format: {record['amount']}", 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Validate currency (3 uppercase letters)
+[?2004l[?2004h>     if not isinstance(record['currency'], str) or not CURRENCY_PATTERN.match(record['currency']):
+[?2004l[?2004h>         return {'line_number': line_num, 'error_type': 'invalid_format',
+[?2004l[?2004h>                 'error_detail': f"invalid currency format: {record['currency']}", 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Validate status
+[?2004l[?2004h>     if not isinstance(record['status'], str) or record['status'] not in VALID_STATUSES:
+[?2004l[?2004h>         return {'line_number': line_num, 'error_type': 'invalid_value',
+[?2004l[?2004h>                 'error_detail': f"invalid status value: {record['status']}", 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>     
+[?2004l[?2004h>     return None  # No errors
+[?2004l[?2004h> 
+[?2004l[?2004h> def main():
+[?2004l[?2004h>     valid_records = []
+[?2004l[?2004h>     error_records = []
+[?2004l[?2004h>     error_counts = {'malformed_json': 0, 'missing_field': 0, 'invalid_format': 0, 'invalid_value': 0}
+[?2004l[?2004h>     
+[?2004l[?2004h>     processing_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+[?2004l[?2004h>     
+[?2004l[?2004h>     with open(INPUT_FILE, 'r') as f:
+[?2004l[?2004h>         lines = f.readlines()
+[?2004l[?2004h>     
+[?2004l[?2004h>     total_lines = len(lines)
+[?2004l[?2004h>     
+[?2004l[?2004h>     for line_num, raw_line in enumerate(lines, 1):
+[?2004l[?2004h>         raw_line = raw_line.rstrip('\n')
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Skip empty lines - treat as malformed JSON
+[?2004l[?2004h>         if raw_line.strip() == '':
+[?2004l[?2004h>             error = {'line_number': line_num, 'error_type': 'malformed_json',
+[?2004l[?2004h>                     'error_detail': 'empty line', 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>             error_records.append(error)
+[?2004l[?2004h>             error_counts['malformed_json'] += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Try to parse JSON
+[?2004l[?2004h>         try:
+[?2004l[?2004h>             record = json.loads(raw_line)
+[?2004l[?2004h>         except json.JSONDecodeError as e:
+[?2004l[?2004h>             error = {'line_number': line_num, 'error_type': 'malformed_json',
+[?2004l[?2004h>                     'error_detail': f'JSON parse error: {str(e)[:100]}', 'raw_content': truncate(raw_line)}
+[?2004l[?2004h>             error_records.append(error)
+[?2004l[?2004h>             error_counts['malformed_json'] += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Validate record
+[?2004l[?2004h>         validation_error = validate_record(record, line_num, raw_line)
+[?2004l[?2004h>         if validation_error:
+[?2004l[?2004h>             error_records.append(validation_error)
+[?2004l[?2004h>             error_counts[validation_error['error_type']] += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Record is valid - compute hash and prepare output
+[?2004l[?2004h>         integrity_hash = compute_hash(record)
+[?2004l[?2004h>         output_record = {
+[?2004l[?2004h>             'transaction_id': record['transaction_id'],
+[?2004l[?2004h>             'timestamp': record['timestamp'],
+[?2004l[?2004h>             'account_id': record['account_id'],
+[?2004l[?2004h>             'amount': record['amount'],
+[?2004l[?2004h>             'currency': record['currency'],
+[?2004l[?2004h>             'status': record['status'],
+[?2004l[?2004h>             'integrity_hash': integrity_hash,
+[?2004l[?2004h>             'processed_at': processing_time
+[?2004l[?2004h>         }
+[?2004l[?2004h>         valid_records.append(output_record)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Sort valid records by timestamp
+[?2004l[?2004h>     valid_records.sort(key=lambda x: x['timestamp'])
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Write clean audit file
+[?2004l[?2004h>     with open(OUTPUT_FILE, 'w') as f:
+[?2004l[?2004h>         for record in valid_records:
+[?2004l[?2004h>             f.write(json.dumps(record) + '\n')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Write error log
+[?2004l[?2004h>     with open(ERROR_FILE, 'w') as f:
+[?2004l[?2004h>         for error in error_records:
+[?2004l[?2004h>             f.write(json.dumps(error) + '\n')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Calculate success rate
+[?2004l[?2004h>     valid_count = len(valid_records)
+[?2004l[?2004h>     failed_count = len(error_records)
+[?2004l[?2004h>     success_rate = (valid_count / total_lines * 100) if total_lines > 0 else 0.0
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Write summary
+[?2004l[?2004h>     summary = f"""AUDIT PROCESSING SUMMARY
+[?2004l[?2004h> ========================
+[?2004l[?2004h> Input file: {INPUT_FILE}
+[?2004l[?2004h> Total lines processed: {total_lines}
+[?2004l[?2004h> Valid transactions: {valid_count}
+[?2004l[?2004h> Failed records: {failed_count}
+[?2004l[?2004h> Success rate: {success_rate:.2f}%
+[?2004l[?2004h> 
+[?2004l[?2004h> Errors by type:
+[?2004l[?2004h>   malformed_json: {error_counts['malformed_json']}
+[?2004l[?2004h>   missing_field: {error_counts['missing_field']}
+[?2004l[?2004h>   invalid_format: {error_counts['invalid_format']}
+[?2004l[?2004h>   invalid_value: {error_counts['invalid_value']}
+[?2004l[?2004h> 
+[?2004l[?2004h> Processing completed at: {processing_time}
+[?2004l[?2004h> """
+[?2004l[?2004h>     
+[?2004l[?2004h>     with open(SUMMARY_FILE, 'w') as f:
+[?2004l[?2004h>         f.write(summary)
+[?2004l[?2004h>     
+[?2004l[?2004h>     print(f"Processing complete.")
+[?2004l[?2004h>     print(f"Valid: {valid_count}, Errors: {failed_count}")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     main()
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@2c3a681423e2:/home/user# python3 /home/user/audit/process_audit.py
+[?2004lProcessing complete.
+Valid: 13, Errors: 12
+[?2004hroot@2c3a681423e2:/home/user# cat /home/user/audit/processing_summary.txt
+[?2004lAUDIT PROCESSING SUMMARY
+========================
+Input file: /home/user/audit/raw_transactions.jsonl
+Total lines processed: 25
+Valid transactions: 13
+Failed records: 12
+Success rate: 52.00%
+
+Errors by type:
+  malformed_json: 3
+  missing_field: 2
+  invalid_format: 5
+  invalid_value: 2
+
+Processing completed at: 2026-04-21T00:45:51Z
+[?2004hroot@2c3a681423e2:/home/user# cat /home/user/audit/clean_audit.jsonl
+[?2004l{"transaction_id": "TXN-00000025", "timestamp": "2024-03-15T07:00:00Z", "account_id": "ACC-020", "amount": 1500.0, "currency": "USD", "status": "completed", "integrity_hash": "17ce88f1d5377fcc9acb43e7baa628086d36d611a26c61657ea0c83f0f680796", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000003", "timestamp": "2024-03-15T08:30:00Z", "account_id": "ACC-001", "amount": 200.0, "currency": "GBP", "status": "pending", "integrity_hash": "26eb8261714887e46fca9af6598d41a648b93c984d030e1f534d0c971650e1cc", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000001", "timestamp": "2024-03-15T09:00:00Z", "account_id": "ACC-001", "amount": 150.0, "currency": "USD", "status": "completed", "integrity_hash": "9a87d2cb2efbc19b398c0722d8fbbe10476fe7763eb8ebee1195931c5d73f4a6", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000002", "timestamp": "2024-03-15T09:05:30Z", "account_id": "ACC-002", "amount": -75.5, "currency": "EUR", "status": "completed", "integrity_hash": "07bef3064e2cbdaf6623712040f6242d90257be8f6a128cb8f3dfe6c0b52a6e1", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000009", "timestamp": "2024-03-15T11:00:00Z", "account_id": "ACC-006", "amount": 500.0, "currency": "JPY", "status": "completed", "integrity_hash": "b52fee5f609218474255d61402566b213e761477d07521d8e54122b44de1f5e7", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000011", "timestamp": "2024-03-15T11:30:00Z", "account_id": "ACC-008", "amount": -1000.0, "currency": "USD", "status": "reversed", "integrity_hash": "f30c06b08903052f8f068940e22e566c406eec0c5eeae6cfcba7a2124d7eb22a", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000014", "timestamp": "2024-03-15T12:00:00Z", "account_id": "ACC-010", "amount": 999.99, "currency": "CHF", "status": "failed", "integrity_hash": "65be1575e231cc75ac8ad20f92fed3ed31dce86870e5895ff00e0006293f34a6", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000016", "timestamp": "2024-03-15T12:30:00Z", "account_id": "ACC-012", "amount": 175.0, "currency": "USD", "status": "pending", "integrity_hash": "696afce45f222ce1bcb73f3cf384b94f0e3b798d7a872a699197d64e7363a463", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000017", "timestamp": "2024-03-15T12:45:00Z", "account_id": "ACC-013", "amount": 0.01, "currency": "USD", "status": "completed", "integrity_hash": "bb60351fd2cfeca88f8bda2a7f5fdee52cd79572f6b2738ff2acbe249e2e17f2", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000019", "timestamp": "2024-03-15T13:15:00Z", "account_id": "ACC-015", "amount": -25.0, "currency": "AUD", "status": "completed", "integrity_hash": "bf7bfc39f025eafbc2591ddf789667641eef0ae3846b39c5facff2540e392ec9", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000021", "timestamp": "2024-03-15T13:45:00Z", "account_id": "ACC-017", "amount": 600.0, "currency": "NZD", "status": "completed", "integrity_hash": "adccb696f5db60180932f01e6a669e5880b4e6b7f443425362799d2fe42ba63e", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000023", "timestamp": "2024-03-15T14:15:00Z", "account_id": "ACC-018", "amount": 85.5, "currency": "USD", "status": "completed", "integrity_hash": "7b75fd22bc58009981d2c5fe8cdaa182f79d7baa0e0aa12a3e8a2dd293148567", "processed_at": "2026-04-21T00:45:51Z"}
+{"transaction_id": "TXN-00000024", "timestamp": "2024-03-15T14:30:00Z", "account_id": "ACC-019", "amount": 320.0, "currency": "EUR", "status": "pending", "integrity_hash": "af6fea418dc74a25ec8f15df43c208c3fcf829325a764e135ecf2f26f188e1d8", "processed_at": "2026-04-21T00:45:51Z"}
+[?2004hroot@2c3a681423e2:/home/user# cat /home/user/audit/error_log.jsonl
+[?2004l{"line_number": 4, "error_type": "malformed_json", "error_detail": "JSON parse error: Expecting value: line 1 column 1 (char 0)", "raw_content": "this is not valid json at all"}
+{"line_number": 5, "error_type": "invalid_value", "error_detail": "invalid account_id: empty or not a string", "raw_content": "{\"transaction_id\": \"TXN-00000005\", \"timestamp\": \"2024-03-15T10:00:00Z\", \"account_id\": \"\", \"amount\": 50.00, \"currency\": \"USD\", \"status\": \"completed\"}"}
+{"line_number": 6, "error_type": "invalid_format", "error_detail": "invalid currency format: usd", "raw_content": "{\"transaction_id\": \"TXN-00000006\", \"timestamp\": \"2024-03-15T10:15:00Z\", \"account_id\": \"ACC-003\", \"amount\": 300.00, \"currency\": \"usd\", \"status\": \"completed\"}"}
+{"line_number": 7, "error_type": "invalid_format", "error_detail": "invalid transaction_id format: INVALID-ID", "raw_content": "{\"transaction_id\": \"INVALID-ID\", \"timestamp\": \"2024-03-15T10:30:00Z\", \"account_id\": \"ACC-004\", \"amount\": 125.75, \"currency\": \"CAD\", \"status\": \"completed\"}"}
+{"line_number": 8, "error_type": "invalid_format", "error_detail": "invalid amount format: not_a_number", "raw_content": "{\"transaction_id\": \"TXN-00000008\", \"timestamp\": \"2024-03-15T10:45:00Z\", \"account_id\": \"ACC-005\", \"amount\": \"not_a_number\", \"currency\": \"USD\", \"status\": \"completed\"}"}
+{"line_number": 10, "error_type": "invalid_format", "error_detail": "invalid timestamp format: invalid-timestamp", "raw_content": "{\"transaction_id\": \"TXN-00000010\", \"timestamp\": \"invalid-timestamp\", \"account_id\": \"ACC-007\", \"amount\": 250.00, \"currency\": \"USD\", \"status\": \"completed\"}"}
+{"line_number": 12, "error_type": "invalid_value", "error_detail": "invalid status value: unknown_status", "raw_content": "{\"transaction_id\": \"TXN-00000012\", \"timestamp\": \"2024-03-15T11:45:00Z\", \"account_id\": \"ACC-009\", \"amount\": 75.25, \"currency\": \"USD\", \"status\": \"unknown_status\"}"}
+{"line_number": 13, "error_type": "malformed_json", "error_detail": "JSON parse error: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)", "raw_content": "{malformed json with missing quotes: value}"}
+{"line_number": 15, "error_type": "missing_field", "error_detail": "missing field: transaction_id", "raw_content": "{\"timestamp\": \"2024-03-15T12:15:00Z\", \"account_id\": \"ACC-011\", \"amount\": 50.00, \"currency\": \"USD\", \"status\": \"completed\"}"}
+{"line_number": 18, "error_type": "missing_field", "error_detail": "missing field: timestamp", "raw_content": "{\"transaction_id\": \"TXN-00000018\", \"account_id\": \"ACC-014\", \"amount\": 100.00, \"currency\": \"USD\", \"status\": \"completed\"}"}
+{"line_number": 20, "error_type": "invalid_format", "error_detail": "invalid currency format: TOOLONG", "raw_content": "{\"transaction_id\": \"TXN-00000020\", \"timestamp\": \"2024-03-15T13:30:00Z\", \"account_id\": \"ACC-016\", \"amount\": 450.00, \"currency\": \"TOOLONG\", \"status\": \"completed\"}"}
+{"line_number": 22, "error_type": "malformed_json", "error_detail": "empty line", "raw_content": ""}
+[?2004hroot@2c3a681423e2:/home/user# wc -l /home/user/audit/clean_audit.jsonl /home/user/audit/error_log.jsonl
+[?2004l  13 /home/user/audit/clean_audit.jsonl
+  12 /home/user/audit/error_log.jsonl
+  25 total
+[?2004hroot@2c3a681423e2:/home/user# head -1 /home/user/audit/clean_audit.jsonl | python3 -m json.tool
+[?2004l{
+    "transaction_id": "TXN-00000025",
+    "timestamp": "2024-03-15T07:00:00Z",
+    "account_id": "ACC-020",
+    "amount": 1500.0,
+    "currency": "USD",
+    "status": "completed",
+    "integrity_hash": "17ce88f1d5377fcc9acb43e7baa628086d36d611a26c61657ea0c83f0f680796",
+    "processed_at": "2026-04-21T00:45:51Z"
+}
+[?2004hroot@2c3a681423e2:/home/user# 

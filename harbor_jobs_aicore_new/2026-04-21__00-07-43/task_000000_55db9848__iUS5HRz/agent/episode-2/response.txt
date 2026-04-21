@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "Report 1 is complete with 7 large files (>=10MB) properly formatted and sorted. The files are sorted by size descending, and I can see the two 15MB files are sorted alphabetically (app.log before presentation.pptx). Now I need to create Report 2 (extension_summary.csv) and Report 3 (directory_rollup.txt).",
+  "plan": "Create Report 2: Extract file extensions from the inventory, excluding directory entries (those 4096-byte entries that are directories). I need to get the extension after the last dot, convert to lowercase, use NO_EXTENSION for files without dots, sum bytes by extension, and output as CSV sorted by total_bytes descending.",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\nBEGIN { OFS=\",\" }\n{\n  path = $2\n  bytes = $1\n  # Skip directory entries (paths that are /var/data or /var/data/X or /var/data/X/Y where they are dirs)\n  if (path == \"/var/data\") next\n  if (path == \"/var/data/logs\") next\n  if (path == \"/var/data/backups\") next\n  if (path == \"/var/data/cache\") next\n  if (path == \"/var/data/cache/thumbnails\") next\n  if (path == \"/var/data/uploads\") next\n  if (path == \"/var/data/archives\") next\n  \n  # Get filename from path\n  n = split(path, parts, \"/\")\n  filename = parts[n]\n  \n  # Get extension\n  if (index(filename, \".\") > 0) {\n    n = split(filename, fparts, \".\")\n    ext = tolower(fparts[n])\n  } else {\n    ext = \"NO_EXTENSION\"\n  }\n  \n  totals[ext] += bytes\n}\nEND {\n  print \"extension,total_bytes\"\n  for (ext in totals) {\n    print ext, totals[ext]\n  }\n}' /home/user/disk_inventory.txt | (read header; echo \"$header\"; sort -t',' -k2,2nr) > /home/user/reports/extension_summary.csv\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/extension_summary.csv\n",
+      "duration": 0.2
+    }
+  ]
+}
+```

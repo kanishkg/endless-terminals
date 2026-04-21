@@ -1,0 +1,43 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@8aa4118d9ef3:/home/user# awk -F'\t' '
+> BEGIN { total = 0 }
+> {
+>   # Skip directory entries (lines where path is just a directory)
+>   if ($2 == "/var/data" || $2 ~ /^\/var\/data\/[^\/]+$/ || $2 ~ /^\/var\/data\/[^\/]+\/[^\/]+$/ && $1 == 4096) {
+>     # Check if it looks like a directory entry
+>     n = split($2, p, "/");
+>     fname = p[n];
+>     if (fname !~ /\./ && $1 == 4096) next;
+>   }
+>
+>   # Extract immediate subdirectory
+>   if (match($2, /^\/var\/data\/([^\/]+)/, arr)) {
+>     subdir = arr[1];
+>     # Only count if this is a file (not the subdir entry itself)
+>     if ($2 != "/var/data/" subdir) {
+>       sizes[subdir] += $1;
+>       total += $1;
+>     } else if ($1 != 4096) {
+>       sizes[subdir] += $1;
+>       total += $1;
+>     }
+>   }
+> }
+> END {
+>   for (d in sizes) {
+>     pct = (sizes[d] / total) * 100;
+>     printf "%s %d %.1f%%\n", d, sizes[d], pct;
+>   }
+> }' /home/user/disk_inventory.txt | sort -t' ' -k2 -nr > /home/user/reports/directory_rollup.txt
+root@8aa4118d9ef3:/home/user# cat /home/user/reports/directory_rollup.txt
+archives 144703488 51.4%
+backups 65011712 23.1%
+uploads 27787264 9.9%
+cache 22806528 8.1%
+logs 20971520 7.5%
+root@8aa4118d9ef3:/home/user#

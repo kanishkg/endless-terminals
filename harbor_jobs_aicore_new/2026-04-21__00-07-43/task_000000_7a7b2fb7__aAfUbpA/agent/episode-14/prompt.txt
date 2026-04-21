@@ -1,0 +1,21 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+  - curl (direct)
+user@5e86544927f4:~/migration$ # Get package info for removable packages (version and size)
+user@5e86544927f4:~/migration$ echo "Package|Version|Size_KB" > package_info.txt
+user@5e86544927f4:~/migration$ for pkg in $(cat removable_packages.txt); do
+>   info=$(dpkg-query -W -f='${Package}|${Version}|${Installed-Size}' "$pkg" 2>/dev/null)
+>   if [ -n "$info" ]; then
+>     echo "$info"
+>   else
+>     # Try apt-cache show as fallback
+>     ver=$(apt-cache show "$pkg" 2>/dev/null | grep -m1 '^Version:' | cut -d' ' -f2)
+>     size=$(apt-cache show "$pkg" 2>/dev/null | grep -m1 '^Installed-Size:' | cut -d' ' -f2)
+>     echo "$pkg|${ver:-unknown}|${size:-0}"
+>   fi
+> done >> package_info.txt
+

@@ -1,0 +1,55 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@9fac5ed1067a:/home/user# python3 << 'EOF'
+> import re
+>
+> # Read the YAML file
+> with open('/etc/monitoring/alerts.yaml', 'r') as f:
+>     yaml_content = f.read()
+>
+> # 1. Change HighLatency 'for' duration from 5m to 3m
+> yaml_content = re.sub(
+>     r'(- alert: HighLatency\n.*?\n.*?for: )5m',
+>     r'\g<1>3m',
+>     yaml_content,
+>     flags=re.DOTALL
+> )
+>
+> # 2. Add escalation_level: critical to ServiceDown labels
+> # Find ServiceDown and add the new label after existing labels
+> yaml_content = re.sub(
+>     r'(- alert: ServiceDown\n.*?labels:\n.*?severity: critical\n.*?team: platform)',
+>     r'\1\n          escalation_level: critical',
+>     yaml_content,
+>     flags=re.DOTALL
+> )
+>
+> # 3. Add DiskSpaceLow alert before the closing of rules list (after HighMemoryUsage)
+> new_alert = '''      - alert: DiskSpaceLow
+>         expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+>         for: 10m
+>         labels:
+>           severity: warning
+>           team: infrastructure
+>         annotations:
+>           summary: "Disk space below 10% on {{ $labels.instance }}"'''
+>
+> # Add after HighMemoryUsage alert
+> yaml_content = re.sub(
+>     r'(- alert: HighMemoryUsage\n.*?summary: "Memory usage critical on \{\{ \$labels.instance \}\}")',
+>     r'\1\n\n' + new_alert,
+>     yaml_content,
+>     flags=re.DOTALL
+> )
+>
+> with open('/etc/monitoring/alerts.yaml', 'w') as f:
+>     f.write(yaml_content)
+>
+> print("YAML file updated successfully")
+> EOF
+YAML file updated successfully
+root@9fac5ed1067a:/home/user#

@@ -1,0 +1,93 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@beec0d9caecb:/home/user# python3 << 'EOF'
+> import sys
+>
+> # Read the YAML file
+> with open('/etc/monitoring/alerts.yaml', 'r') as f:
+>     lines = f.readlines()
+>
+> # Process YAML - we'll do this line by line to preserve comments and structure
+> output_lines = []
+> i = 0
+> while i < len(lines):
+>     line = lines[i]
+>
+>     # Check for HighLatency alert and modify the 'for' duration
+>     if 'alert: HighLatency' in line:
+>         output_lines.append(line)
+>         i += 1
+>         # Process until we find and modify the 'for' field
+>         while i < len(lines) and not lines[i].strip().startswith('- alert:'):
+>             if lines[i].strip().startswith('for:'):
+>                 indent = len(lines[i]) - len(lines[i].lstrip())
+>                 output_lines.append(' ' * indent + 'for: 3m\n')
+>             else:
+>                 output_lines.append(lines[i])
+>             i += 1
+>         continue
+>
+>     # Check for ServiceDown alert and add escalation_level label
+>     elif 'alert: ServiceDown' in line:
+>         output_lines.append(line)
+>         i += 1
+>         in_labels = False
+>         labels_indent = 0
+>         while i < len(lines) and not lines[i].strip().startswith('- alert:'):
+>             if lines[i].strip().startswith('labels:'):
+>                 in_labels = True
+>                 output_lines.append(lines[i])
+>                 i += 1
+>                 continue
+>             elif in_labels and lines[i].strip() and not lines[i].strip().startswith('#'):
+>                 # Check if we're still in labels section
+>                 current_indent = len(lines[i]) - len(lines[i].lstrip())
+>                 if labels_indent == 0:
+>                     labels_indent = current_indent
+>                 if current_indent >= labels_indent and ':' in lines[i] and not lines[i].strip().startswith('annotations'):
+>                     output_lines.append(lines[i])
+>                     # Check if next line exits labels section
+>                     if i + 1 < len(lines):
+>                         next_line = lines[i + 1]
+>                         next_stripped = next_line.strip()
+>                         if next_stripped.startswith('annotations:') or next_stripped.startswith('- alert:'):
+>                             # Add escalation_level before leaving labels
+>                             output_lines.append(' ' * labels_indent + 'escalation_level: critical\n')
+>                             in_labels = False
+>                 else:
+>                     if in_labels:
+>                         output_lines.append(' ' * labels_indent + 'escalation_level: critical\n')
+>                         in_labels = False
+>                     output_lines.append(lines[i])
+>             else:
+>                 output_lines.append(lines[i])
+>             i += 1
+>         continue
+>
+>     output_lines.append(line)
+>     i += 1
+>
+> # Add the new DiskSpaceLow alert at the end
+> new_alert = '''\n      - alert: DiskSpaceLow
+>         expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+>         for: 10m
+>         labels:
+>           severity: warning
+>           team: infrastructure
+>         annotations:
+>           summary: "Disk space below 10% on {{ $labels.instance }}"
+> '''
+>
+> output_lines.append(new_alert)
+>
+> with open('/etc/monitoring/alerts.yaml', 'w') as f:
+>     f.writelines(output_lines)
+>
+> print('YAML file updated')
+> EOF
+YAML file updated
+root@beec0d9caecb:/home/user#

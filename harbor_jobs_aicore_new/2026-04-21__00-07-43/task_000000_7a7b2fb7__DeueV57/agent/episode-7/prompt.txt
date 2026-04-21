@@ -1,0 +1,88 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@69082c9a90ea:~/migration$ cat > build_report.sh << 'EOF'
+> #!/bin/bash
+>
+> # Lists from analysis
+> REMOVABLE=(apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim
+wget)
+> PROTECTED=(libc6 libssl3 zlib1g)
+>
+> # Get package info
+> TOTAL_SIZE=0
+> REMOVABLE_JSON=""
+>
+> for pkg in "${REMOVABLE[@]}"; do
+>     echo "Processing: $pkg"
+>
+>     # Try dpkg-query first, then apt-cache
+>     VERSION=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null)
+>     if [[ -z "$VERSION" ]]; then
+>         VERSION=$(apt-cache show "$pkg" 2>/dev/null | grep -m1 "^Version:" | awk '{print $2}')
+>     fi
+>     [[ -z "$VERSION" ]] && VERSION="unknown"
+>
+>     # Get size
+>     SIZE=$(dpkg-query -W -f='${Installed-Size}' "$pkg" 2>/dev/null)
+>     if [[ -z "$SIZE" || "$SIZE" == "" ]]; then
+>         SIZE=$(apt-cache show "$pkg" 2>/dev/null | grep -m1 "^Installed-Size:" | awk '{print $2}')
+>     fi
+>     [[ -z "$SIZE" || ! "$SIZE" =~ ^[0-9]+$ ]] && SIZE=0
+>
+>     TOTAL_SIZE=$((TOTAL_SIZE + SIZE))
+>
+>     # Check for security updates
+>     HAS_SECURITY="false"
+>     POLICY=$(apt-cache policy "$pkg" 2>/dev/null)
+>     if echo "$POLICY" | grep -q "security"; then
+>         INSTALLED_VER=$(echo "$POLICY" | grep "Installed:" | awk '{print $2}')
+>         CANDIDATE_VER=$(echo "$POLICY" | grep "Candidate:" | awk '{print $2}')
+>         if [[ "$INSTALLED_VER" != "$CANDIDATE_VER" && "$INSTALLED_VER" != "(none)" ]]; then
+>             HAS_SECURITY="true"
+>         fi
+>     fi
+>
+>     [[ -n "$REMOVABLE_JSON" ]] && REMOVABLE_JSON="$REMOVABLE_JSON,"
+>     REMOVABLE_JSON="$REMOVABLE_JSON
+>     {\"name\": \"$pkg\", \"installed_version\": \"$VERSION\", \"size_kb\": $SIZE, \"has_security_update\": $HAS_SECURITY}"
+> done
+>
+> echo "Total size: $TOTAL_SIZE KB"
+>
+> # Build protected JSON
+> PROTECTED_JSON='
+>     {"name": "libc6", "required_by": ["bash", "ca-certificates", "coreutils", "curl", "jq", "nginx", "openssl", "python3", "python3-pip"]},
+>     {"name": "libssl3", "required_by": ["ca-certificates", "curl", "nginx", "openssl", "python3-pip"]},
+>     {"name": "zlib1g", "required_by": ["curl", "nginx", "python3"]}'
+>
+> # Write JSON
+> cat > removal_report.json << ENDJSON
+> {
+>   "summary": {
+>     "total_installed": 31,
+>     "total_required": 9,
+>     "removable_count": 19,
+>     "kept_as_dependencies": 3,
+>     "total_space_savings_kb": $TOTAL_SIZE
+>   },
+>   "removable_packages": [$REMOVABLE_JSON
+>   ],
+>   "dependency_protected": [$PROTECTED_JSON
+>   ]
+> }
+> ENDJSON
+>
+> echo "Done!"
+> EOF
+user@69082c9a90ea:~/migration$ chmod +x build_report.sh
+user@69082c9a90ea:~/migration$ bash build_report.sh
+Processing: apache2
+Processing: dnsutils
+Processing: git
+Processing: htop
+Processing: iputils-ping
+

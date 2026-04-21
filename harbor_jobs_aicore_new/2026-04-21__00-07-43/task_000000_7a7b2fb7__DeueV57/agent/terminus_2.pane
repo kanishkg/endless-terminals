@@ -1,0 +1,476 @@
+[?2004huser@69082c9a90ea:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@69082c9a90ea:~$ clear
+[?2004l[H[J[?2004huser@69082c9a90ea:~$ cd /home/user/migration && ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 user user 4096 Apr 20 23:18 .
+drwxrwxrwx 1 user user 4096 Apr 21 00:59 ..
+-rw-r--r-- 1 user user  246 Apr 20 23:18 installed_packages.txt
+-rw-r--r-- 1 user user   73 Apr 20 23:18 required_packages.txt
+[?2004huser@69082c9a90ea:~/migration$ cat installed_packages.txt
+[?2004lcurl
+wget
+vim
+nano
+git
+htop
+tree
+ncdu
+jq
+python3
+python3-pip
+nodejs
+npm
+nginx
+apache2
+mysql-client
+postgresql-client
+redis-tools
+netcat-openbsd
+tcpdump
+strace
+lsof
+dnsutils
+iputils-ping
+ca-certificates
+openssl
+libssl3
+zlib1g
+libc6
+coreutils
+bash
+[?2004huser@69082c9a90ea:~/migration$ cat required_packages.txt
+[?2004lcurl
+python3
+python3-pip
+jq
+nginx
+ca-certificates
+openssl
+bash
+coreutils
+[?2004huser@69082c9a90ea:~/migration$ cat > analyze_packages.sh << 'SCRIPT'
+[?2004l that need this dependency
+            PROTECTED_BY["$pkg"]=$(echo "${DEP_OF[$pkg]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+        else
+            REMOVABLE+=("$pkg")
+        fi
+    fi
+done
+
+# Sort arrays
+IFS=$'\n' REMOVABLE_SORTED=($(sort <<<"${REMOVABLE[*]}"))
+IFS=$'\n' PROTECTED_SORTED=($(sort <<<"${PROTECTED[*]}"))
+unset IFS
+
+echo "Removable: ${REMOVABLE_SORTED[@]}"
+echo "Protected: ${PROTECTED_SORTED[@]}"
+
+# Get package info and build JSON
+TOTAL_SIZE=0
+
+echo "Getting package details..."
+
+# Start building JSON
+echo '{' > removal_report.json
+
+# Build removable_packages array
+REMOVABLE_JSON=''
+for pkg in "${REMOVABLE_SORTED[@]}"; do
+    # Get installed version
+    VERSION=$(dpkg-query -W -f='\${Version}' "$pkg" 2>/dev/null || echo "unknown")
+    
+    # Get installed size in KB
+    SIZE=$(dpkg-query -W -f='\${Installed-Size}' "$pkg" 2>/dev/null || echo "0")
+    TOTAL_SIZE=$((TOTAL_SIZE + SIZE))
+    
+    # Check for security updates
+    POLICY=$(apt-cache policy "$pkg" 2>/dev/null)
+    CANDIDATE=$(echo "$POLICY" | grep "Candidate:" | awk '{print $2}')
+    HAS_SECURITY="false"
+    if echo "$POLICY" | grep -q "security"; then
+        if [[ "$VERSION" != "$CANDIDATE" ]]; then
+            HAS_SECURITY="true"
+        fi
+    fi
+    
+    if [[ -n "$REMOVABLE_JSON" ]]; then
+        REMOVABLE_JSON="$REMOVABLE_JSON,"
+    fi
+    REMOVABLE_JSON="$REMOVABLE_JSON
+    {\"name\": \"$pkg\", \"installed_version\": \"$VERSION\", \"size_kb\": $SIZE, \"has_security_update\": $HAS_SECURITY}"
+done
+
+# Build dependency_protected array
+PROTECTED_JSON=''
+for pkg in "${PROTECTED_SORTED[@]}"; do
+    DEPS=$(echo "${PROTECTED_BY[$pkg]}" | xargs -n1 | sort -u | xargs)
+    DEPS_ARRAY=$(echo "$DEPS" | tr ' ' '\n' | grep -v '^$' | sed 's/.*$/"&"/' | tr '\n' ',' | sed 's/,$//')
+    
+    if [[ -n "$PROTECTED_JSON" ]]; then
+        PROTECTED_JSON="$PROTECTED_JSON,"
+    fi
+    PROTECTED_JSON="$PROTECTED_JSON
+    {\"name\": \"$pkg\", \"required_by\": [$DEPS_ARRAY]}"
+done
+
+# Write final JSON
+cat > removal_report.json << EOF
+{
+  "summary": {
+    "total_installed": ${#INSTALLED[@]},
+    "t[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read package lists
+[?2004l[?2004h> mapfile -t INSTALLED < installed_packages.txt
+[?2004l[?2004h> mapfile -t REQUIRED < required_packages.txt
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Installed packages: ${#INSTALLED[@]}"
+[?2004l[?2004h> echo "Required packages: ${#REQUIRED[@]}"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Create associative arrays
+[?2004l[?2004h> declare -A IS_REQUIRED
+[?2004l[?2004h> declare -A IS_INSTALLED
+[?2004l[?2004h> declare -A IS_DEPENDENCY
+[?2004l[?2004h> declare -A DEP_OF
+[?2004l[?2004h> 
+[?2004l[?2004h> for pkg in "${REQUIRED[@]}"; do
+[?2004l[?2004h>     IS_REQUIRED["$pkg"]=1
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> for pkg in "${INSTALLED[@]}"; do
+[?2004l[?2004h>     IS_INSTALLED["$pkg"]=1
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Function to get dependencies of a package
+[?2004l[?2004h> get_deps() {
+[?2004l[?2004h>     local pkg="$1"
+[?2004l[?2004h>     apt-cache depends "$pkg" 2>/dev/null | grep -E "^\s*(Depends|PreDepends):" | awk '{print $2}' | sed 's/<\|>//g' | sort -u
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Build dependency tree up to 3 levels for required packages
+[?2004l[?2004h> echo "Building dependency tree..."
+[?2004l[?2004h> for req_pkg in "${REQUIRED[@]}"; do
+[?2004l[?2004h>     echo "  Checking deps for: $req_pkg"
+[?2004l[?2004h>     # Level 1
+[?2004l[?2004h>     for dep1 in $(get_deps "$req_pkg"); do
+[?2004l[?2004h>         if [[ -n "$dep1" && "${IS_INSTALLED[$dep1]}" == "1" ]]; then
+[?2004l[?2004h>             IS_DEPENDENCY["$dep1"]=1
+[?2004l[?2004h>             DEP_OF["$dep1"]="${DEP_OF[$dep1]} $req_pkg"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>         # Level 2
+[?2004l[?2004h>         for dep2 in $(get_deps "$dep1"); do
+[?2004l[?2004h>             if [[ -n "$dep2" && "${IS_INSTALLED[$dep2]}" == "1" ]]; then
+[?2004l[?2004h>                 IS_DEPENDENCY["$dep2"]=1
+[?2004l[?2004h>                 DEP_OF["$dep2"]="${DEP_OF[$dep2]} $req_pkg"
+[?2004l[?2004h>             fi
+[?2004l[?2004h>             # Level 3
+[?2004l[?2004h>             for dep3 in $(get_deps "$dep2"); do
+[?2004l[?2004h>                 if [[ -n "$dep3" && "${IS_INSTALLED[$dep3]}" == "1" ]]; then
+[?2004l[?2004h>                     IS_DEPENDENCY["$dep3"]=1
+[?2004l[?2004h>                     DEP_OF["$dep3"]="${DEP_OF[$dep3]} $req_pkg"
+[?2004l[?2004h>                 fi
+[?2004l[?2004h>             done
+[?2004l[?2004h>         done
+[?2004l[?2004h>     done
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Dependencies found: ${!IS_DEPENDENCY[@]}"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Identify removable and protected packages
+[?2004l[?2004h> declare -a REMOVABLE
+[?2004l[?2004h> declare -a PROTECTED
+[?2004l[?2004h> declare -A PROTECTED_BY
+[?2004l[?2004h> 
+[?2004l[?2004h> for pkg in "${INSTALLED[@]}"; do
+[?2004l[?2004h>     if [[ "${IS_REQUIRED[$pkg]}" != "1" ]]; then
+[?2004l[?2004h>         if [[ "${IS_DEPENDENCY[$pkg]}" == "1" ]]; then
+[?2004l[?2004h>             PROTECTED+=("$pkg")
+[?2004l[?2004h>             # Get unique list of packages that need this dependency
+[?2004l[?2004h>             PROTECTED_BY["$pkg"]=$(echo "${DEP_OF[$pkg]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+[?2004l[?2004h>         else
+[?2004l[?2004h>             REMOVABLE+=("$pkg")
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Sort arrays
+[?2004l[?2004h> IFS=$'\n' REMOVABLE_SORTED=($(sort <<<"${REMOVABLE[*]}"))
+[?2004l[?2004h> IFS=$'\n' PROTECTED_SORTED=($(sort <<<"${PROTECTED[*]}"))
+[?2004l[?2004h> unset IFS
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Removable: ${REMOVABLE_SORTED[@]}"
+[?2004l[?2004h> echo "Protected: ${PROTECTED_SORTED[@]}"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Get package info and build JSON
+[?2004l[?2004h> TOTAL_SIZE=0
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Getting package details..."
+[?2004l[?2004h> 
+[?2004l[?2004h> # Start building JSON
+[?2004l[?2004h> echo '{' > removal_report.json
+[?2004l[?2004h> 
+[?2004l[?2004h> # Build removable_packages array
+[?2004l[?2004h> REMOVABLE_JSON=''
+[?2004l[?2004h> for pkg in "${REMOVABLE_SORTED[@]}"; do
+[?2004l[?2004h>     # Get installed version
+[?2004l[?2004h>     VERSION=$(dpkg-query -W -f='\${Version}' "$pkg" 2>/dev/null || echo "unknown")
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Get installed size in KB
+[?2004l[?2004h>     SIZE=$(dpkg-query -W -f='\${Installed-Size}' "$pkg" 2>/dev/null || echo "0")
+[?2004l[?2004h>     TOTAL_SIZE=$((TOTAL_SIZE + SIZE))
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check for security updates
+[?2004l[?2004h>     POLICY=$(apt-cache policy "$pkg" 2>/dev/null)
+[?2004l[?2004h>     CANDIDATE=$(echo "$POLICY" | grep "Candidate:" | awk '{print $2}')
+[?2004l[?2004h>     HAS_SECURITY="false"
+[?2004l[?2004h>     if echo "$POLICY" | grep -q "security"; then
+[?2004l[?2004h>         if [[ "$VERSION" != "$CANDIDATE" ]]; then
+[?2004l[?2004h>             HAS_SECURITY="true"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [[ -n "$REMOVABLE_JSON" ]]; then
+[?2004l[?2004h>         REMOVABLE_JSON="$REMOVABLE_JSON,"
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     REMOVABLE_JSON="$REMOVABLE_JSON
+[?2004l[?2004h>     {\"name\": \"$pkg\", \"installed_version\": \"$VERSION\", \"size_kb\": $SIZE, \"has_security_update\": $HAS_SECURITY}"
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Build dependency_protected array
+[?2004l[?2004h> PROTECTED_JSON=''
+[?2004l[?2004h> for pkg in "${PROTECTED_SORTED[@]}"; do
+[?2004l[?2004h>     DEPS=$(echo "${PROTECTED_BY[$pkg]}" | xargs -n1 | sort -u | xargs)
+[?2004l[?2004h>     DEPS_ARRAY=$(echo "$DEPS" | tr ' ' '\n' | grep -v '^$' | sed 's/.*$/"&"/' | tr '\n' ',' | sed 's/,$//')
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [[ -n "$PROTECTED_JSON" ]]; then
+[?2004l[?2004h>         PROTECTED_JSON="$PROTECTED_JSON,"
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     PROTECTED_JSON="$PROTECTED_JSON
+[?2004l[?2004h>     {\"name\": \"$pkg\", \"required_by\": [$DEPS_ARRAY]}"
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write final JSON
+[?2004l[?2004h> cat > removal_report.json << EOF
+[?2004l[?2004h> {
+[?2004l[?2004h>   "summary": {
+[?2004l[?2004h>     "total_installed": ${#INSTALLED[@]},
+[?2004l[?2004h>     "total_required": ${#REQUIRED[@]},
+[?2004l[?2004h>     "removable_count": ${#REMOVABLE_SORTED[@]},
+[?2004l[?2004h>     "kept_as_dependencies": ${#PROTECTED_SORTED[@]},
+[?2004l[?2004h>     "total_space_savings_kb": $TOTAL_SIZE
+[?2004l[?2004h>   },
+[?2004l[?2004h>   "removable_packages": [$REMOVABLE_JSON
+[?2004l[?2004h>   ],
+[?2004l[?2004h>   "dependency_protected": [$PROTECTED_JSON
+[?2004l[?2004h>   ]
+[?2004l[?2004h> }
+[?2004l[?2004h> EOF
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Report written to removal_report.json"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Create removal script
+[?2004l[?2004h> REMOVE_LIST=$(echo "${REMOVABLE_SORTED[@]}" | tr ' ' ' ')
+[?2004l[?2004h> cat > remove_packages.sh << EOF
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> # Auto-generated script to remove unnecessary packages
+[?2004l[?2004h> # Generated on: $(date)
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "The following packages will be removed:"
+[?2004l[?2004h> echo "$REMOVE_LIST"
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "Dry run:"
+[?2004l[?2004h> apt-get remove --dry-run $REMOVE_LIST
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "Proceeding with actual removal..."
+[?2004l[?2004h> apt-get remove -y $REMOVE_LIST
+[?2004l[?2004h> EOF
+[?2004l[?2004h> 
+[?2004l[?2004h> chmod +x remove_packages.sh
+[?2004l[?2004h> echo "Removal script written to remove_packages.sh"
+[?2004l[?2004h> 
+[?2004l[?2004h> SCRIPT
+[?2004l[?2004huser@69082c9a90ea:~/migration$ chmod +x analyze_packages.sh && bash analyze_packages.sh
+[?2004lInstalled packages: 31
+Required packages: 9
+Building dependency tree...
+  Checking deps for: curl
+  Checking deps for: python3
+  Checking deps for: python3-pip
+  Checking deps for: jq
+  Checking deps for: nginx
+  Checking deps for: ca-certificates
+  Checking deps for: openssl
+  Checking deps for: bash
+  Checking deps for: coreutils
+Dependencies found: libc6 libssl3 zlib1g ca-certificates openssl
+Removable: apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget
+Protected: libc6 libssl3 zlib1g
+Getting package details...
+analyze_packages.sh: line 100: $: syntax error: operand expected (error token is "$")
+Report written to removal_report.json
+Removal script written to remove_packages.sh
+[?2004huser@69082c9a90ea:~/migration$ cat removal_report.json
+[?2004l{
+  "summary": {
+    "total_installed": 31,
+    "total_required": 9,
+    "removable_count": 19,
+    "kept_as_dependencies": 3,
+    "total_space_savings_kb": 0
+  },
+  "removable_packages": [
+  ],
+  "dependency_protected": [
+    {"name": "libc6", "required_by": ["bash","ca-certificates","coreutils","curl","jq","nginx","openssl","python3","python3-pip"]},
+    {"name": "libssl3", "required_by": ["ca-certificates","curl","nginx","openssl","python3-pip"]},
+    {"name": "zlib1g", "required_by": ["curl","nginx","python3"]}
+  ]
+}
+[?2004huser@69082c9a90ea:~/migration$ cat remove_packages.sh
+[?2004l#!/bin/bash
+# Auto-generated script to remove unnecessary packages
+# Generated on: Tue Apr 21 01:03:06 UTC 2026
+
+echo "The following packages will be removed:"
+echo "apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget"
+echo ""
+echo "Dry run:"
+apt-get remove --dry-run apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget
+echo ""
+echo "Proceeding with actual removal..."
+apt-get remove -y apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget
+[?2004huser@69082c9a90ea:~/migration$ cat > build_report.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Lists from analysis
+[?2004l[?2004h> REMOVABLE=(apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget)
+[?2004l[?2004h> PROTECTED=(libc6 libssl3 zlib1g)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Get package info
+[?2004l[?2004h> TOTAL_SIZE=0
+[?2004l[?2004h> REMOVABLE_JSON=""
+[?2004l[?2004h> 
+[?2004l[?2004h> for pkg in "${REMOVABLE[@]}"; do
+[?2004l[?2004h>     echo "Processing: $pkg"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try dpkg-query first, then apt-cache
+[?2004l[?2004h>     VERSION=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null)
+[?2004l[?2004h>     if [[ -z "$VERSION" ]]; then
+[?2004l[?2004h>         VERSION=$(apt-cache show "$pkg" 2>/dev/null | grep -m1 "^Version:" | awk '{print $2}')
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     [[ -z "$VERSION" ]] && VERSION="unknown"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Get size
+[?2004l[?2004h>     SIZE=$(dpkg-query -W -f='${Installed-Size}' "$pkg" 2>/dev/null)
+[?2004l[?2004h>     if [[ -z "$SIZE" || "$SIZE" == "" ]]; then
+[?2004l[?2004h>         SIZE=$(apt-cache show "$pkg" 2>/dev/null | grep -m1 "^Installed-Size:" | awk '{print $2}')
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     [[ -z "$SIZE" || ! "$SIZE" =~ ^[0-9]+$ ]] && SIZE=0
+[?2004l[?2004h>     
+[?2004l[?2004h>     TOTAL_SIZE=$((TOTAL_SIZE + SIZE))
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check for security updates
+[?2004l[?2004h>     HAS_SECURITY="false"
+[?2004l[?2004h>     POLICY=$(apt-cache policy "$pkg" 2>/dev/null)
+[?2004l[?2004h>     if echo "$POLICY" | grep -q "security"; then
+[?2004l[?2004h>         INSTALLED_VER=$(echo "$POLICY" | grep "Installed:" | awk '{print $2}')
+[?2004l[?2004h>         CANDIDATE_VER=$(echo "$POLICY" | grep "Candidate:" | awk '{print $2}')
+[?2004l[?2004h>         if [[ "$INSTALLED_VER" != "$CANDIDATE_VER" && "$INSTALLED_VER" != "(none)" ]]; then
+[?2004l[?2004h>             HAS_SECURITY="true"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     
+[?2004l[?2004h>     [[ -n "$REMOVABLE_JSON" ]] && REMOVABLE_JSON="$REMOVABLE_JSON,"
+[?2004l[?2004h>     REMOVABLE_JSON="$REMOVABLE_JSON
+[?2004l[?2004h>     {\"name\": \"$pkg\", \"installed_version\": \"$VERSION\", \"size_kb\": $SIZE, \"has_security_update\": $HAS_SECURITY}"
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Total size: $TOTAL_SIZE KB"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Build protected JSON
+[?2004l[?2004h> PROTECTED_JSON='
+[?2004l[?2004h>     {"name": "libc6", "required_by": ["bash", "ca-certificates", "coreutils", "curl", "jq", "nginx", "openssl", "python3", "python3-pip"]},
+[?2004l[?2004h>     {"name": "libssl3", "required_by": ["ca-certificates", "curl", "nginx", "openssl", "python3-pip"]},
+[?2004l[?2004h>     {"name": "zlib1g", "required_by": ["curl", "nginx", "python3"]}'
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write JSON
+[?2004l[?2004h> cat > removal_report.json << ENDJSON
+[?2004l[?2004h> {
+[?2004l[?2004h>   "summary": {
+[?2004l[?2004h>     "total_installed": 31,
+[?2004l[?2004h>     "total_required": 9,
+[?2004l[?2004h>     "removable_count": 19,
+[?2004l[?2004h>     "kept_as_dependencies": 3,
+[?2004l[?2004h>     "total_space_savings_kb": $TOTAL_SIZE
+[?2004l[?2004h>   },
+[?2004l[?2004h>   "removable_packages": [$REMOVABLE_JSON
+[?2004l[?2004h>   ],
+[?2004l[?2004h>   "dependency_protected": [$PROTECTED_JSON
+[?2004l[?2004h>   ]
+[?2004l[?2004h> }
+[?2004l[?2004h> ENDJSON
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Done!"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@69082c9a90ea:~/migration$ chmod +x build_report.sh
+[?2004l[?2004huser@69082c9a90ea:~/migration$ bash build_report.sh
+[?2004lProcessing: apache2
+Processing: dnsutils
+Processing: git
+Processing: htop
+Processing: iputils-ping
+Processing: lsof
+Processing: mysql-client
+Processing: nano
+Processing: ncdu
+Processing: netcat-openbsd
+Processing: nodejs
+Processing: npm
+Processing: postgresql-client
+Processing: redis-tools
+Processing: strace
+Processing: tcpdump
+Processing: tree
+Processing: vim
+Processing: wget
+Total size: 37114 KB
+Done!
+[?2004huser@69082c9a90ea:~/migration$ cat removal_report.json
+[?2004l{
+  "summary": {
+    "total_installed": 31,
+    "total_required": 9,
+    "removable_count": 19,
+    "kept_as_dependencies": 3,
+    "total_space_savings_kb": 37114
+  },
+  "removable_packages": [
+    {"name": "apache2", "installed_version": "2.4.52-1ubuntu4.19", "size_kb": 536, "has_security_update": false},
+    {"name": "dnsutils", "installed_version": "1:9.18.39-0ubuntu0.22.04.3", "size_kb": 61, "has_security_update": false},
+    {"name": "git", "installed_version": "1:2.34.1-1ubuntu1.17", "size_kb": 18484, "has_security_update": false},
+    {"name": "htop", "installed_version": "3.0.5-7build2", "size_kb": 334, "has_security_update": false},
+    {"name": "iputils-ping", "installed_version": "3:20211215-1ubuntu0.1", "size_kb": 113, "has_security_update": false},
+    {"name": "lsof", "installed_version": "4.93.2+dfsg-1.1build2", "size_kb": 447, "has_security_update": false},
+    {"name": "mysql-client", "installed_version": "8.0.45-0ubuntu0.22.04.1", "size_kb": 35, "has_security_update": false},
+    {"name": "nano", "installed_version": "6.2-1ubuntu0.1", "size_kb": 860, "has_security_update": false},
+    {"name": "ncdu", "installed_version": "1.15.1-1", "size_kb": 104, "has_security_update": false},
+    {"name": "netcat-openbsd", "installed_version": "1.218-4ubuntu1", "size_kb": 106, "has_security_update": false},
+    {"name": "nodejs", "installed_version": "12.22.9~dfsg-1ubuntu3.6", "size_kb": 907, "has_security_update": false},
+    {"name": "npm", "installed_version": "8.5.1~ds-1", "size_kb": 2647, "has_security_update": false},
+    {"name": "postgresql-client", "installed_version": "14+238", "size_kb": 70, "has_security_update": false},
+    {"name": "redis-tools", "installed_version": "5:6.0.16-1ubuntu1.1", "size_kb": 4063, "has_security_update": false},
+    {"name": "strace", "installed_version": "5.16-0ubuntu3", "size_kb": 2000, "has_security_update": false},
+    {"name": "tcpdump", "installed_version": "4.99.1-3ubuntu0.2", "size_kb": 1374, "has_security_update": false},
+    {"name": "tree", "installed_version": "2.0.2-1", "size_kb": 113, "has_security_update": false},
+    {"name": "vim", "installed_version": "2:8.2.3995-1ubuntu2.27", "size_kb": 3932, "has_security_update": false},
+    {"name": "wget", "installed_version": "1.21.2-2ubuntu1.1", "size_kb": 928, "has_security_update": false}
+  ],
+  "dependency_protected": [
+    {"name": "libc6", "required_by": ["bash", "ca-certificates", "coreutils", "curl", "jq", "nginx", "openssl", "python3", "python3-pip"]},
+    {"name": "libssl3", "required_by": ["ca-certificates", "curl", "nginx", "openssl", "python3-pip"]},
+    {"name": "zlib1g", "required_by": ["curl", "nginx", "python3"]}
+  ]
+}
+[?2004huser@69082c9a90ea:~/migration$ 

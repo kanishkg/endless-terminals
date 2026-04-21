@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "Report 1 is complete and looks correct. Files >= 10MB are listed with MB sizes (floor), sorted by size descending. The two 15MB files are sorted alphabetically by path (app.log before presentation.pptx). Now I need to create Report 2 (extension_summary.csv) and Report 3 (directory_rollup.txt).",
+  "plan": "Create Report 2: Extract extensions from filenames, convert to lowercase, sum bytes by extension. Files without a dot get 'NO_EXTENSION'. Need to exclude directory entries (the 4096 byte entries for directories themselves). Output as CSV with header, sorted by total_bytes descending.",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\n$2 != \"/var/data\" && $2 != \"/var/data/logs\" && $2 != \"/var/data/backups\" && $2 != \"/var/data/cache\" && $2 != \"/var/data/cache/thumbnails\" && $2 != \"/var/data/uploads\" && $2 != \"/var/data/archives\" {\n  file = $2\n  sub(/.*\\//, \"\", file)\n  if (file ~ /\\./) {\n    ext = file\n    sub(/.*\\./, \"\", ext)\n    ext = tolower(ext)\n  } else {\n    ext = \"NO_EXTENSION\"\n  }\n  sum[ext] += $1\n}\nEND {\n  print \"extension,total_bytes\"\n  for (e in sum) print e\",\"sum[e]\n}' /home/user/disk_inventory.txt | (read header; echo \"$header\"; sort -t',' -k2,2rn) > /home/user/reports/extension_summary.csv\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/extension_summary.csv\n",
+      "duration": 0.2
+    }
+  ]
+}
+```

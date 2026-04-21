@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "Report 2 (extension_summary.csv) is complete with proper CSV format, header row, extensions in lowercase, NO_EXTENSION for files without extensions, and sorted by total_bytes descending. Now I need to create Report 3 (directory_rollup.txt) which shows each immediate subdirectory of /var/data with total bytes and percentage of total.",
+  "plan": "Create Report 3: For each immediate subdirectory of /var/data (logs, backups, cache, uploads, archives), sum all file bytes within that directory (recursively), calculate the percentage of total /var/data usage, and format as 'dirname total_bytes percentage%'. I need to exclude the directory entries themselves (4096 bytes) and only count actual files.",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\n{\n  path = $2\n  bytes = $1\n  \n  # Skip the /var/data root entry\n  if (path == \"/var/data\") next\n  \n  # Skip directory entries (4096 bytes entries that are just directory markers)\n  if (path == \"/var/data/logs\" || path == \"/var/data/backups\" || path == \"/var/data/cache\" || path == \"/var/data/cache/thumbnails\" || path == \"/var/data/uploads\" || path == \"/var/data/archives\") next\n  \n  # Extract the immediate subdirectory name\n  sub(/^\\/var\\/data\\//, \"\", path)\n  split(path, parts, \"/\")\n  subdir = parts[1]\n  \n  dir_totals[subdir] += bytes\n  grand_total += bytes\n}\nEND {\n  for (dir in dir_totals) {\n    pct = (dir_totals[dir] / grand_total) * 100\n    printf \"%s %d %.1f\\n\", dir, dir_totals[dir], pct\n  }\n}' /home/user/disk_inventory.txt | sort -t' ' -k2,2nr | awk '{print $1\" \"$2\" \"$3\"%\"}' > /home/user/reports/directory_rollup.txt\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/directory_rollup.txt\n",
+      "duration": 0.2
+    }
+  ]
+}
+```

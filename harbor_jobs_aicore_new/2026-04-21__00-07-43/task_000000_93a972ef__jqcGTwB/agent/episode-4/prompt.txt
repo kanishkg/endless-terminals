@@ -1,0 +1,47 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@06617a386d72:/home/user# python3 << 'EOF'
+> import toml
+>
+> # Read the file
+> with open('/etc/monitoring/uptime.toml', 'r') as f:
+>     content = f.read()
+>
+> # Parse TOML
+> data = toml.loads(content)
+>
+> # Modify global section
+> data['global']['check_interval'] = 30
+> data['global']['timeout'] = 10
+>
+> # Find and modify api-gateway endpoint
+> for endpoint in data['endpoints']:
+>     if endpoint['name'] == 'api-gateway':
+>         endpoint['expected_status'] = 200
+>         endpoint['critical'] = True
+>
+> # Add new payment-service endpoint
+> new_endpoint = {
+>     'name': 'payment-service',
+>     'url': 'https://payments.internal.example.com/health',
+>     'expected_status': 200,
+>     'critical': True,
+>     'headers': {
+>         'Authorization': 'Bearer ${PAYMENTS_TOKEN}'
+>     }
+> }
+> data['endpoints'].append(new_endpoint)
+>
+> # Write back with comment
+> with open('/etc/monitoring/uptime.toml', 'w') as f:
+>     f.write('# Uptime checker daemon configuration\n\n')
+>     toml.dump(data, f)
+>
+> print('TOML file updated successfully')
+> EOF
+TOML file updated successfully
+root@06617a386d72:/home/user#

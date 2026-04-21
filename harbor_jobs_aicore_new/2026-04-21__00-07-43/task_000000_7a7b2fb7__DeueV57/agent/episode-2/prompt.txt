@@ -1,0 +1,254 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@69082c9a90ea:~/migration$ cat > analyze_packages.sh << 'SCRIPT'
+ that need this dependency
+            PROTECTED_BY["$pkg"]=$(echo "${DEP_OF[$pkg]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+        else
+            REMOVABLE+=("$pkg")
+        fi
+    fi
+done
+
+# Sort arrays
+IFS=$'\n' REMOVABLE_SORTED=($(sort <<<"${REMOVABLE[*]}"))
+IFS=$'\n' PROTECTED_SORTED=($(sort <<<"${PROTECTED[*]}"))
+unset IFS
+
+echo "Removable: ${REMOVABLE_SORTED[@]}"
+echo "Protected: ${PROTECTED_SORTED[@]}"
+
+# Get package info and build JSON
+TOTAL_SIZE=0
+
+echo "Getting package details..."
+
+# Start building JSON
+echo '{' > removal_report.json
+
+# Build removable_packages array
+REMOVABLE_JSON=''
+for pkg in "${REMOVABLE_SORTED[@]}"; do
+    # Get installed version
+    VERSION=$(dpkg-query -W -f='\${Version}' "$pkg" 2>/dev/null || echo "unknown")
+
+    # Get installed size in KB
+    SIZE=$(dpkg-query -W -f='\${Installed-Size}' "$pkg" 2>/dev/null || echo "0")
+    TOTAL_SIZE=$((TOTAL_SIZE + SIZE))
+
+    # Check for security updates
+    POLICY=$(apt-cache policy "$pkg" 2>/dev/null)
+    CANDIDATE=$(echo "$POLICY" | grep "Candidate:" | awk '{print $2}')
+    HAS_SECURITY="false"
+    if echo "$POLICY" | grep -q "security"; then
+        if [[ "$VERSION" != "$CANDIDATE" ]]; then
+            HAS_SECURITY="true"
+        fi
+    fi
+
+    if [[ -n "$REMOVABLE_JSON" ]]; then
+        REMOVABLE_JSON="$REMOVABLE_JSON,"
+    fi
+    REMOVABLE_JSON="$REMOVABLE_JSON
+    {\"name\": \"$pkg\", \"installed_version\": \"$VERSION\", \"size_kb\": $SIZE, \"has_security_update\": $HAS_SECURITY}"
+done
+
+# Build dependency_protected array
+PROTECTED_JSON=''
+for pkg in "${PROTECTED_SORTED[@]}"; do
+    DEPS=$(echo "${PROTECTED_BY[$pkg]}" | xargs -n1 | sort -u | xargs)
+    DEPS_ARRAY=$(echo "$DEPS" | tr ' ' '\n' | grep -v '^$' | sed 's/.*$/"&"/' | tr '\n' ',' | sed 's/,$//')
+
+    if [[ -n "$PROTECTED_JSON" ]]; then
+        PROTECTED_JSON="$PROTECTED_JSON,"
+    fi
+    PROTECTED_JSON="$PROTECTED_JSON
+    {\"name\": \"$pkg\", \"required_by\": [$DEPS_ARRAY]}"
+done
+
+# Write final JSON
+cat > removal_report.json << EOF
+{
+  "summary": {
+    "total_installed": ${#INSTALLED[@]},
+    "t> #!/bin/bash
+>
+> # Read package lists
+> mapfile -t INSTALLED < installed_packages.txt
+> mapfile -t REQUIRED < required_packages.txt
+>
+> echo "Installed packages: ${#INSTALLED[@]}"
+> echo "Required packages: ${#REQUIRED[@]}"
+>
+> # Create associative arrays
+> declare -A IS_REQUIRED
+> declare -A IS_INSTALLED
+> declare -A IS_DEPENDENCY
+> declare -A DEP_OF
+>
+> for pkg in "${REQUIRED[@]}"; do
+>     IS_REQUIRED["$pkg"]=1
+> done
+>
+> for pkg in "${INSTALLED[@]}"; do
+>     IS_INSTALLED["$pkg"]=1
+> done
+>
+> # Function to get dependencies of a package
+> get_deps() {
+>     local pkg="$1"
+>     apt-cache depends "$pkg" 2>/dev/null | grep -E "^\s*(Depends|PreDepends):" | awk '{print $2}' | sed 's/<\|>//g' | sort -u
+> }
+>
+> # Build dependency tree up to 3 levels for required packages
+> echo "Building dependency tree..."
+> for req_pkg in "${REQUIRED[@]}"; do
+>     echo "  Checking deps for: $req_pkg"
+>     # Level 1
+>     for dep1 in $(get_deps "$req_pkg"); do
+>         if [[ -n "$dep1" && "${IS_INSTALLED[$dep1]}" == "1" ]]; then
+>             IS_DEPENDENCY["$dep1"]=1
+>             DEP_OF["$dep1"]="${DEP_OF[$dep1]} $req_pkg"
+>         fi
+>         # Level 2
+>         for dep2 in $(get_deps "$dep1"); do
+>             if [[ -n "$dep2" && "${IS_INSTALLED[$dep2]}" == "1" ]]; then
+>                 IS_DEPENDENCY["$dep2"]=1
+>                 DEP_OF["$dep2"]="${DEP_OF[$dep2]} $req_pkg"
+>             fi
+>             # Level 3
+>             for dep3 in $(get_deps "$dep2"); do
+>                 if [[ -n "$dep3" && "${IS_INSTALLED[$dep3]}" == "1" ]]; then
+>                     IS_DEPENDENCY["$dep3"]=1
+>                     DEP_OF["$dep3"]="${DEP_OF[$dep3]} $req_pkg"
+>                 fi
+>             done
+>         done
+>     done
+> done
+>
+> echo "Dependencies found: ${!IS_DEPENDENCY[@]}"
+>
+> # Identify removable and protected packages
+> declare -a REMOVABLE
+> declare -a PROTECTED
+> declare -A PROTECTED_BY
+>
+> for pkg in "${INSTALLED[@]}"; do
+>     if [[ "${IS_REQUIRED[$pkg]}" != "1" ]]; then
+>         if [[ "${IS_DEPENDENCY[$pkg]}" == "1" ]]; then
+>             PROTECTED+=("$pkg")
+>             # Get unique list of packages that need this dependency
+>             PROTECTED_BY["$pkg"]=$(echo "${DEP_OF[$pkg]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+>         else
+>             REMOVABLE+=("$pkg")
+>         fi
+>     fi
+> done
+>
+> # Sort arrays
+> IFS=$'\n' REMOVABLE_SORTED=($(sort <<<"${REMOVABLE[*]}"))
+> IFS=$'\n' PROTECTED_SORTED=($(sort <<<"${PROTECTED[*]}"))
+> unset IFS
+>
+> echo "Removable: ${REMOVABLE_SORTED[@]}"
+> echo "Protected: ${PROTECTED_SORTED[@]}"
+>
+> # Get package info and build JSON
+> TOTAL_SIZE=0
+>
+> echo "Getting package details..."
+>
+> # Start building JSON
+> echo '{' > removal_report.json
+>
+> # Build removable_packages array
+> REMOVABLE_JSON=''
+> for pkg in "${REMOVABLE_SORTED[@]}"; do
+>     # Get installed version
+>     VERSION=$(dpkg-query -W -f='\${Version}' "$pkg" 2>/dev/null || echo "unknown")
+>
+>     # Get installed size in KB
+>     SIZE=$(dpkg-query -W -f='\${Installed-Size}' "$pkg" 2>/dev/null || echo "0")
+>     TOTAL_SIZE=$((TOTAL_SIZE + SIZE))
+>
+>     # Check for security updates
+>     POLICY=$(apt-cache policy "$pkg" 2>/dev/null)
+>     CANDIDATE=$(echo "$POLICY" | grep "Candidate:" | awk '{print $2}')
+>     HAS_SECURITY="false"
+>     if echo "$POLICY" | grep -q "security"; then
+>         if [[ "$VERSION" != "$CANDIDATE" ]]; then
+>             HAS_SECURITY="true"
+>         fi
+>     fi
+>
+>     if [[ -n "$REMOVABLE_JSON" ]]; then
+>         REMOVABLE_JSON="$REMOVABLE_JSON,"
+>     fi
+>     REMOVABLE_JSON="$REMOVABLE_JSON
+>     {\"name\": \"$pkg\", \"installed_version\": \"$VERSION\", \"size_kb\": $SIZE, \"has_security_update\": $HAS_SECURITY}"
+> done
+>
+> # Build dependency_protected array
+> PROTECTED_JSON=''
+> for pkg in "${PROTECTED_SORTED[@]}"; do
+>     DEPS=$(echo "${PROTECTED_BY[$pkg]}" | xargs -n1 | sort -u | xargs)
+>     DEPS_ARRAY=$(echo "$DEPS" | tr ' ' '\n' | grep -v '^$' | sed 's/.*$/"&"/' | tr '\n' ',' | sed 's/,$//')
+>
+>     if [[ -n "$PROTECTED_JSON" ]]; then
+>         PROTECTED_JSON="$PROTECTED_JSON,"
+>     fi
+>     PROTECTED_JSON="$PROTECTED_JSON
+>     {\"name\": \"$pkg\", \"required_by\": [$DEPS_ARRAY]}"
+> done
+>
+> # Write final JSON
+> cat > removal_report.json << EOF
+> {
+>   "summary": {
+>     "total_installed": ${#INSTALLED[@]},
+>     "total_required": ${#REQUIRED[@]},
+>     "removable_count": ${#REMOVABLE_SORTED[@]},
+>     "kept_as_dependencies": ${#PROTECTED_SORTED[@]},
+>     "total_space_savings_kb": $TOTAL_SIZE
+>   },
+>   "removable_packages": [$REMOVABLE_JSON
+>   ],
+>   "dependency_protected": [$PROTECTED_JSON
+>   ]
+> }
+> EOF
+>
+> echo "Report written to removal_report.json"
+>
+> # Create removal script
+> REMOVE_LIST=$(echo "${REMOVABLE_SORTED[@]}" | tr ' ' ' ')
+> cat > remove_packages.sh << EOF
+> #!/bin/bash
+> # Auto-generated script to remove unnecessary packages
+> # Generated on: $(date)
+>
+> echo "The following packages will be removed:"
+> echo "$REMOVE_LIST"
+> echo ""
+> echo "Dry run:"
+> apt-get remove --dry-run $REMOVE_LIST
+> echo ""
+> echo "Proceeding with actual removal..."
+> apt-get remove -y $REMOVE_LIST
+> EOF
+>
+> chmod +x remove_packages.sh
+> echo "Removal script written to remove_packages.sh"
+>
+> SCRIPT
+user@69082c9a90ea:~/migration$ chmod +x analyze_packages.sh && bash analyze_packages.sh
+Installed packages: 31
+Required packages: 9
+Building dependency tree...
+  Checking deps for: curl
+  Checking deps for: python3
+

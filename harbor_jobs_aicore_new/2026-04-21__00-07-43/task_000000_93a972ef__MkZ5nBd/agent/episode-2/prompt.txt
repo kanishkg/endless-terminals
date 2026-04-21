@@ -1,0 +1,51 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@a83f93e8a085:/home/user# python3 << 'EOF'
+> import yaml
+>
+> # Read the YAML file
+> with open('/etc/monitoring/alerts.yaml', 'r') as f:
+>     content = f.read()
+>
+> # Parse YAML
+> data = yaml.safe_load(content)
+>
+> # Find and modify the rules
+> for group in data['groups']:
+>     if group['name'] == 'service_alerts':
+>         for rule in group['rules']:
+>             # Change HighLatency 'for' duration to 3m
+>             if rule['alert'] == 'HighLatency':
+>                 rule['for'] = '3m'
+>             # Add escalation_level to ServiceDown
+>             elif rule['alert'] == 'ServiceDown':
+>                 rule['labels']['escalation_level'] = 'critical'
+>
+>         # Add new DiskSpaceLow alert
+>         new_alert = {
+>             'alert': 'DiskSpaceLow',
+>             'expr': 'node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1',
+>             'for': '10m',
+>             'labels': {
+>                 'severity': 'warning',
+>                 'team': 'infrastructure'
+>             },
+>             'annotations': {
+>                 'summary': 'Disk space below 10% on {{ $labels.instance }}'
+>             }
+>         }
+>         group['rules'].append(new_alert)
+>
+> # Write back with preserved structure
+> with open('/etc/monitoring/alerts.yaml', 'w') as f:
+>     f.write('# Prometheus alerting rules\n')
+>     yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+>
+> print('YAML file updated successfully')
+> EOF
+YAML file updated successfully
+root@a83f93e8a085:/home/user#

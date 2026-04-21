@@ -1,0 +1,746 @@
+[?2004huser@b310372d7fdd:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@b310372d7fdd:~$ clear
+[?2004l[H[J[?2004huser@b310372d7fdd:~$ cd /home/user/migration && ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 user user 4096 Apr 20 23:18 .
+drwxrwxrwx 1 user user 4096 Apr 21 00:18 ..
+-rw-r--r-- 1 user user  246 Apr 20 23:18 installed_packages.txt
+-rw-r--r-- 1 user user   73 Apr 20 23:18 required_packages.txt
+[?2004huser@b310372d7fdd:~/migration$ cat installed_packages.txt
+[?2004lcurl
+wget
+vim
+nano
+git
+htop
+tree
+ncdu
+jq
+python3
+python3-pip
+nodejs
+npm
+nginx
+apache2
+mysql-client
+postgresql-client
+redis-tools
+netcat-openbsd
+tcpdump
+strace
+lsof
+dnsutils
+iputils-ping
+ca-certificates
+openssl
+libssl3
+zlib1g
+libc6
+coreutils
+bash
+[?2004huser@b310372d7fdd:~/migration$ cat required_packages.txt
+[?2004lcurl
+python3
+python3-pip
+jq
+nginx
+ca-certificates
+openssl
+bash
+coreutils
+[?2004huser@b310372d7fdd:~/migration$ cat > /tmp/analyze.sh << 'ENDSCRIPT'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> cd /home/user/migration
+[?2004l[?2004h> mapfile -t INSTALLED < installed_packages.txt
+[?2004l[?2004h> mapfile -t REQUIRED < required_packages.txt
+[?2004l[?2004h> declare -A IS_REQUIRED IS_INSTALLED IS_DEPENDENCY DEP_OF
+[?2004l[?2004h> for pkg in "${INSTALLED[@]}"; do IS_INSTALLED["$pkg"]=1; done
+[?2004l[?2004h> for pkg in "${REQUIRED[@]}"; do IS_REQUIRED["$pkg"]=1; done
+[?2004l[?2004h> get_deps() {
+[?2004l[?2004h>     local pkg="$1" level="$2" parent="$3"
+[?2004l[?2004h>     [ "$level" -gt 3 ] && return
+[?2004l[?2004h>     local deps=$(apt-cache depends "$pkg" 2>/dev/null | grep -E "^  Depends:" | sed 's/.*Depends: //' | sed 's/<.*//' | tr -d ' ')
+[?2004l[?2004h>     for dep in $deps; do
+[?2004l[?2004h>         [ -z "$dep" ] && continue
+[?2004l[?2004h>         if [ -n "${IS_INSTALLED[$dep]}" ]; then
+[?2004l[?2004h>             IS_DEPENDENCY["$dep"]=1
+[?2004l[?2004h>             if [ -z "${DEP_OF[$dep]}" ]; then
+[?2004l[?2004h>                 DEP_OF["$dep"]="$parent"
+[?2004l[?2004h>             elif [[ ! "${DEP_OF[$dep]}" =~ "$parent" ]]; then
+[?2004l[?2004h>                 DEP_OF["$dep"]="${DEP_OF[$dep]},$parent"
+[?2004l[?2004h>             fi
+[?2004l[?2004h>             get_deps "$dep" $((level + 1)) "$parent"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     done
+[?2004l[?2004h> }
+[?2004l[?2004h> echo "Analyzing dependencies..." >&2
+[?2004l[?2004h> for pkg in "${REQUIRED[@]}"; do
+[?2004l[?2004h>     echo "  Checking: $pkg" >&2
+[?2004l[?2004h>     get_deps "$pkg" 1 "$pkg"
+[?2004l[?2004h> done
+[?2004l[?2004h> declare -a REMOVABLE PROTECTED
+[?2004l[?2004h> for pkg in "${INSTALLED[@]}"; do
+[?2004l[?2004h>     if [ -z "${IS_REQUIRED[$pkg]}" ]; then
+[?2004l[?2004h>         if [ -n "${IS_DEPENDENCY[$pkg]}" ]; then
+[?2004l[?2004h>             PROTECTED+=("$pkg")
+[?2004l[?2004h>         else
+[?2004l[?2004h>             REMOVABLE+=("$pkg")
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> IFS=$'\n' REMOVABLE=($(sort <<<"${REMOVABLE[*]}")); unset IFS
+[?2004l[?2004h> IFS=$'\n' PROTECTED=($(sort <<<"${PROTECTED[*]}")); unset IFS
+[?2004l[?2004h> echo "Removable: ${REMOVABLE[*]}" >&2
+[?2004l[?2004h> echo "Protected: ${PROTECTED[*]}" >&2
+[?2004l[?2004h> ENDSCRIPT
+[?2004l[?2004huser@b310372d7fdd:~/migration$ chmod +x /tmp/analyze.sh
+[?2004l[?2004huser@b310372d7fdd:~/migration$ bash /tmp/analyze.sh
+[?2004lAnalyzing dependencies...
+  Checking: curl
+  Checking: python3
+  Checking: python3-pip
+  Checking: jq
+  Checking: nginx
+  Checking: ca-certificates
+  Checking: openssl
+  Checking: bash
+  Checking: coreutils
+Removable: apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget
+Protected: libc6 libssl3 zlib1g
+[?2004huser@b310372d7fdd:~/migration$ cat > /tmp/gen_report.py << 'PYEND'
+[?2004l= result.stdout
+        installed_ver = None
+        candidate_ver = None
+        for line in output.split('\n'):
+            if 'Installed:' in line:
+                installed_ver = line.split(':', 1)[1].strip()
+            if 'Candidate:' in line:
+                candidate_ver = line.split(':', 1)[1].strip()
+        if installed_ver and candidate_ver and installed_ver != candidate_ver and candidate_ver != '(none)':
+            if 'security' in output.lower():
+                has_security = True
+    except:
+        pass
+    
+    return version, size, has_security
+
+removable_packages = []
+total_space = 0
+
+for pkg in sorted(removable):
+    version, size, has_sec = get_pkg_info(pkg)
+    total_space += size
+    removable_packages.append({
+        'name': pkg,
+        'installed_version': version,
+        'size_kb': size,
+        'has_security_update': has_sec
+    })
+
+dep_protected = []
+for pkg in sorted(protected):
+    req_by = sorted(list(set(protected_by.get(pkg, []))))
+    dep_protected.append({
+        'name': pkg,
+        'required_by': req_by
+    })
+
+report = {
+    'summary': {
+        'total_installed': len(installed),
+        'total_required': len(required),
+        'removable_count': len(removable),
+        'kept_as_dependencies': len(protected),
+        'total_space_savings_kb': total_space
+    },
+    'removable_packages': removable_packages,
+    'dependency_protected': dep_protected
+}
+
+with open('/home/user/migration/removal_report.json', 'w') as f:
+    json.dump(report, f, indent=2)
+
+print('Report written')
+PYEND
+python3 /tmp/gen_report.py
+[?2004h> import subprocess
+[?2004l[?2004h> import json
+[?2004l[?2004h> import re
+[?2004l[?2004h> 
+[?2004l[?2004h> installed = open('/home/user/migration/installed_packages.txt').read().strip().split('\n')
+[?2004l[?2004h> required = open('/home/user/migration/required_packages.txt').read().strip().split('\n')
+[?2004l[?2004h> 
+[?2004l[?2004h> removable = ['apache2', 'dnsutils', 'git', 'htop', 'iputils-ping', 'lsof', 'mysql-client', 'nano', 'ncdu', 'netcat-openbsd', 'nodejs', 'npm', 'postgresql-client', 'redis-tools', 'strace', 'tcpdump', 'tree', 'vim', 'wget']
+[?2004l[?2004h> protected = ['libc6', 'libssl3', 'zlib1g']
+[?2004l[?2004h> protected_by = {
+[?2004l[?2004h>     'libc6': ['bash', 'coreutils', 'curl', 'python3', 'nginx', 'openssl'],
+[?2004l[?2004h>     'libssl3': ['curl', 'openssl', 'nginx', 'python3'],
+[?2004l[?2004h>     'zlib1g': ['curl', 'nginx', 'python3']
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> def get_pkg_info(pkg):
+[?2004l[?2004h>     version = 'unknown'
+[?2004l[?2004h>     size = 0
+[?2004l[?2004h>     has_security = False
+[?2004l[?2004h>     
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         result = subprocess.run(['dpkg-query', '-W', '-f', '${Version} ${Installed-Size}', pkg], 
+[?2004l[?2004h>                                 capture_output=True, text=True, timeout=5)
+[?2004l[?2004h>         if result.returncode == 0:
+[?2004l[?2004h>             parts = result.stdout.strip().split()
+[?2004l[?2004h>             if len(parts) >= 1:
+[?2004l[?2004h>                 version = parts[0]
+[?2004l[?2004h>             if len(parts) >= 2:
+[?2004l[?2004h>                 try:
+[?2004l[?2004h>                     size = int(parts[1])
+[?2004l[?2004h>                 except:
+[?2004l[?2004h>                     size = 0
+[?2004l[?2004h>     except:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     if version == 'unknown' or size == 0:
+[?2004l[?2004h>         try:
+[?2004l[?2004h>             result = subprocess.run(['apt-cache', 'show', pkg], capture_output=True, text=True, timeout=5)
+[?2004l[?2004h>             for line in result.stdout.split('\n'):
+[?2004l[?2004h>                 if line.startswith('Version:') and version == 'unknown':
+[?2004l[?2004h>                     version = line.split(':', 1)[1].strip()
+[?2004l[?2004h>                 if line.startswith('Installed-Size:') and size == 0:
+[?2004l[?2004h>                     try:
+[?2004l[?2004h>                         size = int(line.split(':', 1)[1].strip())
+[?2004l[?2004h>                     except:
+[?2004l[?2004h>                         pass
+[?2004l[?2004h>         except:
+[?2004l[?2004h>             pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         result = subprocess.run(['apt-cache', 'policy', pkg], capture_output=True, text=True, timeout=5)
+[?2004l[?2004h>         output = result.stdout
+[?2004l[?2004h>         installed_ver = None
+[?2004l[?2004h>         candidate_ver = None
+[?2004l[?2004h>         for line in output.split('\n'):
+[?2004l[?2004h>             if 'Installed:' in line:
+[?2004l[?2004h>                 installed_ver = line.split(':', 1)[1].strip()
+[?2004l[?2004h>             if 'Candidate:' in line:
+[?2004l[?2004h>                 candidate_ver = line.split(':', 1)[1].strip()
+[?2004l[?2004h>         if installed_ver and candidate_ver and installed_ver != candidate_ver and candidate_ver != '(none)':
+[?2004l[?2004h>             if 'security' in output.lower():
+[?2004l[?2004h>                 has_security = True
+[?2004l[?2004h>     except:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     return version, size, has_security
+[?2004l[?2004h> 
+[?2004l[?2004h> removable_packages = []
+[?2004l[?2004h> total_space = 0
+[?2004l[?2004h> 
+[?2004l[?2004h> for pkg in sorted(removable):
+[?2004l[?2004h>     version, size, has_sec = get_pkg_info(pkg)
+[?2004l[?2004h>     total_space += size
+[?2004l[?2004h>     removable_packages.append({
+[?2004l[?2004h>         'name': pkg,
+[?2004l[?2004h>         'installed_version': version,
+[?2004l[?2004h>         'size_kb': size,
+[?2004l[?2004h>         'has_security_update': has_sec
+[?2004l[?2004h>     })
+[?2004l[?2004h> 
+[?2004l[?2004h> dep_protected = []
+[?2004l[?2004h> for pkg in sorted(protected):
+[?2004l[?2004h>     req_by = sorted(list(set(protected_by.get(pkg, []))))
+[?2004l[?2004h>     dep_protected.append({
+[?2004l[?2004h>         'name': pkg,
+[?2004l[?2004h>         'required_by': req_by
+[?2004l[?2004h>     })
+[?2004l[?2004h> 
+[?2004l[?2004h> report = {
+[?2004l[?2004h>     'summary': {
+[?2004l[?2004h>         'total_installed': len(installed),
+[?2004l[?2004h>         'total_required': len(required),
+[?2004l[?2004h>         'removable_count': len(removable),
+[?2004l[?2004h>         'kept_as_dependencies': len(protected),
+[?2004l[?2004h>         'total_space_savings_kb': total_space
+[?2004l[?2004h>     },
+[?2004l[?2004h>     'removable_packages': removable_packages,
+[?2004l[?2004h>     'dependency_protected': dep_protected
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('/home/user/migration/removal_report.json', 'w') as f:
+[?2004l[?2004h>     json.dump(report, f, indent=2)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('Report written')
+[?2004l[?2004h> PYEND
+[?2004l[?2004huser@b310372d7fdd:~/migration$ python3 /tmp/gen_report.py
+[?2004l^CReport written
+[?2004huser@b310372d7fdd:~/migration$ head -20 /tmp/gen_report.py
+[?2004limport subprocess
+import json
+import re
+
+installed = open('/home/user/migration/installed_packages.txt').read().strip().split('\n')
+required = open('/home/user/migration/required_packages.txt').read().strip().split('\n')
+
+removable = ['apache2', 'dnsutils', 'git', 'htop', 'iputils-ping', 'lsof', 'mysql-client', 'nano', 'ncdu', 'netcat-openbsd', 'nodejs', 'npm', 'postgresql-client', 'redis-tools', 'strace', 'tcpdump', 'tree', 'vim', 'wget']
+protected = ['libc6', 'libssl3', 'zlib1g']
+protected_by = {
+    'libc6': ['bash', 'coreutils', 'curl', 'python3', 'nginx', 'openssl'],
+    'libssl3': ['curl', 'openssl', 'nginx', 'python3'],
+    'zlib1g': ['curl', 'nginx', 'python3']
+}
+
+def get_pkg_info(pkg):
+    version = 'unknown'
+    size = 0
+    has_security = False
+    
+[?2004huser@b310372d7fdd:~/migration$ cat /home/user/migration/removal_report.json
+[?2004l{
+  "summary": {
+    "total_installed": 31,
+    "total_required": 9,
+    "removable_count": 19,
+    "kept_as_dependencies": 3,
+    "total_space_savings_kb": 37001
+  },
+  "removable_packages": [
+    {
+      "name": "apache2",
+      "installed_version": "2.4.52-1ubuntu4.19",
+      "size_kb": 536,
+      "has_security_update": true
+    },
+    {
+      "name": "dnsutils",
+      "installed_version": "1:9.18.39-0ubuntu0.22.04.3",
+      "size_kb": 61,
+      "has_security_update": true
+    },
+    {
+      "name": "git",
+      "installed_version": "1:2.34.1-1ubuntu1.17",
+      "size_kb": 18484,
+      "has_security_update": true
+    },
+    {
+      "name": "htop",
+      "installed_version": "3.0.5-7build2",
+      "size_kb": 334,
+      "has_security_update": false
+    },
+    {
+      "name": "iputils-ping",
+      "installed_version": "3:20211215-1ubuntu0.1",
+      "size_kb": 113,
+      "has_security_update": true
+    },
+    {
+      "name": "lsof",
+      "installed_version": "4.93.2+dfsg-1.1build2",
+      "size_kb": 447,
+      "has_security_update": false
+    },
+    {
+      "name": "mysql-client",
+      "installed_version": "8.0.45-0ubuntu0.22.04.1",
+      "size_kb": 35,
+      "has_security_update": true
+    },
+    {
+      "name": "nano",
+      "installed_version": "6.2-1ubuntu0.1",
+      "size_kb": 860,
+      "has_security_update": true
+    },
+    {
+      "name": "ncdu",
+      "installed_version": "1.15.1-1",
+      "size_kb": 104,
+      "has_security_update": false
+    },
+    {
+      "name": "netcat-openbsd",
+      "installed_version": "1.218-4ubuntu1",
+      "size_kb": 106,
+      "has_security_update": false
+    },
+    {
+      "name": "nodejs",
+      "installed_version": "12.22.9~dfsg-1ubuntu3.6",
+      "size_kb": 907,
+      "has_security_update": true
+    },
+    {
+      "name": "npm",
+      "installed_version": "8.5.1~ds-1",
+      "size_kb": 2647,
+      "has_security_update": false
+    },
+    {
+      "name": "postgresql-client",
+      "installed_version": "14+238",
+      "size_kb": 70,
+      "has_security_update": false
+    },
+    {
+      "name": "redis-tools",
+      "installed_version": "5:6.0.16-1ubuntu1.1",
+      "size_kb": 4063,
+      "has_security_update": true
+    },
+    {
+      "name": "strace",
+      "installed_version": "5.16-0ubuntu3",
+      "size_kb": 2000,
+      "has_security_update": false
+    },
+    {
+      "name": "tcpdump",
+      "installed_version": "4.99.1-3ubuntu0.2",
+      "size_kb": 1374,
+      "has_security_update": false
+    },
+    {
+      "name": "tree",
+      "installed_version": "unknown",
+      "size_kb": 0,
+      "has_security_update": false
+    },
+    {
+      "name": "vim",
+      "installed_version": "2:8.2.3995-1ubuntu2.27",
+      "size_kb": 3932,
+      "has_security_update": true
+    },
+    {
+      "name": "wget",
+      "installed_version": "1.21.2-2ubuntu1.1",
+      "size_kb": 928,
+      "has_security_update": true
+    }
+  ],
+  "dependency_protected": [
+    {
+      "name": "libc6",
+      "required_by": [
+        "bash",
+        "coreutils",
+        "curl",
+        "nginx",
+        "openssl",
+        "python3"
+      ]
+    },
+    {
+      "name": "libssl3",
+      "required_by": [
+        "curl",
+        "nginx",
+        "openssl",
+        "python3"
+      ]
+    },
+    {
+      "name": "zlib1g",
+      "required_by": [
+        "curl",
+        "nginx",
+        "python3"
+      ]
+    }
+  ]
+}[?2004huser@b310372d7fdd:~/migration$ apt-cache show tree 2>/dev/null | grep -E '^(Version|Installed-Size):'
+[?2004lVersion: 2.0.2-1
+Installed-Size: 113
+[?2004huser@b310372d7fdd:~/migration$ cat > /home/user/migration/remove_packages.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> # Auto-generated script to remove unnecessary packages
+[?2004l[?2004h> # Generated for container migration cleanup
+[?2004l[?2004h> 
+[?2004l[?2004h> PACKAGES="apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget"
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "=== Container Package Removal Script ==="
+[?2004l[?2004h> echo "The following packages will be removed:"
+[?2004l[?2004h> echo "$PACKAGES"
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> 
+[?2004l[?2004h> # Dry-run to show what would be removed
+[?2004l[?2004h> echo "Performing dry-run..."
+[?2004l[?2004h> sudo apt-get remove --dry-run $PACKAGES
+[?2004l[?2004h> 
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "Proceeding with actual removal..."
+[?2004l[?2004h> sudo apt-get remove -y $PACKAGES
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@b310372d7fdd:~/migration$ chmod +x /home/user/migration/remove_packages.sh
+[?2004l[?2004huser@b310372d7fdd:~/migration$ cat /home/user/migration/remove_packages.sh
+[?2004l#!/bin/bash
+# Auto-generated script to remove unnecessary packages
+# Generated for container migration cleanup
+
+PACKAGES="apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget"
+
+echo "=== Container Package Removal Script ==="
+echo "The following packages will be removed:"
+echo "$PACKAGES"
+echo ""
+
+# Dry-run to show what would be removed
+echo "Performing dry-run..."
+sudo apt-get remove --dry-run $PACKAGES
+
+echo ""
+echo "Proceeding with actual removal..."
+sudo apt-get remove -y $PACKAGES
+[?2004huser@b310372d7fdd:~/migration$ python3 -c "
+[?2004l[?2004h> import json
+[?2004l[?2004h> with open('/home/user/migration/removal_report.json', 'r') as f:
+[?2004l[?2004h>     data = json.load(f)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Fix tree package
+[?2004l[?2004h> for pkg in data['removable_packages']:
+[?2004l[?2004h>     if pkg['name'] == 'tree':
+[?2004l[?2004h>         pkg['installed_version'] = '2.0.2-1'
+[?2004l[?2004h>         pkg['size_kb'] = 113
+[?2004l[?2004h>         break
+[?2004l[?2004h> 
+[?2004l[?2004h> # Update total space savings
+[?2004l[?2004h> data['summary']['total_space_savings_kb'] = sum(p['size_kb'] for p in data['removable_packages'])
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('/home/user/migration/removal_report.json', 'w') as f:
+[?2004l[?2004h>     json.dump(data, f, indent=2)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('Updated successfully')
+[?2004l[?2004h> "
+[?2004lUpdated successfully
+[?2004huser@b310372d7fdd:~/migration$ cat /home/user/migration/removal_report.json
+[?2004l{
+  "summary": {
+    "total_installed": 31,
+    "total_required": 9,
+    "removable_count": 19,
+    "kept_as_dependencies": 3,
+    "total_space_savings_kb": 37114
+  },
+  "removable_packages": [
+    {
+      "name": "apache2",
+      "installed_version": "2.4.52-1ubuntu4.19",
+      "size_kb": 536,
+      "has_security_update": true
+    },
+    {
+      "name": "dnsutils",
+      "installed_version": "1:9.18.39-0ubuntu0.22.04.3",
+      "size_kb": 61,
+      "has_security_update": true
+    },
+    {
+      "name": "git",
+      "installed_version": "1:2.34.1-1ubuntu1.17",
+      "size_kb": 18484,
+      "has_security_update": true
+    },
+    {
+      "name": "htop",
+      "installed_version": "3.0.5-7build2",
+      "size_kb": 334,
+      "has_security_update": false
+    },
+    {
+      "name": "iputils-ping",
+      "installed_version": "3:20211215-1ubuntu0.1",
+      "size_kb": 113,
+      "has_security_update": true
+    },
+    {
+      "name": "lsof",
+      "installed_version": "4.93.2+dfsg-1.1build2",
+      "size_kb": 447,
+      "has_security_update": false
+    },
+    {
+      "name": "mysql-client",
+      "installed_version": "8.0.45-0ubuntu0.22.04.1",
+      "size_kb": 35,
+      "has_security_update": true
+    },
+    {
+      "name": "nano",
+      "installed_version": "6.2-1ubuntu0.1",
+      "size_kb": 860,
+      "has_security_update": true
+    },
+    {
+      "name": "ncdu",
+      "installed_version": "1.15.1-1",
+      "size_kb": 104,
+      "has_security_update": false
+    },
+    {
+      "name": "netcat-openbsd",
+      "installed_version": "1.218-4ubuntu1",
+      "size_kb": 106,
+      "has_security_update": false
+    },
+    {
+      "name": "nodejs",
+      "installed_version": "12.22.9~dfsg-1ubuntu3.6",
+      "size_kb": 907,
+      "has_security_update": true
+    },
+    {
+      "name": "npm",
+      "installed_version": "8.5.1~ds-1",
+      "size_kb": 2647,
+      "has_security_update": false
+    },
+    {
+      "name": "postgresql-client",
+      "installed_version": "14+238",
+      "size_kb": 70,
+      "has_security_update": false
+    },
+    {
+      "name": "redis-tools",
+      "installed_version": "5:6.0.16-1ubuntu1.1",
+      "size_kb": 4063,
+      "has_security_update": true
+    },
+    {
+      "name": "strace",
+      "installed_version": "5.16-0ubuntu3",
+      "size_kb": 2000,
+      "has_security_update": false
+    },
+    {
+      "name": "tcpdump",
+      "installed_version": "4.99.1-3ubuntu0.2",
+      "size_kb": 1374,
+      "has_security_update": false
+    },
+    {
+      "name": "tree",
+      "installed_version": "2.0.2-1",
+      "size_kb": 113,
+      "has_security_update": false
+    },
+    {
+      "name": "vim",
+      "installed_version": "2:8.2.3995-1ubuntu2.27",
+      "size_kb": 3932,
+      "has_security_update": true
+    },
+    {
+      "name": "wget",
+      "installed_version": "1.21.2-2ubuntu1.1",
+      "size_kb": 928,
+      "has_security_update": true
+    }
+  ],
+  "dependency_protected": [
+    {
+      "name": "libc6",
+      "required_by": [
+        "bash",
+        "coreutils",
+        "curl",
+        "nginx",
+        "openssl",
+        "python3"
+      ]
+    },
+    {
+      "name": "libssl3",
+      "required_by": [
+        "curl",
+        "nginx",
+        "openssl",
+        "python3"
+      ]
+    },
+    {
+      "name": "zlib1g",
+      "required_by": [
+        "curl",
+        "nginx",
+        "python3"
+      ]
+    }
+  ]
+}[?2004huser@b310372d7fdd:~/migration$ ls -la /home/user/migration/
+[?2004ltotal 28
+drwxrwxrwx 1 user user 4096 Apr 21 00:21 .
+drwxrwxrwx 1 user user 4096 Apr 21 00:18 ..
+-rw-r--r-- 1 user user  246 Apr 20 23:18 installed_packages.txt
+-rw-r--r-- 1 user user 3362 Apr 21 00:21 removal_report.json
+-rwxr-xr-x 1 user user  589 Apr 21 00:21 remove_packages.sh
+-rw-r--r-- 1 user user   73 Apr 20 23:18 required_packages.txt
+[?2004huser@b310372d7fdd:~/migration$ python3 -c "import json; json.load(open('/home/user/migration/removal_report.json')); print('JSON is valid')"
+[?2004lJSON is valid
+[?2004huser@b310372d7fdd:~/migration$ apt-cache depends curl 2>/dev/null | grep -i depends | head -10
+[?2004lapt-cache depends nginx 2>/dev/null | grep -i depends | head -10
+  Depends: libc6
+  Depends: libcurl4
+  Depends: zlib1g
+[?2004huser@b310372d7fdd:~/migration$ apt-cache depends nginx 2>/dev/null | grep -i depends | head -10
+[?2004lhead -30 /home/user/migration/removal_report.json && echo '...' && tail -20 /home/user/migration/removal_report.json
+ |Depends: nginx-core
+ |Depends: nginx-full
+ |Depends: nginx-light
+  Depends: nginx-extras
+ |Depends: nginx-core
+ |Depends: nginx-full
+ |Depends: nginx-light
+  Depends: nginx-extras
+[?2004huser@b310372d7fdd:~/migration$ head -30 /home/user/migration/removal_report.json && echo '...' && tail -20 /home/user/migration/removal_report.json
+[?2004l{
+  "summary": {
+    "total_installed": 31,
+    "total_required": 9,
+    "removable_count": 19,
+    "kept_as_dependencies": 3,
+    "total_space_savings_kb": 37114
+  },
+  "removable_packages": [
+    {
+      "name": "apache2",
+      "installed_version": "2.4.52-1ubuntu4.19",
+      "size_kb": 536,
+      "has_security_update": true
+    },
+    {
+      "name": "dnsutils",
+      "installed_version": "1:9.18.39-0ubuntu0.22.04.3",
+      "size_kb": 61,
+      "has_security_update": true
+    },
+    {
+      "name": "git",
+      "installed_version": "1:2.34.1-1ubuntu1.17",
+      "size_kb": 18484,
+      "has_security_update": true
+    },
+    {
+      "name": "htop",
+      "installed_version": "3.0.5-7build2",
+...
+    },
+    {
+      "name": "libssl3",
+      "required_by": [
+        "curl",
+        "nginx",
+        "openssl",
+        "python3"
+      ]
+    },
+    {
+      "name": "zlib1g",
+      "required_by": [
+        "curl",
+        "nginx",
+        "python3"
+      ]
+    }
+  ]
+}[?2004huser@b310372d7fdd:~/migration$ 

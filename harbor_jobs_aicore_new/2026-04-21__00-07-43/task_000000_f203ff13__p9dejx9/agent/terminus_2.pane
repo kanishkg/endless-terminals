@@ -1,0 +1,236 @@
+[?2004hroot@b2797d57b993:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@b2797d57b993:/home/user# clear
+[?2004l[H[J[?2004hroot@b2797d57b993:/home/user# cd /home/user/company && ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 20 23:16 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 20 23:16 [34;42m..[0m
+-rw-rw-rw- 1 root root 8192 Apr 20 23:16 employees.db
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT COUNT(*) FROM employees;"
+[?2004l24
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT * FROM employees LIMIT 5;"
+[?2004l1|Alice Johnson|Engineering|alice@company.com|95000.0|2019-03-15|
+2|Bob Smith|Engineering|bob@company.com|87000.0|2020-06-01|1
+3|Carol White|Engineering|carol@company.com|145000.0|2018-01-10|1
+4|David Brown|Sales|david@company.com|72000.0|2021-02-20|10
+5|Eve Davis|Sales|eve@company.com|68000.0|2022-07-12|10
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT name FROM employees WHERE manager_id IS NOT NULL AND manager_id NOT IN (SELECT id FROM employees) ORDER BY name;"
+[?2004lFrank Miller
+Quinn Harris
+Rachel Clark
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT name FROM employees WHERE manager_id IS NOT NULL AND manager_id NOT IN (SELECT id FROM employees) ORDER BY name;" > /home/user/company/orphaned_employees.txt
+[?2004l[?2004hroot@b2797d57b993:/home/user/company# cat /home/user/company/orphaned_employees.txt
+[?2004lFrank Miller
+Quinn Harris
+Rachel Clark
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT department, AVG(salary) as avg_sal FROM employees GROUP BY department;"
+[?2004lEngineering|99833.3333333333
+Finance|86600.0
+HR|64500.0
+Marketing|71750.0
+Sales|81400.0
+[?2004hroot@b2797d57b993:/home/user/company# echo 'id,name,department,salary,dept_average' > /home/user/company/salary_outliers.csv
+[?2004l[?2004hroot@b2797d57b993:/home/user/company# sqlite3 -separator ',' employees.db "SELECT e.id, e.name, e.department, e.salary, ROUND(d.avg_sal, 2) as dept_average FROM employees e JOIN (SELECT department, AVG(salary) as avg_sal FROM employees GROUP BY department) d ON e.department = d.department WHERE e.salary > 1.2 * d.avg_sal ORDER BY e.department ASC, e.salary DESC;" >> /home/user/company/salary_outliers.csv
+[?2004l[?2004hroot@b2797d57b993:/home/user/company# cat /home/user/company/salary_outliers.csv
+[?2004lid,name,department,salary,dept_average
+3,Carol White,Engineering,145000.0,99833.33
+15,Olivia Thomas,Finance,125000.0,86600.0
+9,Ivy Chen,HR,78000.0,64500.0
+19,Sam Lewis,Marketing,98000.0,71750.0
+6,Frank Miller,Sales,115000.0,81400.0
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT email FROM employees GROUP BY email HAVING COUNT(*) > 1 ORDER BY email;"
+[?2004lbob@company.com
+grace@company.com
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT email FROM employees GROUP BY email HAVING COUNT(*) > 1 ORDER BY email;" > /home/user/company/duplicate_emails.txt
+[?2004l[?2004hroot@b2797d57b993:/home/user/company# cat /home/user/company/duplicate_emails.txt
+[?2004lbob@company.com
+grace@company.com
+[?2004hroot@b2797d57b993:/home/user/company# sqlite3 employees.db "SELECT department, COUNT(*) as count, ROUND(AVG(salary), 2) as avg_salary, MIN(hire_date) as oldest_hire, MAX(hire_date) as newest_hire FROM employees GROUP BY department ORDER BY department;"
+[?2004lEngineering|6|99833.33|2018-01-10|2023-04-10
+Finance|5|86600.0|2015-12-01|2022-11-28
+HR|4|64500.0|2016-04-22|2023-03-08
+Marketing|4|71750.0|2019-06-20|2023-07-01
+Sales|5|81400.0|2017-11-05|2022-07-12
+[?2004hroot@b2797d57b993:/home/user/company# python3 -c "
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> import json
+[?2004l[?2004h> 
+[?2004l[?2004h> conn = sqlite3.connect('employees.db')
+[?2004l[?2004h> cursor = conn.cursor()
+[?2004l[?2004h> 
+[?2004l[?2004h> cursor.execute('''SELECT department, COUNT(*) as count, ROUND(AVG(salary), 2) as avg_salary, MIN(hire_date) as oldest_hire, MAX(hire_date) as newest_hire FROM employees GROUP BY department ORDER BY department''')
+[?2004l[?2004h> 
+[?2004l[?2004h> result = {}
+[?2004l[?2004h> for row in cursor.fetchall():
+[?2004l[?2004h>     dept, count, avg_salary, oldest_hire, newest_hire = row
+[?2004l[?2004h>     result[dept] = {
+[?2004l[?2004h>         'count': count,
+[?2004l[?2004h>         'avg_salary': avg_salary,
+[?2004l[?2004h>         'oldest_hire': oldest_hire,
+[?2004l[?2004h>         'newest_hire': newest_hire
+[?2004l[?2004h>     }
+[?2004l[?2004h> 
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('/home/user/company/dept_summary.json', 'w') as f:
+[?2004l[?2004h>     json.dump(result, f, indent=2, sort_keys=True)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('Done')
+[?2004l[?2004h> "
+[?2004lDone
+[?2004hroot@b2797d57b993:/home/user/company# cat /home/user/company/dept_summary.json
+[?2004l{
+  "Engineering": {
+    "avg_salary": 99833.33,
+    "count": 6,
+    "newest_hire": "2023-04-10",
+    "oldest_hire": "2018-01-10"
+  },
+  "Finance": {
+    "avg_salary": 86600.0,
+    "count": 5,
+    "newest_hire": "2022-11-28",
+    "oldest_hire": "2015-12-01"
+  },
+  "HR": {
+    "avg_salary": 64500.0,
+    "count": 4,
+    "newest_hire": "2023-03-08",
+    "oldest_hire": "2016-04-22"
+  },
+  "Marketing": {
+    "avg_salary": 71750.0,
+    "count": 4,
+    "newest_hire": "2023-07-01",
+    "oldest_hire": "2019-06-20"
+  },
+  "Sales": {
+    "avg_salary": 81400.0,
+    "count": 5,
+    "newest_hire": "2022-07-12",
+    "oldest_hire": "2017-11-05"
+  }
+}[?2004hroot@b2797d57b993:/home/user/company# python3 -c "
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> import json
+[?2004l[?2004h> from collections import OrderedDict
+[?2004l[?2004h> 
+[?2004l[?2004h> conn = sqlite3.connect('employees.db')
+[?2004l[?2004h> cursor = conn.cursor()
+[?2004l[?2004h> 
+[?2004l[?2004h> cursor.execute('''SELECT department, COUNT(*) as count, ROUND(AVG(salary), 2) as avg_salary, MIN(hire_date) as oldest_hire, MAX(hire_date) as newest_hire FROM employees GROUP BY department ORDER BY department''')
+[?2004l[?2004h> 
+[?2004l[?2004h> result = OrderedDict()
+[?2004l[?2004h> for row in cursor.fetchall():
+[?2004l[?2004h>     dept, count, avg_salary, oldest_hire, newest_hire = row
+[?2004l[?2004h>     result[dept] = OrderedDict([
+[?2004l[?2004h>         ('count', count),
+[?2004l[?2004h>         ('avg_salary', avg_salary),
+[?2004l[?2004h>         ('oldest_hire', oldest_hire),
+[?2004l[?2004h>         ('newest_hire', newest_hire)
+[?2004l[?2004h>     ])
+[?2004l[?2004h> 
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('/home/user/company/dept_summary.json', 'w') as f:
+[?2004l[?2004h>     json.dump(result, f, indent=2)
+[?2004l[?2004h>     f.write('\\n')
+[?2004l[?2004h> 
+[?2004l[?2004h> print('Done')
+[?2004l[?2004h> "
+[?2004lDone
+[?2004hroot@b2797d57b993:/home/user/company# cat /home/user/company/dept_summary.json
+[?2004l{
+  "Engineering": {
+    "count": 6,
+    "avg_salary": 99833.33,
+    "oldest_hire": "2018-01-10",
+    "newest_hire": "2023-04-10"
+  },
+  "Finance": {
+    "count": 5,
+    "avg_salary": 86600.0,
+    "oldest_hire": "2015-12-01",
+    "newest_hire": "2022-11-28"
+  },
+  "HR": {
+    "count": 4,
+    "avg_salary": 64500.0,
+    "oldest_hire": "2016-04-22",
+    "newest_hire": "2023-03-08"
+  },
+  "Marketing": {
+    "count": 4,
+    "avg_salary": 71750.0,
+    "oldest_hire": "2019-06-20",
+    "newest_hire": "2023-07-01"
+  },
+  "Sales": {
+    "count": 5,
+    "avg_salary": 81400.0,
+    "oldest_hire": "2017-11-05",
+    "newest_hire": "2022-07-12"
+  }
+}
+[?2004hroot@b2797d57b993:/home/user/company# ls -la /home/user/company/
+[?2004ltotal 40
+drwxrwxrwx 1 root root 4096 Apr 21 00:09 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 20 23:16 [34;42m..[0m
+-rw-r--r-- 1 root root  643 Apr 21 00:09 dept_summary.json
+-rw-r--r-- 1 root root   34 Apr 21 00:08 duplicate_emails.txt
+-rw-rw-rw- 1 root root 8192 Apr 20 23:16 employees.db
+-rw-r--r-- 1 root root   39 Apr 21 00:08 orphaned_employees.txt
+-rw-r--r-- 1 root root  232 Apr 21 00:08 salary_outliers.csv
+[?2004hroot@b2797d57b993:/home/user/company# echo '=== orphaned_employees.txt ===' && cat /home/user/company/orphaned_employees.txt && echo '' && echo '=== salary_outliers.csv ===' && cat /home/user/company/salary_outliers.csv && echo '' && echo '=== duplicate_emails.txt ===' && cat /home/user/company/duplicate_emails.txt && echo '' && echo '=== dept_summary.json ===' && cat /home/user/company/dept_summary.json
+[?2004l=== orphaned_employees.txt ===
+Frank Miller
+Quinn Harris
+Rachel Clark
+
+=== salary_outliers.csv ===
+id,name,department,salary,dept_average
+3,Carol White,Engineering,145000.0,99833.33
+15,Olivia Thomas,Finance,125000.0,86600.0
+9,Ivy Chen,HR,78000.0,64500.0
+19,Sam Lewis,Marketing,98000.0,71750.0
+6,Frank Miller,Sales,115000.0,81400.0
+
+=== duplicate_emails.txt ===
+bob@company.com
+grace@company.com
+
+=== dept_summary.json ===
+{
+  "Engineering": {
+    "count": 6,
+    "avg_salary": 99833.33,
+    "oldest_hire": "2018-01-10",
+    "newest_hire": "2023-04-10"
+  },
+  "Finance": {
+    "count": 5,
+    "avg_salary": 86600.0,
+    "oldest_hire": "2015-12-01",
+    "newest_hire": "2022-11-28"
+  },
+  "HR": {
+    "count": 4,
+    "avg_salary": 64500.0,
+    "oldest_hire": "2016-04-22",
+    "newest_hire": "2023-03-08"
+  },
+  "Marketing": {
+    "count": 4,
+    "avg_salary": 71750.0,
+    "oldest_hire": "2019-06-20",
+    "newest_hire": "2023-07-01"
+  },
+  "Sales": {
+    "count": 5,
+    "avg_salary": 81400.0,
+    "oldest_hire": "2017-11-05",
+    "newest_hire": "2022-07-12"
+  }
+}
+[?2004hroot@b2797d57b993:/home/user/company# 

@@ -1,0 +1,22 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@5e86544927f4:~/migration$ # Store removable packages
+user@5e86544927f4:~/migration$ comm -23 <(sort extra_packages.txt) <(sort all_deps_unique.txt) > removable_packages.txt
+user@5e86544927f4:~/migration$ # Store protected packages
+user@5e86544927f4:~/migration$ comm -12 <(sort extra_packages.txt) <(sort all_deps_unique.txt) > protected_packages.txt
+user@5e86544927f4:~/migration$ # For each protected package, find which required packages need it
+user@5e86544927f4:~/migration$ for pkg in $(cat protected_packages.txt); do
+>   echo "=== $pkg is required by ==="
+>   for req in $(cat required_packages.txt); do
+>     if apt-cache depends "$req" 2>/dev/null | grep -qE "(Depends|PreDepends):.*$pkg"; then
+>       echo "  - $req (direct)"
+>     fi
+>   done
+> done
+=== libc6 is required by ===
+  - curl (direct)
+

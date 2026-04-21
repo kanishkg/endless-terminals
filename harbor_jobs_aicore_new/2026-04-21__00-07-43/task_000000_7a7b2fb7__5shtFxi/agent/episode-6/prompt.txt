@@ -1,0 +1,178 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@d45c39d4259a:~/migration$ cat > /tmp/analyze.py << 'PYEOF'
+> import subprocess
+> import json
+> import re
+> from collections import defaultdict
+>
+> def run_cmd(cmd):
+>     try:
+>         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+>         return result.stdout
+>     except:
+>         return ""
+>
+> # Read package lists
+> with open('/home/user/migration/installed_packages.txt') as f:
+>     installed = [line.strip() for line in f if line.strip()]
+>
+> with open('/home/user/migration/required_packages.txt') as f:
+>     required = set(line.strip() for line in f if line.strip())
+>
+> print(f"Installed: {len(installed)}, Required: {len(required)}")
+>
+> # Cache for dependencies
+> dep_cache = {}
+>
+> def get_deps(pkg):
+>     if pkg in dep_cache:
+>         return dep_cache[pkg]
+>     output = run_cmd(f"apt-cache depends {pkg} 2>/dev/null")
+>     deps = set()
+>     for line in output.split('\n'):
+>         if 'Depends:' in line or 'PreDepends:' in line:
+>             match = re.search(r':\s*<?([^>\s]+)>?', line)
+>             if match:
+>                 dep = match.group(1)
+>                 if dep and not dep.startswith('<'):
+>                     deps.add(dep)
+>     dep_cache[pkg] = deps
+>     return deps
+>
+> # Build dependency tree up to 3 levels for required packages
+> print("Building dependency tree...")
+> all_deps = {}  # dep -> set of required packages that need it
+>
+> for req_pkg in required:
+>     print(f"  Processing {req_pkg}...")
+>     # Level 1
+>     level1 = get_deps(req_pkg)
+>     for dep1 in level1:
+>         if dep1 not in all_deps:
+>             all_deps[dep1] = set()
+>         all_deps[dep1].add(req_pkg)
+>         # Level 2
+>         level2 = get_deps(dep1)
+>         for dep2 in level2:
+>             if dep2 not in all_deps:
+>                 all_deps[dep2] = set()
+>             all_deps[dep2].add(req_pkg)
+>             # Level 3
+>             level3 = get_deps(dep2)
+>             for dep3 in level3:
+>                 if dep3 not in all_deps:
+>                     all_deps[dep3] = set()
+>                 all_deps[dep3].add(req_pkg)
+>
+> print(f"Found {len(all_deps)} dependencies")
+>
+> # Find extra packages
+> extra = [pkg for pkg in installed if pkg not in required]
+> print(f"Extra packages: {len(extra)}")
+>
+> # Categorize
+> removable = []
+> protected = []
+>
+> for pkg in extra:
+>     if pkg in all_deps:
+>         protected.append((pkg, sorted(all_deps[pkg])))
+>     else:
+>         removable.append(pkg)
+>
+> removable.sort()
+> protected.sort(key=lambda x: x[0])
+>
+> print(f"Removable: {len(removable)}, Protected: {len(protected)}")
+>
+> # Get package info
+> def get_pkg_info(pkg):
+>     # Get size
+>     output = run_cmd(f"apt-cache show {pkg} 2>/dev/null")
+>     size = 0
+>     version = ""
+>     for line in output.split('\n'):
+>         if line.startswith('Installed-Size:'):
+>             try:
+>                 size = int(line.split(':')[1].strip())
+>             except:
+>                 pass
+>         if line.startswith('Version:') and not version:
+>             version = line.split(':', 1)[1].strip()
+>
+>     # Check security updates
+>     policy = run_cmd(f"apt-cache policy {pkg} 2>/dev/null")
+>     has_security = 'security' in policy.lower()
+>
+>     return version, size, has_security
+>
+> print("Getting package info...")
+> removable_info = []
+> total_size = 0
+>
+> for pkg in removable:
+>     version, size, has_security = get_pkg_info(pkg)
+>     total_size += size
+>     removable_info.append({
+>         "name": pkg,
+>         "installed_version": version,
+>         "size_kb": size,
+>         "has_security_update": has_security
+>     })
+>     print(f"  {pkg}: {size}KB, security={has_security}")
+>
+> protected_info = [
+>     {"name": pkg, "required_by": req_by}
+>     for pkg, req_by in protected
+> ]
+>
+> # Build report
+> report = {
+>     "summary": {
+>         "total_installed": len(installed),
+>         "total_required": len(required),
+>         "removable_count": len(removable),
+>         "kept_as_dependencies": len(protected),
+>         "total_space_savings_kb": total_size
+>     },
+>     "removable_packages": removable_info,
+>     "dependency_protected": protected_info
+> }
+>
+> with open('/home/user/migration/removal_report.json', 'w') as f:
+>     json.dump(report, f, indent=2)
+>
+> print("Report written to removal_report.json")
+>
+> # Generate removal script
+> with open('/home/user/migration/remove_packages.sh', 'w') as f:
+>     pkg_list = ' '.join(removable)
+>     f.write('''#!/bin/bash
+>
+> # Dry-run: showing packages that would be removed
+> echo "The following packages will be removed: ''' + pkg_list + '''"
+>
+> # Actual removal command
+> sudo apt-get remove -y ''' + pkg_list + '''\n''')
+>
+> import os
+> os.chmod('/home/user/migration/remove_packages.sh', 0o755)
+> print("Removal script written to remove_packages.sh")
+> PYEOF
+user@d45c39d4259a:~/migration$ python3 /tmp/analyze.py
+Installed: 31, Required: 9
+Building dependency tree...
+  Processing python3...
+  Processing ca-certificates...
+  Processing curl...
+  Processing openssl...
+  Processing jq...
+  Processing bash...
+  Processing python3-pip...
+  Processing nginx...
+

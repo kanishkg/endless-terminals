@@ -1,0 +1,17 @@
+```json
+{
+  "analysis": "Report 1 is complete and looks correct. Files >= 10MB are listed with MB sizes (floor), sorted by size descending. When sizes are equal (15MB appears twice), they're sorted alphabetically by path (app.log before presentation.pptx). Now I need to create Report 2 (extension_summary.csv) and Report 3 (directory_rollup.txt).",
+  "plan": "Create Report 2: Extract file extensions from filenames, convert to lowercase, sum bytes by extension. Files without dots get 'NO_EXTENSION'. Need to exclude directory entries (the ones with 4096 bytes that are just directory paths). Then create Report 3: Sum all file sizes under each immediate subdirectory of /var/data and calculate percentages.",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\nBEGIN { OFS=\",\" }\n{\n  path = $2\n  bytes = $1\n  # Skip directory entries\n  if (path == \"/var/data\" || path == \"/var/data/logs\" || path == \"/var/data/backups\" || path == \"/var/data/cache\" || path == \"/var/data/cache/thumbnails\" || path == \"/var/data/uploads\" || path == \"/var/data/archives\") next\n  \n  # Get filename (after last /)\n  n = split(path, parts, \"/\")\n  filename = parts[n]\n  \n  # Get extension (after last dot)\n  if (index(filename, \".\") > 0) {\n    m = split(filename, dots, \".\")\n    ext = tolower(dots[m])\n  } else {\n    ext = \"NO_EXTENSION\"\n  }\n  \n  totals[ext] += bytes\n}\nEND {\n  print \"extension,total_bytes\"\n  for (ext in totals) {\n    print ext, totals[ext]\n  }\n}' /home/user/disk_inventory.txt | head -1 > /home/user/reports/extension_summary.csv && awk -F'\\t' '\n{\n  path = $2\n  bytes = $1\n  if (path == \"/var/data\" || path == \"/var/data/logs\" || path == \"/var/data/backups\" || path == \"/var/data/cache\" || path == \"/var/data/cache/thumbnails\" || path == \"/var/data/uploads\" || path == \"/var/data/archives\") next\n  n = split(path, parts, \"/\")\n  filename = parts[n]\n  if (index(filename, \".\") > 0) {\n    m = split(filename, dots, \".\")\n    ext = tolower(dots[m])\n  } else {\n    ext = \"NO_EXTENSION\"\n  }\n  totals[ext] += bytes\n}\nEND {\n  for (ext in totals) {\n    print totals[ext], ext\n  }\n}' /home/user/disk_inventory.txt | sort -t' ' -k1,1nr | awk '{print $2\",\"$1}' >> /home/user/reports/extension_summary.csv\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/extension_summary.csv\n",
+      "duration": 0.1
+    }
+  ],
+  "task_complete": false
+}
+```

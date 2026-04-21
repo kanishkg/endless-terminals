@@ -1,0 +1,687 @@
+[?2004huser@805564a713ca:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@805564a713ca:~$ clear
+[?2004l[H[J[?2004huser@805564a713ca:~$ cd /home/user/migration && ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 user user 4096 Apr 20 23:18 .
+drwxrwxrwx 1 user user 4096 Apr 21 00:42 ..
+-rw-r--r-- 1 user user  246 Apr 20 23:18 installed_packages.txt
+-rw-r--r-- 1 user user   73 Apr 20 23:18 required_packages.txt
+[?2004huser@805564a713ca:~/migration$ echo '=== Installed packages ===' && cat installed_packages.txt
+[?2004l=== Installed packages ===
+curl
+wget
+vim
+nano
+git
+htop
+tree
+ncdu
+jq
+python3
+python3-pip
+nodejs
+npm
+nginx
+apache2
+mysql-client
+postgresql-client
+redis-tools
+netcat-openbsd
+tcpdump
+strace
+lsof
+dnsutils
+iputils-ping
+ca-certificates
+openssl
+libssl3
+zlib1g
+libc6
+coreutils
+bash
+[?2004huser@805564a713ca:~/migration$ echo '=== Required packages ===' && cat required_packages.txt
+[?2004l=== Required packages ===
+curl
+python3
+python3-pip
+jq
+nginx
+ca-certificates
+openssl
+bash
+coreutils
+[?2004huser@805564a713ca:~/migration$ comm -23 <(sort installed_packages.txt) <(sort required_packages.txt)
+[?2004lapache2
+dnsutils
+git
+htop
+iputils-ping
+libc6
+libssl3
+lsof
+mysql-client
+nano
+ncdu
+netcat-openbsd
+nodejs
+npm
+postgresql-client
+redis-tools
+strace
+tcpdump
+tree
+vim
+wget
+zlib1g
+[?2004huser@805564a713ca:~/migration$ cat > /tmp/analyze_deps.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Get all dependencies of a package up to 3 levels deep
+[?2004l[?2004h> get_deps() {
+[?2004l[?2004h>     local pkg=$1
+[?2004l[?2004h>     local level=$2
+[?2004l[?2004h>     local max_level=3
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [ $level -gt $max_level ]; then
+[?2004l[?2004h>         return
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Get direct dependencies
+[?2004l[?2004h>     local deps=$(apt-cache depends "$pkg" 2>/dev/null | grep -E "^\s+Depends:" | sed 's/.*Depends: //' | sed 's/<\|>//g' | cut -d':' -f1)
+[?2004l[?2004h>     
+[?2004l[?2004h>     for dep in $deps; do
+[?2004l[?2004h>         echo "$dep"
+[?2004l[?2004h>         get_deps "$dep" $((level + 1))
+[?2004l[?2004h>     done
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read required packages and collect all their dependencies
+[?2004l[?2004h> while read -r pkg; do
+[?2004l[?2004h>     [ -z "$pkg" ] && continue
+[?2004l[?2004h>     get_deps "$pkg" 1
+[?2004l[?2004h> done < /home/user/migration/required_packages.txt | sort -u
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@805564a713ca:~/migration$ chmod +x /tmp/analyze_deps.sh
+[?2004l[?2004huser@805564a713ca:~/migration$ bash /tmp/analyze_deps.sh > /tmp/all_deps.txt 2>/dev/null && echo 'Dependencies collected:' && cat /tmp/all_deps.txt
+[?2004lapt-cache depends curl 2>/dev/null | head -20
+apt-cache depends nginx 2>/dev/null | head -30
+apt-cache depends python3 2>/dev/null | head -20
+apt-cache depends curl
+apt-cache depends nginx
+apt-cache depends python3
+
+apt-cache depends curl
+^C
+[?2004huser@805564a713ca:~/migration$ 
+[?2004l[?2004huser@805564a713ca:~/migration$ pwd
+[?2004l/home/user/migration
+[?2004huser@805564a713ca:~/migration$ apt-cache depends curl
+[?2004lcurl
+  Depends: libc6
+  Depends: libcurl4
+  Depends: zlib1g
+[?2004huser@805564a713ca:~/migration$ apt-cache depends nginx
+[?2004lnginx
+ |Depends: nginx-core
+ |Depends: nginx-full
+ |Depends: nginx-light
+  Depends: nginx-extras
+ |Depends: nginx-core
+ |Depends: nginx-full
+ |Depends: nginx-light
+  Depends: nginx-extras
+  Breaks: <libnginx-mod-http-lua>
+[?2004huser@805564a713ca:~/migration$ apt-cache depends python3
+[?2004lpython3
+  PreDepends: python3-minimal
+  Depends: python3.10
+  Depends: libpython3-stdlib
+  Suggests: python3-doc
+  Suggests: python3-tk
+  Suggests: python3-venv
+  Replaces: python3-minimal
+[?2004huser@805564a713ca:~/migration$ apt-cache depends openssl
+[?2004lopenssl
+  Depends: libc6
+  Depends: libssl3
+  Suggests: ca-certificates
+[?2004huser@805564a713ca:~/migration$ apt-cache depends ca-certificates
+[?2004lca-certificates
+  Depends: openssl
+ |Depends: debconf
+  Depends: <debconf-2.0>
+    cdebconf
+    debconf
+  Breaks: ca-certificates-java
+  Enhances: openssl
+[?2004huser@805564a713ca:~/migration$ apt-cache depends python3-pip
+[?2004lpython3-pip
+  Depends: ca-certificates
+  Depends: python3-distutils
+  Depends: python3-setuptools
+  Depends: python3-wheel
+  Depends: <python3:any>
+    python3
+  Breaks: python-pip
+  Recommends: build-essential
+  Recommends: python3-dev
+  Replaces: python-pip
+[?2004huser@805564a713ca:~/migration$ apt-cache depends jq
+[?2004ljq
+  Depends: libjq1
+  Depends: libc6
+[?2004huser@805564a713ca:~/migration$ apt-cache depends bash
+[?2004lbash
+  PreDepends: libc6
+  PreDepends: libtinfo6
+  Depends: base-files
+  Depends: debianutils
+  Conflicts: bash-completion
+  Recommends: bash-completion
+  Suggests: bash-doc
+  Replaces: bash-completion
+  Replaces: bash-doc
+[?2004huser@805564a713ca:~/migration$ apt-cache depends coreutils
+[?2004lcoreutils
+  PreDepends: libacl1
+  PreDepends: libattr1
+  PreDepends: libc6
+  PreDepends: libgmp10
+  PreDepends: libselinux1
+[?2004huser@805564a713ca:~/migration$ cat > /tmp/analyze.py << 'PYEOF'
+[?2004lp())
+    except:
+        pass
+    return 0
+
+def get_installed_version(pkg):
+    """Get installed version of a package"""
+    try:
+        result = subprocess.run(['dpkg-query', '-W', '-f=${Version}', pkg],
+                               capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except:
+        pass
+    return "unknown"
+
+def has_security_update(pkg):
+    """Check if package has a security update available"""
+    try:
+        result = subprocess.run(['apt-cache', 'policy', pkg],
+                               capture_output=True, text=True, timeout=10)
+        output = result.stdout
+        # Check if there's a security pocket version available
+        if '-security' in output:
+            lines = output.split('\n')
+            installed_ver = None
+            candidate_ver = None
+            for line in lines:
+                if 'Installed:' in line:
+                    installed_ver = line.split(':')[1].strip()
+                elif 'Candidate:' in line:
+                    candidate_ver = line.split(':')[1].strip()
+            if installed_ver and candidate_ver and installed_ver != candidate_ver:
+                # Check if candidate comes from security
+                for line in lines:
+                    if candidate_ver in line and '-security' in line:
+                        return True
+        return False
+    except:
+        return False
+
+# Read package lists
+with open('/home/user/migration/installed_packages.txt') as f:
+    installed = set(line.strip() for line in f if line.strip())
+
+with open('/home/user/migration/required_packages.txt') as f:
+    required = set(line.strip() for line in f if line.strip())
+
+print(f"Installed: {len(installed)} packages")
+print(f"Required: {len(required)} packages")
+
+# Get all dependencies of required packages (up to 3 levels)
+all_required_deps = set()
+dep_to_required_by = {}  # Track which required package needs each dep
+
+for pkg in required:
+    deps = get_all_deps(pkg, max_depth=3)
+    for dep in deps:
+        all_required[?2004h> import subprocess
+[?2004l[?2004h> import json
+[?2004l[?2004h> import re
+[?2004l[?2004h> 
+[?2004l[?2004h> def get_direct_deps(pkg):
+[?2004l[?2004h>     """Get direct dependencies of a package"""
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         result = subprocess.run(['apt-cache', 'depends', pkg], 
+[?2004l[?2004h>                                capture_output=True, text=True, timeout=10)
+[?2004l[?2004h>         deps = set()
+[?2004l[?2004h>         for line in result.stdout.split('\n'):
+[?2004l[?2004h>             # Match Depends: and PreDepends: lines
+[?2004l[?2004h>             match = re.match(r'\s+(?:Pre)?Depends:\s+<?([^>\s]+)>?', line)
+[?2004l[?2004h>             if match:
+[?2004l[?2004h>                 dep = match.group(1)
+[?2004l[?2004h>                 # Skip virtual packages (those in angle brackets that aren't resolved)
+[?2004l[?2004h>                 if not dep.startswith('<'):
+[?2004l[?2004h>                     deps.add(dep.split(':')[0])  # Remove :any suffix
+[?2004l[?2004h>         return deps
+[?2004l[?2004h>     except:
+[?2004l[?2004h>         return set()
+[?2004l[?2004h> 
+[?2004l[?2004h> def get_all_deps(pkg, max_depth=3, current_depth=1, seen=None):
+[?2004l[?2004h>     """Recursively get all dependencies up to max_depth levels"""
+[?2004l[?2004h>     if seen is None:
+[?2004l[?2004h>         seen = set()
+[?2004l[?2004h>     if current_depth > max_depth or pkg in seen:
+[?2004l[?2004h>         return set()
+[?2004l[?2004h>     
+[?2004l[?2004h>     seen.add(pkg)
+[?2004l[?2004h>     all_deps = set()
+[?2004l[?2004h>     direct = get_direct_deps(pkg)
+[?2004l[?2004h>     all_deps.update(direct)
+[?2004l[?2004h>     
+[?2004l[?2004h>     if current_depth < max_depth:
+[?2004l[?2004h>         for dep in direct:
+[?2004l[?2004h>             if dep not in seen:
+[?2004l[?2004h>                 all_deps.update(get_all_deps(dep, max_depth, current_depth + 1, seen))
+[?2004l[?2004h>     
+[?2004l[?2004h>     return all_deps
+[?2004l[?2004h> 
+[?2004l[?2004h> def get_package_size(pkg):
+[?2004l[?2004h>     """Get installed size in KB"""
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         result = subprocess.run(['dpkg-query', '-W', '-f=${Installed-Size}', pkg],
+[?2004l[?2004h>                                capture_output=True, text=True, timeout=10)
+[?2004l[?2004h>         if result.returncode == 0 and result.stdout.strip():
+[?2004l[?2004h>             return int(result.stdout.strip())
+[?2004l[?2004h>     except:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     # Fallback to apt-cache show
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         result = subprocess.run(['apt-cache', 'show', pkg],
+[?2004l[?2004h>                                capture_output=True, text=True, timeout=10)
+[?2004l[?2004h>         for line in result.stdout.split('\n'):
+[?2004l[?2004h>             if line.startswith('Installed-Size:'):
+[?2004l[?2004h>                 return int(line.split(':')[1].strip())
+[?2004l[?2004h>     except:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     return 0
+[?2004l[?2004h> 
+[?2004l[?2004h> def get_installed_version(pkg):
+[?2004l[?2004h>     """Get installed version of a package"""
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         result = subprocess.run(['dpkg-query', '-W', '-f=${Version}', pkg],
+[?2004l[?2004h>                                capture_output=True, text=True, timeout=10)
+[?2004l[?2004h>         if result.returncode == 0:
+[?2004l[?2004h>             return result.stdout.strip()
+[?2004l[?2004h>     except:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     return "unknown"
+[?2004l[?2004h> 
+[?2004l[?2004h> def has_security_update(pkg):
+[?2004l[?2004h>     """Check if package has a security update available"""
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         result = subprocess.run(['apt-cache', 'policy', pkg],
+[?2004l[?2004h>                                capture_output=True, text=True, timeout=10)
+[?2004l[?2004h>         output = result.stdout
+[?2004l[?2004h>         # Check if there's a security pocket version available
+[?2004l[?2004h>         if '-security' in output:
+[?2004l[?2004h>             lines = output.split('\n')
+[?2004l[?2004h>             installed_ver = None
+[?2004l[?2004h>             candidate_ver = None
+[?2004l[?2004h>             for line in lines:
+[?2004l[?2004h>                 if 'Installed:' in line:
+[?2004l[?2004h>                     installed_ver = line.split(':')[1].strip()
+[?2004l[?2004h>                 elif 'Candidate:' in line:
+[?2004l[?2004h>                     candidate_ver = line.split(':')[1].strip()
+[?2004l[?2004h>             if installed_ver and candidate_ver and installed_ver != candidate_ver:
+[?2004l[?2004h>                 # Check if candidate comes from security
+[?2004l[?2004h>                 for line in lines:
+[?2004l[?2004h>                     if candidate_ver in line and '-security' in line:
+[?2004l[?2004h>                         return True
+[?2004l[?2004h>         return False
+[?2004l[?2004h>     except:
+[?2004l[?2004h>         return False
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read package lists
+[?2004l[?2004h> with open('/home/user/migration/installed_packages.txt') as f:
+[?2004l[?2004h>     installed = set(line.strip() for line in f if line.strip())
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('/home/user/migration/required_packages.txt') as f:
+[?2004l[?2004h>     required = set(line.strip() for line in f if line.strip())
+[?2004l[?2004h> 
+[?2004l[?2004h> print(f"Installed: {len(installed)} packages")
+[?2004l[?2004h> print(f"Required: {len(required)} packages")
+[?2004l[?2004h> 
+[?2004l[?2004h> # Get all dependencies of required packages (up to 3 levels)
+[?2004l[?2004h> all_required_deps = set()
+[?2004l[?2004h> dep_to_required_by = {}  # Track which required package needs each dep
+[?2004l[?2004h> 
+[?2004l[?2004h> for pkg in required:
+[?2004l[?2004h>     deps = get_all_deps(pkg, max_depth=3)
+[?2004l[?2004h>     for dep in deps:
+[?2004l[?2004h>         all_required_deps.add(dep)
+[?2004l[?2004h>         if dep not in dep_to_required_by:
+[?2004l[?2004h>             dep_to_required_by[dep] = []
+[?2004l[?2004h>         dep_to_required_by[dep].append(pkg)
+[?2004l[?2004h> 
+[?2004l[?2004h> print(f"All dependencies of required packages: {len(all_required_deps)}")
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find extra packages (installed but not required)
+[?2004l[?2004h> extra = installed - required
+[?2004l[?2004h> print(f"Extra packages: {len(extra)}")
+[?2004l[?2004h> 
+[?2004l[?2004h> # Split extra into removable and dependency-protected
+[?2004l[?2004h> removable = []
+[?2004l[?2004h> dependency_protected = []
+[?2004l[?2004h> 
+[?2004l[?2004h> for pkg in extra:
+[?2004l[?2004h>     if pkg in all_required_deps:
+[?2004l[?2004h>         dependency_protected.append({
+[?2004l[?2004h>             'name': pkg,
+[?2004l[?2004h>             'required_by': sorted(dep_to_required_by.get(pkg, []))
+[?2004l[?2004h>         })
+[?2004l[?2004h>     else:
+[?2004l[?2004h>         size = get_package_size(pkg)
+[?2004l[?2004h>         version = get_installed_version(pkg)
+[?2004l[?2004h>         security = has_security_update(pkg)
+[?2004l[?2004h>         removable.append({
+[?2004l[?2004h>             'name': pkg,
+[?2004l[?2004h>             'installed_version': version,
+[?2004l[?2004h>             'size_kb': size,
+[?2004l[?2004h>             'has_security_update': security
+[?2004l[?2004h>         })
+[?2004l[?2004h> 
+[?2004l[?2004h> # Sort alphabetically
+[?2004l[?2004h> removable.sort(key=lambda x: x['name'])
+[?2004l[?2004h> dependency_protected.sort(key=lambda x: x['name'])
+[?2004l[?2004h> 
+[?2004l[?2004h> # Calculate total space savings
+[?2004l[?2004h> total_savings = sum(p['size_kb'] for p in removable)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Build report
+[?2004l[?2004h> report = {
+[?2004l[?2004h>     'summary': {
+[?2004l[?2004h>         'total_installed': len(installed),
+[?2004l[?2004h>         'total_required': len(required),
+[?2004l[?2004h>         'removable_count': len(removable),
+[?2004l[?2004h>         'kept_as_dependencies': len(dependency_protected),
+[?2004l[?2004h>         'total_space_savings_kb': total_savings
+[?2004l[?2004h>     },
+[?2004l[?2004h>     'removable_packages': removable,
+[?2004l[?2004h>     'dependency_protected': dependency_protected
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write JSON report
+[?2004l[?2004h> with open('/home/user/migration/removal_report.json', 'w') as f:
+[?2004l[?2004h>     json.dump(report, f, indent=2)
+[?2004l[?2004h> 
+[?2004l[?2004h> print("\nReport written to /home/user/migration/removal_report.json")
+[?2004l[?2004h> 
+[?2004l[?2004h> # Create removal script
+[?2004l[?2004h> if removable:
+[?2004l[?2004h>     pkg_names = ' '.join(p['name'] for p in removable)
+[?2004l[?2004h>     script = f"""#!/bin/bash
+[?2004l[?2004h> # Auto-generated script to remove unnecessary packages
+[?2004l[?2004h> # Generated for cloud migration cleanup
+[?2004l[?2004h> 
+[?2004l[?2004h> set -e
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "The following packages will be removed:"
+[?2004l[?2004h> echo "{pkg_names}"
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "Dry run (no changes will be made):"
+[?2004l[?2004h> apt-get remove --dry-run {pkg_names}
+[?2004l[?2004h> 
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "To actually remove these packages, run:"
+[?2004l[?2004h> echo "sudo apt-get remove -y {pkg_names}"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Uncomment the following line to perform actual removal:
+[?2004l[?2004h> # apt-get remove -y {pkg_names}
+[?2004l[?2004h> """
+[?2004l[?2004h>     with open('/home/user/migration/remove_packages.sh', 'w') as f:
+[?2004l[?2004h>         f.write(script)
+[?2004l[?2004h>     import os
+[?2004l[?2004h>     os.chmod('/home/user/migration/remove_packages.sh', 0o755)
+[?2004l[?2004h>     print("Removal script written to /home/user/migration/remove_packages.sh")
+[?2004l[?2004h> 
+[?2004l[?2004h> print("\nDone!")
+[?2004l[?2004h> PYEOF
+[?2004l[?2004huser@805564a713ca:~/migration$ python3 /tmp/analyze.py
+[?2004lInstalled: 31 packages
+Required: 9 packages
+C-c
+^C
+^C
+pwd
+
+^C
+^CAll dependencies of required packages: 105
+Extra packages: 22
+echo test
+
+ls -la /home/user/migration/
+
+^C
+
+Report written to /home/user/migration/removal_report.json
+Removal script written to /home/user/migration/remove_packages.sh
+
+Done!
+[?2004huser@805564a713ca:~/migration$ 
+[?2004l[?2004huser@805564a713ca:~/migration$ ls -la /home/user/migration/
+[?2004ltotal 28
+drwxrwxrwx 1 user user 4096 Apr 21 00:47 .
+drwxrwxrwx 1 user user 4096 Apr 21 00:42 ..
+-rw-r--r-- 1 user user  246 Apr 20 23:18 installed_packages.txt
+-rw-r--r-- 1 user user 3263 Apr 21 00:47 removal_report.json
+-rwxr-xr-x 1 user user 1018 Apr 21 00:47 remove_packages.sh
+-rw-r--r-- 1 user user   73 Apr 20 23:18 required_packages.txt
+[?2004huser@805564a713ca:~/migration$ cat /home/user/migration/removal_report.json
+[?2004l{
+  "summary": {
+    "total_installed": 31,
+    "total_required": 9,
+    "removable_count": 19,
+    "kept_as_dependencies": 3,
+    "total_space_savings_kb": 34467
+  },
+  "removable_packages": [
+    {
+      "name": "apache2",
+      "installed_version": "",
+      "size_kb": 536,
+      "has_security_update": false
+    },
+    {
+      "name": "dnsutils",
+      "installed_version": "unknown",
+      "size_kb": 61,
+      "has_security_update": false
+    },
+    {
+      "name": "git",
+      "installed_version": "",
+      "size_kb": 18484,
+      "has_security_update": false
+    },
+    {
+      "name": "htop",
+      "installed_version": "unknown",
+      "size_kb": 334,
+      "has_security_update": false
+    },
+    {
+      "name": "iputils-ping",
+      "installed_version": "unknown",
+      "size_kb": 113,
+      "has_security_update": false
+    },
+    {
+      "name": "lsof",
+      "installed_version": "unknown",
+      "size_kb": 447,
+      "has_security_update": false
+    },
+    {
+      "name": "mysql-client",
+      "installed_version": "unknown",
+      "size_kb": 35,
+      "has_security_update": false
+    },
+    {
+      "name": "nano",
+      "installed_version": "",
+      "size_kb": 860,
+      "has_security_update": false
+    },
+    {
+      "name": "ncdu",
+      "installed_version": "unknown",
+      "size_kb": 104,
+      "has_security_update": false
+    },
+    {
+      "name": "netcat-openbsd",
+      "installed_version": "unknown",
+      "size_kb": 106,
+      "has_security_update": false
+    },
+    {
+      "name": "nodejs",
+      "installed_version": "unknown",
+      "size_kb": 907,
+      "has_security_update": false
+    },
+    {
+      "name": "npm",
+      "installed_version": "unknown",
+      "size_kb": 0,
+      "has_security_update": false
+    },
+    {
+      "name": "postgresql-client",
+      "installed_version": "unknown",
+      "size_kb": 70,
+      "has_security_update": false
+    },
+    {
+      "name": "redis-tools",
+      "installed_version": "unknown",
+      "size_kb": 4063,
+      "has_security_update": true
+    },
+    {
+      "name": "strace",
+      "installed_version": "unknown",
+      "size_kb": 2000,
+      "has_security_update": false
+    },
+    {
+      "name": "tcpdump",
+      "installed_version": "unknown",
+      "size_kb": 1374,
+      "has_security_update": false
+    },
+    {
+      "name": "tree",
+      "installed_version": "unknown",
+      "size_kb": 113,
+      "has_security_update": false
+    },
+    {
+      "name": "vim",
+      "installed_version": "unknown",
+      "size_kb": 3932,
+      "has_security_update": false
+    },
+    {
+      "name": "wget",
+      "installed_version": "unknown",
+      "size_kb": 928,
+      "has_security_update": false
+    }
+  ],
+  "dependency_protected": [
+    {
+      "name": "libc6",
+      "required_by": [
+        "bash",
+        "ca-certificates",
+        "coreutils",
+        "curl",
+        "jq",
+        "nginx",
+        "openssl",
+        "python3",
+        "python3-pip"
+      ]
+    },
+    {
+      "name": "libssl3",
+      "required_by": [
+        "ca-certificates",
+        "curl",
+        "nginx",
+        "openssl",
+        "python3-pip"
+      ]
+    },
+    {
+      "name": "zlib1g",
+      "required_by": [
+        "curl",
+        "nginx",
+        "python3"
+      ]
+    }
+  ]
+}[?2004huser@805564a713ca:~/migration$ cat /home/user/migration/remove_packages.sh
+[?2004l#!/bin/bash
+# Auto-generated script to remove unnecessary packages
+# Generated for cloud migration cleanup
+
+set -e
+
+echo "The following packages will be removed:"
+echo "apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget"
+echo ""
+echo "Dry run (no changes will be made):"
+apt-get remove --dry-run apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget
+
+echo ""
+echo "To actually remove these packages, run:"
+echo "sudo apt-get remove -y apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget"
+
+# Uncomment the following line to perform actual removal:
+# apt-get remove -y apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget
+[?2004huser@805564a713ca:~/migration$ file /home/user/migration/remove_packages.sh
+[?2004lbash: file: command not found
+[?2004huser@805564a713ca:~/migration$ cat > /home/user/migration/remove_packages.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> # Auto-generated script to remove unnecessary packages
+[?2004l[?2004h> # Generated for cloud migration cleanup
+[?2004l[?2004h> 
+[?2004l[?2004h> set -e
+[?2004l[?2004h> 
+[?2004l[?2004h> PACKAGES="apache2 dnsutils git htop iputils-ping lsof mysql-client nano ncdu netcat-openbsd nodejs npm postgresql-client redis-tools strace tcpdump tree vim wget"
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "The following packages will be removed:"
+[?2004l[?2004h> echo "$PACKAGES"
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> 
+[?2004l[?2004h> # Dry-run to show what would be removed
+[?2004l[?2004h> echo "=== DRY RUN ==="
+[?2004l[?2004h> apt-get remove --dry-run $PACKAGES
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> 
+[?2004l[?2004h> # Actual removal command
+[?2004l[?2004h> echo "=== REMOVING PACKAGES ==="
+[?2004l[?2004h> apt-get remove -y $PACKAGES
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@805564a713ca:~/migration$ chmod +x /home/user/migration/remove_packages.sh
+[?2004l[?2004huser@805564a713ca:~/migration$ 

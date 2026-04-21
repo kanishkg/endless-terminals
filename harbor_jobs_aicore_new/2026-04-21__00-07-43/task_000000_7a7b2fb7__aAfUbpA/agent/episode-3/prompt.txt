@@ -1,0 +1,24 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@5e86544927f4:~/migration$ # Function to get dependencies up to 3 levels deep
+user@5e86544927f4:~/migration$ get_deps() {
+>   local pkg=$1
+>   local level=$2
+>   if [ $level -gt 3 ]; then return; fi
+>   apt-cache depends "$pkg" 2>/dev/null | grep -E "^\s*(Depends|PreDepends):" | sed 's/.*: //' | sed 's/<\|>//g' | while read dep; do
+>     echo "$dep"
+>     get_deps "$dep" $((level+1))
+>   done
+> }
+user@5e86544927f4:~/migration$ # Get all dependencies for required packages
+user@5e86544927f4:~/migration$ echo '' > all_deps.txt
+user@5e86544927f4:~/migration$ for pkg in $(cat required_packages.txt); do
+>   echo "Checking deps for: $pkg" >&2
+>   get_deps "$pkg" 1 >> all_deps.txt
+> done
+Checking deps for: curl
+

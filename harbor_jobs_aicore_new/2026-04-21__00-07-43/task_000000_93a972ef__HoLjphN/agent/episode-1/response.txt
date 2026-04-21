@@ -1,0 +1,12 @@
+```json
+{
+  "analysis": "I can now see both configuration files:\n\n**alerts.yaml**: Has 3 alert rules (HighLatency, ServiceDown, HighMemoryUsage). I need to:\n- Change HighLatency 'for' from 5m to 3m\n- Add 'escalation_level: critical' label to ServiceDown\n- Add new DiskSpaceLow alert rule\n\n**uptime.toml**: Has global section and 3 endpoints. I need to:\n- Change check_interval from 60 to 30\n- Add timeout = 10 to global section\n- Modify api-gateway: expected_status to 200, add critical = true\n- Add new payment-service endpoint",
+  "plan": "I'll use Python to properly parse and modify both files to ensure they remain valid YAML and TOML. This is safer than sed/awk for structured data. I'll create a Python script that:\n1. Loads alerts.yaml, makes changes, writes it back\n2. Loads uptime.toml, makes changes, writes it back\n3. Creates the validation log",
+  "commands": [
+    {
+      "keystrokes": "python3 << 'EOF'\nimport yaml\nimport sys\n\n# Read the YAML file\nwith open('/etc/monitoring/alerts.yaml', 'r') as f:\n    content = f.read()\n    \n# Parse YAML\ndata = yaml.safe_load(content)\n\n# Find the rules list\nrules = data['groups'][0]['rules']\n\n# 1. Change HighLatency 'for' duration to 3m\nfor rule in rules:\n    if rule.get('alert') == 'HighLatency':\n        rule['for'] = '3m'\n        print('Updated HighLatency for duration')\n    \n    # 2. Add escalation_level to ServiceDown\n    if rule.get('alert') == 'ServiceDown':\n        rule['labels']['escalation_level'] = 'critical'\n        print('Added escalation_level to ServiceDown')\n\n# 3. Add new DiskSpaceLow alert\nnew_alert = {\n    'alert': 'DiskSpaceLow',\n    'expr': 'node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"} < 0.1',\n    'for': '10m',\n    'labels': {\n        'severity': 'warning',\n        'team': 'infrastructure'\n    },\n    'annotations': {\n        'summary': 'Disk space below 10% on {{ $labels.instance }}'\n    }\n}\nrules.append(new_alert)\nprint('Added DiskSpaceLow alert')\n\n# Write back with preserved structure\nwith open('/etc/monitoring/alerts.yaml', 'w') as f:\n    f.write('# Prometheus alerting rules\\n')\n    yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)\n\nprint('YAML file updated successfully')\nEOF\n",
+      "duration": 2.0
+    }
+  ]
+}
+```

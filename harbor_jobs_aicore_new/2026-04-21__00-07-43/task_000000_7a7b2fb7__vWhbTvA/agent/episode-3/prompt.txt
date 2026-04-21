@@ -1,0 +1,61 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@b310372d7fdd:~/migration$ cat > /tmp/analyze.sh << 'ENDSCRIPT'
+> #!/bin/bash
+> cd /home/user/migration
+> mapfile -t INSTALLED < installed_packages.txt
+> mapfile -t REQUIRED < required_packages.txt
+> declare -A IS_REQUIRED IS_INSTALLED IS_DEPENDENCY DEP_OF
+> for pkg in "${INSTALLED[@]}"; do IS_INSTALLED["$pkg"]=1; done
+> for pkg in "${REQUIRED[@]}"; do IS_REQUIRED["$pkg"]=1; done
+> get_deps() {
+>     local pkg="$1" level="$2" parent="$3"
+>     [ "$level" -gt 3 ] && return
+>     local deps=$(apt-cache depends "$pkg" 2>/dev/null | grep -E "^  Depends:" | sed 's/.*Depends: //' | sed 's/<.*//' | tr -d ' ')
+>     for dep in $deps; do
+>         [ -z "$dep" ] && continue
+>         if [ -n "${IS_INSTALLED[$dep]}" ]; then
+>             IS_DEPENDENCY["$dep"]=1
+>             if [ -z "${DEP_OF[$dep]}" ]; then
+>                 DEP_OF["$dep"]="$parent"
+>             elif [[ ! "${DEP_OF[$dep]}" =~ "$parent" ]]; then
+>                 DEP_OF["$dep"]="${DEP_OF[$dep]},$parent"
+>             fi
+>             get_deps "$dep" $((level + 1)) "$parent"
+>         fi
+>     done
+> }
+> echo "Analyzing dependencies..." >&2
+> for pkg in "${REQUIRED[@]}"; do
+>     echo "  Checking: $pkg" >&2
+>     get_deps "$pkg" 1 "$pkg"
+> done
+> declare -a REMOVABLE PROTECTED
+> for pkg in "${INSTALLED[@]}"; do
+>     if [ -z "${IS_REQUIRED[$pkg]}" ]; then
+>         if [ -n "${IS_DEPENDENCY[$pkg]}" ]; then
+>             PROTECTED+=("$pkg")
+>         else
+>             REMOVABLE+=("$pkg")
+>         fi
+>     fi
+> done
+> IFS=$'\n' REMOVABLE=($(sort <<<"${REMOVABLE[*]}")); unset IFS
+> IFS=$'\n' PROTECTED=($(sort <<<"${PROTECTED[*]}")); unset IFS
+> echo "Removable: ${REMOVABLE[*]}" >&2
+> echo "Protected: ${PROTECTED[*]}" >&2
+> ENDSCRIPT
+user@b310372d7fdd:~/migration$ chmod +x /tmp/analyze.sh
+user@b310372d7fdd:~/migration$ bash /tmp/analyze.sh
+Analyzing dependencies...
+  Checking: curl
+  Checking: python3
+  Checking: python3-pip
+  Checking: jq
+  Checking: nginx
+  Checking: ca-certificates
+

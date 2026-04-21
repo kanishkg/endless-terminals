@@ -1,0 +1,66 @@
+New Terminal Output:
+
+root@d1527bdf6378:/home/user# awk -F'\t' '
+> BEGIN { OFS="," }
+> {
+>   size = $1
+>   path = $2
+>   # Skip directory entries (they end with a dir name that appears elsewhere as prefix)
+>   if (size == 4096 && path ~ /\/var\/data(\/[^\/]+)*$/) {
+>     # Check if this is a directory by seeing if path has no extension-like ending
+>     n = split(path, parts, "/")
+>     fname = parts[n]
+>     if (fname !~ /\./) next  # likely a directory
+>   }
+>   # Get filename
+>   n = split(path, parts, "/")
+>   fname = parts[n]
+>   # Get extension
+>   if (fname ~ /\./) {
+>     m = split(fname, extparts, ".")
+>     ext = tolower(extparts[m])
+>   } else {
+>     ext = "NO_EXTENSION"
+>   }
+>   totals[ext] += size
+> }
+> END {
+>   print "extension,total_bytes"
+>   for (ext in totals) {
+>     print ext, totals[ext]
+>   }
+> }
+> ' /home/user/disk_inventory.txt | head -1 > /home/user/reports/extension_summary.csv && awk -F'\t' '
+> {
+>   size = $1
+>   path = $2
+>   if (size == 4096) next
+>   n = split(path, parts, "/")
+>   fname = parts[n]
+>   if (fname ~ /\./) {
+>     m = split(fname, extparts, ".")
+>     ext = tolower(extparts[m])
+>   } else {
+>     ext = "NO_EXTENSION"
+>   }
+>   totals[ext] += size
+> }
+> END {
+>   for (ext in totals) {
+>     print totals[ext], ext
+>   }
+> }
+> ' /home/user/disk_inventory.txt | sort -rn | awk '{print $2","$1}' >> /home/user/reports/extension_summary.csv
+root@d1527bdf6378:/home/user# cat /home/user/reports/extension_summary.csv
+extension,total_bytes
+gz,199229440
+log,20971520
+db,20971520
+pptx,15728640
+NO_EXTENSION,9437184
+xlsx,7340032
+pdf,3145728
+bak,2097152
+jpg,1835008
+txt,524288
+root@d1527bdf6378:/home/user#

@@ -1,0 +1,14 @@
+{
+  "analysis": "Report 2 (extension_summary.csv) is complete with proper CSV format, header row, extensions in lowercase, and sorted by total_bytes descending. Now I need to create Report 3 (directory_rollup.txt) which shows totals for each immediate subdirectory of /var/data with percentages.",
+  "plan": "Create Report 3: directory_rollup.txt. I need to:\n1. For each file (not directory entries), extract the immediate subdirectory under /var/data\n2. Sum all bytes for files under each subdirectory\n3. Calculate percentage of total /var/data usage (rounded to 1 decimal)\n4. Format as: <dirname> <total_bytes> <percentage>%\n5. Sort by total_bytes descending",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\n{\n  size = $1\n  path = $2\n  # Skip directory entries (size 4096)\n  if (size == 4096) next\n  # Extract immediate subdirectory of /var/data\n  # Path format: /var/data/subdir/...\n  if (match(path, /^\\/var\\/data\\/([^\\/]+)/, arr)) {\n    subdir = arr[1]\n  } else {\n    # Handle edge case - split manually\n    n = split(path, parts, \"/\")\n    if (n >= 4) subdir = parts[4]\n    else next\n  }\n  totals[subdir] += size\n  grand_total += size\n}\nEND {\n  for (dir in totals) {\n    pct = (totals[dir] / grand_total) * 100\n    printf \"%s %d %.1f%%\\n\", dir, totals[dir], pct\n  }\n}\n' /home/user/disk_inventory.txt | sort -t' ' -k2 -rn > /home/user/reports/directory_rollup.txt\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/directory_rollup.txt\n",
+      "duration": 0.1
+    }
+  ]
+}

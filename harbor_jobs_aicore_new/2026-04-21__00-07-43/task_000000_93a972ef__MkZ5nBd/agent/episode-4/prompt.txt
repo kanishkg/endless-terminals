@@ -1,0 +1,79 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@a83f93e8a085:/home/user# cat /etc/monitoring/alerts.yaml
+# Prometheus alerting rules
+groups:
+- name: service_alerts
+  rules:
+  - alert: HighLatency
+    expr: http_request_duration_seconds > 0.5
+    for: 3m
+    labels:
+      severity: warning
+    annotations:
+      summary: High latency detected on {{ $labels.instance }}
+  - alert: ServiceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+      team: platform
+      escalation_level: critical
+    annotations:
+      summary: Service {{ $labels.job }} is down
+  - alert: HighMemoryUsage
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Memory usage critical on {{ $labels.instance }}
+  - alert: DiskSpaceLow
+    expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}
+      < 0.1
+    for: 10m
+    labels:
+      severity: warning
+      team: infrastructure
+    annotations:
+      summary: Disk space below 10% on {{ $labels.instance }}
+root@a83f93e8a085:/home/user# cat /etc/monitoring/uptime.toml
+# Uptime checker daemon configuration
+
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 200
+method = "GET"
+critical = true
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+
+[[endpoints]]
+name = "payment-service"
+url = "https://payments.internal.example.com/health"
+expected_status = 200
+critical = true
+
+[endpoints.headers]
+Authorization = "Bearer ${PAYMENTS_TOKEN}"
+
+[global]
+check_interval = 30
+retry_count = 3
+log_level = "info"
+timeout = 10
+root@a83f93e8a085:/home/user#

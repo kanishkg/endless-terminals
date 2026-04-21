@@ -1,0 +1,30 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@7eb6d408ecbb:/home/user# awk -F'\t' '
+> BEGIN { total = 0 }
+> $2 ~ /^\/var\/data\/[^\/]+\// || ($2 ~ /^\/var\/data\/[^\/]+$/ && $2 != "/var/data/logs" && $2 != "/var/data/backups" && $2 != "/var/data/cache" && $2 != "/va
+r/data/uploads" && $2 != "/var/data/archives") {
+>   path = $2
+>   sub(/^\/var\/data\//, "", path)
+>   n = split(path, parts, "/")
+>   subdir = parts[1]
+>   bytes[subdir] += $1
+>   total += $1
+> }
+> END {
+>   for (d in bytes) {
+>     pct = (bytes[d] / total) * 100
+>     printf "%s %d %.1f%%\n", d, bytes[d], pct
+>   }
+> }' /home/user/disk_inventory.txt | sort -t' ' -k2,2nr > /home/user/reports/directory_rollup.txt
+root@7eb6d408ecbb:/home/user# cat /home/user/reports/directory_rollup.txt
+archives 144703488 51.4%
+backups 65011712 23.1%
+uploads 27787264 9.9%
+cache 22810624 8.1%
+logs 20971520 7.5%
+root@7eb6d408ecbb:/home/user#

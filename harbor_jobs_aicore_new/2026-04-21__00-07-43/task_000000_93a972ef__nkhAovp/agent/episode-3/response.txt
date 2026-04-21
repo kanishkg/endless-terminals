@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "Python 3.10.12 doesn't have tomllib (that's 3.11+). I have yaml available for the YAML file. For the TOML file, I'll need to use sed/awk or write a simple parser. Given the straightforward nature of the TOML changes, I'll use sed for TOML and Python for YAML to ensure proper handling.",
+  "plan": "1. First, I'll create a Python script to modify the YAML file properly (using PyYAML with careful handling to preserve structure)\n2. Then use sed commands to modify the TOML file\n3. Finally create the validation log\n\nLet me start with the YAML modifications using Python.",
+  "commands": [
+    {
+      "keystrokes": "cat > /tmp/fix_yaml.py << 'EOF'\nimport yaml\n\n# Custom representer to handle multi-line strings and preserve formatting\ndef str_representer(dumper, data):\n    if '\\n' in data:\n        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')\n    return dumper.represent_scalar('tag:yaml.org,2002:str', data)\n\nyaml.add_representer(str, str_representer)\n\nwith open('/etc/monitoring/alerts.yaml', 'r') as f:\n    data = yaml.safe_load(f)\n\n# Find and modify rules\nfor group in data['groups']:\n    if group['name'] == 'service_alerts':\n        for rule in group['rules']:\n            if rule['alert'] == 'HighLatency':\n                rule['for'] = '3m'\n            elif rule['alert'] == 'ServiceDown':\n                rule['labels']['escalation_level'] = 'critical'\n        \n        # Add new DiskSpaceLow alert\n        new_alert = {\n            'alert': 'DiskSpaceLow',\n            'expr': 'node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"} < 0.1',\n            'for': '10m',\n            'labels': {\n                'severity': 'warning',\n                'team': 'infrastructure'\n            },\n            'annotations': {\n                'summary': 'Disk space below 10% on {{ $labels.instance }}'\n            }\n        }\n        group['rules'].append(new_alert)\n\n# Write back with comment preserved manually\nwith open('/etc/monitoring/alerts.yaml', 'w') as f:\n    f.write('# Prometheus alerting rules\\n')\n    yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)\n\nprint('YAML updated successfully')\nEOF\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "python3 /tmp/fix_yaml.py\n",
+      "duration": 1.0
+    }
+  ]
+}
+```

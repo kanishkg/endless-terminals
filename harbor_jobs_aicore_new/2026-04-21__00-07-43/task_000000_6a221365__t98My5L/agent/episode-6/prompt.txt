@@ -1,0 +1,31 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@6423002a0639:/home/user# python3 -c "
+> import json
+> import hashlib
+>
+> # Verify first record hash
+> with open('/home/user/audit/clean_audit.jsonl') as f:
+>     first = json.loads(f.readline())
+>     amount_str = f\"{first['amount']:.2f}\"
+>     canonical = f\"{first['transaction_id']}|{first['timestamp']}|{first['account_id']}|{amount_str}|{first['currency']}|{first['status']}\"
+>     computed = hashlib.sha256(canonical.encode()).hexdigest()
+>     print(f'Canonical: {canonical}')
+>     print(f'Stored hash: {first[\"integrity_hash\"]}')
+>     print(f'Computed hash: {computed}')
+>     print(f'Match: {computed == first[\"integrity_hash\"]}')
+> "
+Canonical: TXN-00000025|2024-03-15T07:00:00Z|ACC-020|1500.00|USD|completed
+Stored hash: 17ce88f1d5377fcc9acb43e7baa628086d36d611a26c61657ea0c83f0f680796
+Computed hash: 17ce88f1d5377fcc9acb43e7baa628086d36d611a26c61657ea0c83f0f680796
+Match: True
+root@6423002a0639:/home/user# head -3 /home/user/audit/clean_audit.jsonl | python3 -c "import sys,json; [print('Valid JSON') for l in sys.stdin if json.loads(l)
+]"
+Valid JSON
+Valid JSON
+Valid JSON
+root@6423002a0639:/home/user#

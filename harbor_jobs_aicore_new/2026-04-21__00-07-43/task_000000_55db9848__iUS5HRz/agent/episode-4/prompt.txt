@@ -1,0 +1,39 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@71d6b07824b9:/home/user# awk -F'\t' '
+> {
+>   path = $2
+>   bytes = $1
+>
+>   # Skip the /var/data root entry
+>   if (path == "/var/data") next
+>
+>   # Skip directory entries (4096 bytes entries that are just directory markers)
+>   if (path == "/var/data/logs" || path == "/var/data/backups" || path == "/var/data/cache" || path == "/var/data/cache/thumbnails" || path == "/var/data/uploa
+ds" || path == "/var/data/archives") next
+>
+>   # Extract the immediate subdirectory name
+>   sub(/^\/var\/data\//, "", path)
+>   split(path, parts, "/")
+>   subdir = parts[1]
+>
+>   dir_totals[subdir] += bytes
+>   grand_total += bytes
+> }
+> END {
+>   for (dir in dir_totals) {
+>     pct = (dir_totals[dir] / grand_total) * 100
+>     printf "%s %d %.1f\n", dir, dir_totals[dir], pct
+>   }
+> }' /home/user/disk_inventory.txt | sort -t' ' -k2,2nr | awk '{print $1" "$2" "$3"%"}' > /home/user/reports/directory_rollup.txt
+root@71d6b07824b9:/home/user# cat /home/user/reports/directory_rollup.txt
+archives 144703488 51.4%
+backups 65011712 23.1%
+uploads 27787264 9.9%
+cache 22806528 8.1%
+logs 20971520 7.5%
+root@71d6b07824b9:/home/user#

@@ -1,0 +1,127 @@
+[?2004hroot@b96e62a63612:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@b96e62a63612:/home/user# clear
+[?2004l[H[J[?2004hroot@b96e62a63612:/home/user# cd /home/user/company && ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 20 23:16 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 20 23:16 [34;42m..[0m
+-rw-rw-rw- 1 root root 8192 Apr 20 23:16 employees.db
+[?2004hroot@b96e62a63612:/home/user/company# sqlite3 employees.db ".schema employees"
+[?2004lCREATE TABLE employees (     id INTEGER PRIMARY KEY,     name TEXT,     department TEXT,     email TEXT,     salary REAL,     hire_date TEXT,     manager_id INTEGER );
+[?2004hroot@b96e62a63612:/home/user/company# sqlite3 employees.db "SELECT COUNT(*) FROM employees;"
+[?2004l24
+[?2004hroot@b96e62a63612:/home/user/company# sqlite3 employees.db "SELECT * FROM employees LIMIT 5;"
+[?2004l1|Alice Johnson|Engineering|alice@company.com|95000.0|2019-03-15|
+2|Bob Smith|Engineering|bob@company.com|87000.0|2020-06-01|1
+3|Carol White|Engineering|carol@company.com|145000.0|2018-01-10|1
+4|David Brown|Sales|david@company.com|72000.0|2021-02-20|10
+5|Eve Davis|Sales|eve@company.com|68000.0|2022-07-12|10
+[?2004hroot@b96e62a63612:/home/user/company# sqlite3 employees.db "SELECT name FROM employees WHERE manager_id IS NOT NULL AND manager_id NOT IN (SELECT id FROM employees) ORDER BY name;" > orphaned_employees.txt
+[?2004l[?2004hroot@b96e62a63612:/home/user/company# cat orphaned_employees.txt
+[?2004lFrank Miller
+Quinn Harris
+Rachel Clark
+[?2004hroot@b96e62a63612:/home/user/company# sqlite3 employees.db -header -csv "SELECT e.id, e.name, e.department, e.salary, ROUND(d.avg_sal, 2) as dept_average FROM employees e JOIN (SELECT department, AVG(salary) as avg_sal FROM employees GROUP BY department) d ON e.department = d.department WHERE e.salary > d.avg_sal * 1.2 ORDER BY e.department ASC, e.salary DESC;" > salary_outliers.csv
+[?2004l[?2004hroot@b96e62a63612:/home/user/company# cat salary_outliers.csv
+[?2004lid,name,department,salary,dept_average
+3,"Carol White",Engineering,145000.0,99833.33
+15,"Olivia Thomas",Finance,125000.0,86600.0
+9,"Ivy Chen",HR,78000.0,64500.0
+19,"Sam Lewis",Marketing,98000.0,71750.0
+6,"Frank Miller",Sales,115000.0,81400.0
+[?2004hroot@b96e62a63612:/home/user/company# sqlite3 employees.db "SELECT email FROM employees GROUP BY email HAVING COUNT(*) > 1 ORDER BY email;" > duplicate_emails.txt
+[?2004l[?2004hroot@b96e62a63612:/home/user/company# cat duplicate_emails.txt
+[?2004lbob@company.com
+grace@company.com
+[?2004hroot@b96e62a63612:/home/user/company# sqlite3 employees.db "SELECT department, COUNT(*) as count, ROUND(AVG(salary), 2) as avg_salary, MIN(hire_date) as oldest_hire, MAX(hire_date) as newest_hire FROM employees GROUP BY department ORDER BY department;"
+[?2004lEngineering|6|99833.33|2018-01-10|2023-04-10
+Finance|5|86600.0|2015-12-01|2022-11-28
+HR|4|64500.0|2016-04-22|2023-03-08
+Marketing|4|71750.0|2019-06-20|2023-07-01
+Sales|5|81400.0|2017-11-05|2022-07-12
+[?2004hroot@b96e62a63612:/home/user/company# python3 -c "
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> import json
+[?2004l[?2004h> 
+[?2004l[?2004h> conn = sqlite3.connect('employees.db')
+[?2004l[?2004h> cursor = conn.cursor()
+[?2004l[?2004h> cursor.execute('''SELECT department, COUNT(*) as count, ROUND(AVG(salary), 2) as avg_salary, MIN(hire_date) as oldest_hire, MAX(hire_date) as newest_hire FROM employees GROUP BY department ORDER BY department''')
+[?2004l[?2004h> 
+[?2004l[?2004h> result = {}
+[?2004l[?2004h> for row in cursor.fetchall():
+[?2004l[?2004h>     dept, count, avg_sal, oldest, newest = row
+[?2004l[?2004h>     result[dept] = {
+[?2004l[?2004h>         'count': count,
+[?2004l[?2004h>         'avg_salary': avg_sal,
+[?2004l[?2004h>         'oldest_hire': oldest,
+[?2004l[?2004h>         'newest_hire': newest
+[?2004l[?2004h>     }
+[?2004l[?2004h> 
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('dept_summary.json', 'w') as f:
+[?2004l[?2004h>     json.dump(result, f, indent=2)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('Done')
+[?2004l[?2004h> "
+[?2004lDone
+[?2004hroot@b96e62a63612:/home/user/company# cat dept_summary.json
+[?2004l{
+  "Engineering": {
+    "count": 6,
+    "avg_salary": 99833.33,
+    "oldest_hire": "2018-01-10",
+    "newest_hire": "2023-04-10"
+  },
+  "Finance": {
+    "count": 5,
+    "avg_salary": 86600.0,
+    "oldest_hire": "2015-12-01",
+    "newest_hire": "2022-11-28"
+  },
+  "HR": {
+    "count": 4,
+    "avg_salary": 64500.0,
+    "oldest_hire": "2016-04-22",
+    "newest_hire": "2023-03-08"
+  },
+  "Marketing": {
+    "count": 4,
+    "avg_salary": 71750.0,
+    "oldest_hire": "2019-06-20",
+    "newest_hire": "2023-07-01"
+  },
+  "Sales": {
+    "count": 5,
+    "avg_salary": 81400.0,
+    "oldest_hire": "2017-11-05",
+    "newest_hire": "2022-07-12"
+  }
+}[?2004hroot@b96e62a63612:/home/user/company# ls -la /home/user/company/
+[?2004ltotal 40
+drwxrwxrwx 1 root root 4096 Apr 21 00:25 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 20 23:16 [34;42m..[0m
+-rw-r--r-- 1 root root  642 Apr 21 00:25 dept_summary.json
+-rw-r--r-- 1 root root   34 Apr 21 00:24 duplicate_emails.txt
+-rw-rw-rw- 1 root root 8192 Apr 20 23:16 employees.db
+-rw-r--r-- 1 root root   39 Apr 21 00:24 orphaned_employees.txt
+-rw-r--r-- 1 root root  242 Apr 21 00:24 salary_outliers.csv
+[?2004hroot@b96e62a63612:/home/user/company# echo '=== orphaned_employees.txt ===' && cat orphaned_employees.txt && echo '' && echo '=== duplicate_emails.txt ===' && cat duplicate_emails.txt && echo '' && echo '=== salary_outliers.csv ===' && cat salary_outliers.csv
+[?2004l=== orphaned_employees.txt ===
+Frank Miller
+Quinn Harris
+Rachel Clark
+
+=== duplicate_emails.txt ===
+bob@company.com
+grace@company.com
+
+=== salary_outliers.csv ===
+id,name,department,salary,dept_average
+3,"Carol White",Engineering,145000.0,99833.33
+15,"Olivia Thomas",Finance,125000.0,86600.0
+9,"Ivy Chen",HR,78000.0,64500.0
+19,"Sam Lewis",Marketing,98000.0,71750.0
+6,"Frank Miller",Sales,115000.0,81400.0
+[?2004hroot@b96e62a63612:/home/user/company# 

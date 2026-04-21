@@ -1,0 +1,422 @@
+[?2004hroot@beec0d9caecb:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@beec0d9caecb:/home/user# clear
+[?2004l[H[J[?2004hroot@beec0d9caecb:/home/user# cat /etc/monitoring/alerts.yaml
+[?2004l# Prometheus alerting rules
+groups:
+  - name: service_alerts
+    rules:
+      - alert: HighLatency
+        expr: http_request_duration_seconds > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency detected on {{ $labels.instance }}"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+
+      - alert: HighMemoryUsage
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage critical on {{ $labels.instance }}"
+[?2004hroot@beec0d9caecb:/home/user# cat /etc/monitoring/uptime.toml
+[?2004l# Uptime checker daemon configuration
+
+[global]
+check_interval = 60
+retry_count = 3
+log_level = "info"
+
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 204
+method = "GET"
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+[?2004hroot@beec0d9caecb:/home/user# python3 << 'EOF'
+[?2004l[?2004h> import sys
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read the YAML file
+[?2004l[?2004h> with open('/etc/monitoring/alerts.yaml', 'r') as f:
+[?2004l[?2004h>     lines = f.readlines()
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process YAML - we'll do this line by line to preserve comments and structure
+[?2004l[?2004h> output_lines = []
+[?2004l[?2004h> i = 0
+[?2004l[?2004h> while i < len(lines):
+[?2004l[?2004h>     line = lines[i]
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check for HighLatency alert and modify the 'for' duration
+[?2004l[?2004h>     if 'alert: HighLatency' in line:
+[?2004l[?2004h>         output_lines.append(line)
+[?2004l[?2004h>         i += 1
+[?2004l[?2004h>         # Process until we find and modify the 'for' field
+[?2004l[?2004h>         while i < len(lines) and not lines[i].strip().startswith('- alert:'):
+[?2004l[?2004h>             if lines[i].strip().startswith('for:'):
+[?2004l[?2004h>                 indent = len(lines[i]) - len(lines[i].lstrip())
+[?2004l[?2004h>                 output_lines.append(' ' * indent + 'for: 3m\n')
+[?2004l[?2004h>             else:
+[?2004l[?2004h>                 output_lines.append(lines[i])
+[?2004l[?2004h>             i += 1
+[?2004l[?2004h>         continue
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check for ServiceDown alert and add escalation_level label
+[?2004l[?2004h>     elif 'alert: ServiceDown' in line:
+[?2004l[?2004h>         output_lines.append(line)
+[?2004l[?2004h>         i += 1
+[?2004l[?2004h>         in_labels = False
+[?2004l[?2004h>         labels_indent = 0
+[?2004l[?2004h>         while i < len(lines) and not lines[i].strip().startswith('- alert:'):
+[?2004l[?2004h>             if lines[i].strip().startswith('labels:'):
+[?2004l[?2004h>                 in_labels = True
+[?2004l[?2004h>                 output_lines.append(lines[i])
+[?2004l[?2004h>                 i += 1
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             elif in_labels and lines[i].strip() and not lines[i].strip().startswith('#'):
+[?2004l[?2004h>                 # Check if we're still in labels section
+[?2004l[?2004h>                 current_indent = len(lines[i]) - len(lines[i].lstrip())
+[?2004l[?2004h>                 if labels_indent == 0:
+[?2004l[?2004h>                     labels_indent = current_indent
+[?2004l[?2004h>                 if current_indent >= labels_indent and ':' in lines[i] and not lines[i].strip().startswith('annotations'):
+[?2004l[?2004h>                     output_lines.append(lines[i])
+[?2004l[?2004h>                     # Check if next line exits labels section
+[?2004l[?2004h>                     if i + 1 < len(lines):
+[?2004l[?2004h>                         next_line = lines[i + 1]
+[?2004l[?2004h>                         next_stripped = next_line.strip()
+[?2004l[?2004h>                         if next_stripped.startswith('annotations:') or next_stripped.startswith('- alert:'):
+[?2004l[?2004h>                             # Add escalation_level before leaving labels
+[?2004l[?2004h>                             output_lines.append(' ' * labels_indent + 'escalation_level: critical\n')
+[?2004l[?2004h>                             in_labels = False
+[?2004l[?2004h>                 else:
+[?2004l[?2004h>                     if in_labels:
+[?2004l[?2004h>                         output_lines.append(' ' * labels_indent + 'escalation_level: critical\n')
+[?2004l[?2004h>                         in_labels = False
+[?2004l[?2004h>                     output_lines.append(lines[i])
+[?2004l[?2004h>             else:
+[?2004l[?2004h>                 output_lines.append(lines[i])
+[?2004l[?2004h>             i += 1
+[?2004l[?2004h>         continue
+[?2004l[?2004h>     
+[?2004l[?2004h>     output_lines.append(line)
+[?2004l[?2004h>     i += 1
+[?2004l[?2004h> 
+[?2004l[?2004h> # Add the new DiskSpaceLow alert at the end
+[?2004l[?2004h> new_alert = '''\n      - alert: DiskSpaceLow
+[?2004l[?2004h>         expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+[?2004l[?2004h>         for: 10m
+[?2004l[?2004h>         labels:
+[?2004l[?2004h>           severity: warning
+[?2004l[?2004h>           team: infrastructure
+[?2004l[?2004h>         annotations:
+[?2004l[?2004h>           summary: "Disk space below 10% on {{ $labels.instance }}"
+[?2004l[?2004h> '''
+[?2004l[?2004h> 
+[?2004l[?2004h> output_lines.append(new_alert)
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('/etc/monitoring/alerts.yaml', 'w') as f:
+[?2004l[?2004h>     f.writelines(output_lines)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('YAML file updated')
+[?2004l[?2004h> EOF
+[?2004lYAML file updated
+[?2004hroot@beec0d9caecb:/home/user# cat /etc/monitoring/alerts.yaml
+[?2004l# Prometheus alerting rules
+groups:
+  - name: service_alerts
+    rules:
+      - alert: HighLatency
+        expr: http_request_duration_seconds > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency detected on {{ $labels.instance }}"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          escalation_level: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+
+      - alert: HighMemoryUsage
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage critical on {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "Disk space below 10% on {{ $labels.instance }}"
+[?2004hroot@beec0d9caecb:/home/user# python3 << 'EOF'
+[?2004l[?2004h> # Read the TOML file
+[?2004l[?2004h> with open('/etc/monitoring/uptime.toml', 'r') as f:
+[?2004l[?2004h>     lines = f.readlines()
+[?2004l[?2004h> 
+[?2004l[?2004h> output_lines = []
+[?2004l[?2004h> i = 0
+[?2004l[?2004h> in_global = False
+[?2004l[?2004h> in_api_gateway = False
+[?2004l[?2004h> global_timeout_added = False
+[?2004l[?2004h> api_gateway_critical_added = False
+[?2004l[?2004h> 
+[?2004l[?2004h> while i < len(lines):
+[?2004l[?2004h>     line = lines[i]
+[?2004l[?2004h>     stripped = line.strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Track sections
+[?2004l[?2004h>     if stripped == '[global]':
+[?2004l[?2004h>         in_global = True
+[?2004l[?2004h>         in_api_gateway = False
+[?2004l[?2004h>         output_lines.append(line)
+[?2004l[?2004h>         i += 1
+[?2004l[?2004h>         continue
+[?2004l[?2004h>     elif stripped == '[[endpoints]]':
+[?2004l[?2004h>         # Before leaving global section, check if we need to add timeout
+[?2004l[?2004h>         if in_global and not global_timeout_added:
+[?2004l[?2004h>             output_lines.append('timeout = 10\n')
+[?2004l[?2004h>             global_timeout_added = True
+[?2004l[?2004h>         in_global = False
+[?2004l[?2004h>         # Check if we were in api-gateway and need to add critical
+[?2004l[?2004h>         if in_api_gateway and not api_gateway_critical_added:
+[?2004l[?2004h>             output_lines.append('critical = true\n')
+[?2004l[?2004h>             api_gateway_critical_added = True
+[?2004l[?2004h>         in_api_gateway = False
+[?2004l[?2004h>         output_lines.append(line)
+[?2004l[?2004h>         i += 1
+[?2004l[?2004h>         continue
+[?2004l[?2004h>     
+[?2004l[?2004h>     # In global section
+[?2004l[?2004h>     if in_global:
+[?2004l[?2004h>         if stripped.startswith('check_interval'):
+[?2004l[?2004h>             output_lines.append('check_interval = 30\n')
+[?2004l[?2004h>             i += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         elif stripped.startswith('timeout'):
+[?2004l[?2004h>             output_lines.append('timeout = 10\n')
+[?2004l[?2004h>             global_timeout_added = True
+[?2004l[?2004h>             i += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check for api-gateway endpoint
+[?2004l[?2004h>     if 'name = "api-gateway"' in stripped:
+[?2004l[?2004h>         in_api_gateway = True
+[?2004l[?2004h>         output_lines.append(line)
+[?2004l[?2004h>         i += 1
+[?2004l[?2004h>         continue
+[?2004l[?2004h>     
+[?2004l[?2004h>     # In api-gateway section
+[?2004l[?2004h>     if in_api_gateway:
+[?2004l[?2004h>         if stripped.startswith('expected_status'):
+[?2004l[?2004h>             output_lines.append('expected_status = 200\n')
+[?2004l[?2004h>             i += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         elif stripped.startswith('critical'):
+[?2004l[?2004h>             output_lines.append('critical = true\n')
+[?2004l[?2004h>             api_gateway_critical_added = True
+[?2004l[?2004h>             i += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         elif stripped.startswith('method'):
+[?2004l[?2004h>             # Add critical before method if not added
+[?2004l[?2004h>             if not api_gateway_critical_added:
+[?2004l[?2004h>                 output_lines.append('critical = true\n')
+[?2004l[?2004h>                 api_gateway_critical_added = True
+[?2004l[?2004h>             output_lines.append(line)
+[?2004l[?2004h>             i += 1
+[?2004l[?2004h>             continue
+[?2004l[?2004h>     
+[?2004l[?2004h>     output_lines.append(line)
+[?2004l[?2004h>     i += 1
+[?2004l[?2004h> 
+[?2004l[?2004h> # Add new payment-service endpoint at the end
+[?2004l[?2004h> new_endpoint = '''\n[[endpoints]]
+[?2004l[?2004h> name = "payment-service"
+[?2004l[?2004h> url = "https://payments.internal.example.com/health"
+[?2004l[?2004h> expected_status = 200
+[?2004l[?2004h> critical = true
+[?2004l[?2004h> 
+[?2004l[?2004h> [endpoints.headers]
+[?2004l[?2004h> Authorization = "Bearer ${PAYMENTS_TOKEN}"
+[?2004l[?2004h> '''
+[?2004l[?2004h> 
+[?2004l[?2004h> output_lines.append(new_endpoint)
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('/etc/monitoring/uptime.toml', 'w') as f:
+[?2004l[?2004h>     f.writelines(output_lines)
+[?2004l[?2004h> 
+[?2004l[?2004h> print('TOML file updated')
+[?2004l[?2004h> EOF
+[?2004lTOML file updated
+[?2004hroot@beec0d9caecb:/home/user# cat /etc/monitoring/uptime.toml
+[?2004l# Uptime checker daemon configuration
+
+[global]
+check_interval = 30
+retry_count = 3
+log_level = "info"
+
+timeout = 10
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 200
+critical = true
+method = "GET"
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+
+[[endpoints]]
+name = "payment-service"
+url = "https://payments.internal.example.com/health"
+expected_status = 200
+critical = true
+
+[endpoints.headers]
+Authorization = "Bearer ${PAYMENTS_TOKEN}"
+[?2004hroot@beec0d9caecb:/home/user# cat > /home/user/config_changes.log << 'EOF'
+[?2004l[?2004h> YAML_CHANGES:
+[?2004l[?2004h> - alerts.yaml: HighLatency for duration updated
+[?2004l[?2004h> - alerts.yaml: ServiceDown escalation_level added
+[?2004l[?2004h> - alerts.yaml: DiskSpaceLow alert added
+[?2004l[?2004h> TOML_CHANGES:
+[?2004l[?2004h> - uptime.toml: global.check_interval updated to 30
+[?2004l[?2004h> - uptime.toml: global.timeout added
+[?2004l[?2004h> - uptime.toml: api-gateway endpoint modified
+[?2004l[?2004h> - uptime.toml: payment-service endpoint added
+[?2004l[?2004h> VALIDATION: COMPLETE
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@beec0d9caecb:/home/user# cat /home/user/config_changes.log
+[?2004lYAML_CHANGES:
+- alerts.yaml: HighLatency for duration updated
+- alerts.yaml: ServiceDown escalation_level added
+- alerts.yaml: DiskSpaceLow alert added
+TOML_CHANGES:
+- uptime.toml: global.check_interval updated to 30
+- uptime.toml: global.timeout added
+- uptime.toml: api-gateway endpoint modified
+- uptime.toml: payment-service endpoint added
+VALIDATION: COMPLETE
+[?2004hroot@beec0d9caecb:/home/user# python3 -c "import yaml; yaml.safe_load(open('/etc/monitoring/alerts.yaml')); print('YAML is valid')"
+[?2004lYAML is valid
+[?2004hroot@beec0d9caecb:/home/user# python3 -c "import tomllib; tomllib.load(open('/etc/monitoring/uptime.toml', 'rb')); print('TOML is valid')"
+[?2004lTraceback (most recent call last):
+  File "<string>", line 1, in <module>
+ModuleNotFoundError: No module named 'tomllib'
+[?2004hroot@beec0d9caecb:/home/user# python3 -c "import toml; toml.load('/etc/monitoring/uptime.toml'); print('TOML is valid')"
+[?2004lTOML is valid
+[?2004hroot@beec0d9caecb:/home/user# cat /etc/monitoring/alerts.yaml
+[?2004l# Prometheus alerting rules
+groups:
+  - name: service_alerts
+    rules:
+      - alert: HighLatency
+        expr: http_request_duration_seconds > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency detected on {{ $labels.instance }}"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          escalation_level: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+
+      - alert: HighMemoryUsage
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage critical on {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "Disk space below 10% on {{ $labels.instance }}"
+[?2004hroot@beec0d9caecb:/home/user# cat /etc/monitoring/uptime.toml
+[?2004l# Uptime checker daemon configuration
+
+[global]
+check_interval = 30
+retry_count = 3
+log_level = "info"
+
+timeout = 10
+[[endpoints]]
+name = "api-gateway"
+url = "https://api.example.com/health"
+expected_status = 200
+critical = true
+method = "GET"
+
+[[endpoints]]
+name = "auth-service"
+url = "https://auth.internal.example.com/ping"
+expected_status = 200
+critical = false
+
+[[endpoints]]
+name = "frontend"
+url = "https://www.example.com"
+expected_status = 200
+
+[[endpoints]]
+name = "payment-service"
+url = "https://payments.internal.example.com/health"
+expected_status = 200
+critical = true
+
+[endpoints.headers]
+Authorization = "Bearer ${PAYMENTS_TOKEN}"
+[?2004hroot@beec0d9caecb:/home/user# 

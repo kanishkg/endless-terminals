@@ -1,0 +1,25 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@1c7d2064f2dc:/home/user# awk -F'\t' '
+> $1 >= 10485760 && /\/var\/data\/.+\/[^/]+$/ && !/^\/var\/data\/[^/]+$/ {
+>   # Check it is a file (has something after a subdir, not just /var/data/X)
+>   path = $2
+>   # Exclude directory entries - they match /var/data, /var/data/X, /var/data/X/Y exactly
+>   if (path == "/var/data" || path == "/var/data/logs" || path == "/var/data/backups" || path == "/var/data/cache" || path == "/var/data/cache/thumbnails" || p
+ath == "/var/data/uploads" || path == "/var/data/archives") next
+>   mb = int($1 / 1048576)
+>   printf "%d %d %s\n", mb, $1, $2
+> }' /home/user/disk_inventory.txt | sort -t' ' -k1,1nr -k3,3 | awk '{print $1"MB "$3}' > /home/user/reports/large_files.txt
+root@1c7d2064f2dc:/home/user# cat /home/user/reports/large_files.txt
+100MB /var/data/archives/2023_archive.tar.gz
+50MB /var/data/backups/full_backup.tar.gz
+30MB /var/data/archives/2022_archive.tar.gz
+20MB /var/data/cache/session_data.db
+15MB /var/data/logs/app.log
+15MB /var/data/uploads/presentation.pptx
+10MB /var/data/backups/incremental.tar.gz
+root@1c7d2064f2dc:/home/user#

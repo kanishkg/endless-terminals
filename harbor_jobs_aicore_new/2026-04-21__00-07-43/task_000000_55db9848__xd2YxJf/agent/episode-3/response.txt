@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "Report 1 is complete and correct. Files >= 10MB are listed with MB sizes (floor), sorted by size descending, and when sizes are equal (15MB), they're sorted alphabetically by path (app.log before presentation.pptx). Now I need to create Report 2 (extension_summary.csv).",
+  "plan": "Create Report 2: Extract file extensions from paths, convert to lowercase, sum bytes by extension. Files without a dot in the filename get 'NO_EXTENSION'. I need to exclude directory entries (the ones with size 4096 that are just directory paths). Then output as CSV with header, sorted by total_bytes descending.",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\n$1 != 4096 || ($2 ~ /\\.[^/]+$/) {\n  # Skip pure directory entries (size 4096 and path matches directory pattern)\n  if ($1 == 4096 && $2 ~ /\\/var\\/data(\\/[^\\/]+)*$/ && $2 !~ /\\.[^\\/]+$/) next;\n  \n  # Extract filename from path\n  n = split($2, parts, \"/\");\n  filename = parts[n];\n  \n  # Extract extension\n  if (filename ~ /\\./) {\n    n = split(filename, fparts, \".\");\n    ext = tolower(fparts[n]);\n  } else {\n    ext = \"NO_EXTENSION\";\n  }\n  \n  bytes[ext] += $1;\n}\nEND {\n  print \"extension,total_bytes\";\n  for (ext in bytes) {\n    print ext \",\" bytes[ext];\n  }\n}' /home/user/disk_inventory.txt | head -1 > /home/user/reports/extension_summary.csv && awk -F'\\t' '\n$1 != 4096 || ($2 ~ /\\.[^/]+$/) {\n  if ($1 == 4096 && $2 ~ /\\/var\\/data(\\/[^\\/]+)*$/ && $2 !~ /\\.[^\\/]+$/) next;\n  n = split($2, parts, \"/\");\n  filename = parts[n];\n  if (filename ~ /\\./) {\n    n = split(filename, fparts, \".\");\n    ext = tolower(fparts[n]);\n  } else {\n    ext = \"NO_EXTENSION\";\n  }\n  bytes[ext] += $1;\n}\nEND {\n  for (ext in bytes) {\n    print ext \",\" bytes[ext];\n  }\n}' /home/user/disk_inventory.txt | sort -t',' -k2 -nr >> /home/user/reports/extension_summary.csv\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/extension_summary.csv\n",
+      "duration": 0.1
+    }
+  ]
+}
+```

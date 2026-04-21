@@ -1,0 +1,207 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@6be5dab4f914:/home/user# cat > /home/user/audit/process_audit.py << 'EOF'
+Y-%m-%dT%H:%M:%SZ')
+
+    with open(INPUT_FILE, 'r') as f:
+        for line_num, line in enumerate(f, 1):
+            raw_line = line.rstrip('\n')
+
+            # Try to parse JSON
+            try:
+                record = json.loads(raw_line)
+            except json.JSONDecodeError:
+                errors.append({
+                    'line_number': line_num,
+                    'error_type': 'malformed_json',
+                    'error_detail': 'failed to parse JSON',
+                    'raw_content': truncate(raw_line)
+                })
+                error_counts['malformed_json'] += 1
+                continue
+
+            # Validate record
+            is_valid, error_type, error_detail = validate_record(record)
+
+            if not is_valid:
+                errors.append({
+                    'line_number': line_num,
+                    'error_type': error_type,
+                    'error_detail': error_detail,
+                    'raw_content': truncate(raw_line)
+                })
+                error_counts[e> import json
+> import hashlib
+> import re
+> from datetime import datetime, timezone
+>
+> # File paths
+> INPUT_FILE = '/home/user/audit/raw_transactions.jsonl'
+> CLEAN_OUTPUT = '/home/user/audit/clean_audit.jsonl'
+> ERROR_LOG = '/home/user/audit/error_log.jsonl'
+> SUMMARY_FILE = '/home/user/audit/processing_summary.txt'
+>
+ > # Validation patterns
+> TXN_ID_PATTERN = re.compile(r'^TXN-[0-9]{8}$')
+> ISO8601_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
+> CURRENCY_PATTERN = re.compile(r'^[A-Z]{3}$')
+> VALID_STATUSES = {'completed', 'pending', 'failed', 'reversed'}
+>
+> REQUIRED_FIELDS = ['transaction_id', 'timestamp', 'account_id', 'amount', 'currency', 'status']
+>
+> def validate_record(record):
+>     """Validate a parsed JSON record. Returns (is_valid, error_type, error_detail)"""
+>     # Check for missing fields
+>     for field in REQUIRED_FIELDS:
+>         if field not in record:
+>             return False, 'missing_field', f'missing field: {field}'
+>
+>     # Validate transaction_id format
+>     txn_id = record['transaction_id']
+>     if not isinstance(txn_id, str) or not TXN_ID_PATTERN.match(txn_id):
+>         return False, 'invalid_format', f'invalid transaction_id format: {txn_id}'
+>
+>     # Validate timestamp format
+>     ts = record['timestamp']
+>     if not isinstance(ts, str) or not ISO8601_PATTERN.match(ts):
+>         return False, 'invalid_format', f'invalid timestamp format: {ts}'
+>
+>     # Validate account_id (non-empty string)
+>     acc_id = record['account_id']
+>     if not isinstance(acc_id, str) or acc_id == '':
+>         return False, 'invalid_value', f'invalid account_id: empty or not a string'
+>
+>     # Validate amount (must be a number)
+>     amount = record['amount']
+>     if not isinstance(amount, (int, float)) or isinstance(amount, bool):
+>         return False, 'invalid_format', f'invalid amount format: {amount}'
+>
+>     # Validate currency (exactly 3 uppercase letters)
+>     currency = record['currency']
+>     if not isinstance(currency, str) or not CURRENCY_PATTERN.match(currency):
+>         return False, 'invalid_format', f'invalid currency format: {currency}'
+>
+>     # Validate status
+>     status = record['status']
+>     if not isinstance(status, str) or status not in VALID_STATUSES:
+>         return False, 'invalid_value', f'invalid status value: {status}'
+>
+>     return True, None, None
+>
+> def compute_hash(record):
+>     """Compute SHA-256 hash of canonical form"""
+>     amount_formatted = f"{record['amount']:.2f}"
+>     canonical = f"{record['transaction_id']}|{record['timestamp']}|{record['account_id']}|{amount_formatted}|{record['currency']}|{record['status']}"
+>     return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+>
+> def truncate(s, max_len=200):
+>     """Truncate string to max_len characters"""
+>     return s[:max_len] if len(s) > max_len else s
+>
+> def main():
+>     valid_records = []
+>     errors = []
+>     error_counts = {
+>         'malformed_json': 0,
+>         'missing_field': 0,
+>         'invalid_format': 0,
+>         'invalid_value': 0
+>     }
+>
+>     processing_time = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+>
+>     with open(INPUT_FILE, 'r') as f:
+>         for line_num, line in enumerate(f, 1):
+>             raw_line = line.rstrip('\n')
+>
+>             # Try to parse JSON
+>             try:
+>                 record = json.loads(raw_line)
+>             except json.JSONDecodeError:
+>                 errors.append({
+>                     'line_number': line_num,
+>                     'error_type': 'malformed_json',
+>                     'error_detail': 'failed to parse JSON',
+>                     'raw_content': truncate(raw_line)
+>                 })
+>                 error_counts['malformed_json'] += 1
+>                 continue
+>
+>             # Validate record
+>             is_valid, error_type, error_detail = validate_record(record)
+>
+>             if not is_valid:
+>                 errors.append({
+>                     'line_number': line_num,
+>                     'error_type': error_type,
+>                     'error_detail': error_detail,
+>                     'raw_content': truncate(raw_line)
+>                 })
+>                 error_counts[error_type] += 1
+>                 continue
+>
+>             # Valid record - compute hash and add metadata
+>             integrity_hash = compute_hash(record)
+>             clean_record = {
+>                 'transaction_id': record['transaction_id'],
+>                 'timestamp': record['timestamp'],
+>                 'account_id': record['account_id'],
+>                 'amount': record['amount'],
+>                 'currency': record['currency'],
+>                 'status': record['status'],
+>                 'integrity_hash': integrity_hash,
+>                 'processed_at': processing_time
+>             }
+>             valid_records.append(clean_record)
+>
+>     # Sort valid records by timestamp
+>     valid_records.sort(key=lambda x: x['timestamp'])
+>
+>     # Write clean audit file
+>     with open(CLEAN_OUTPUT, 'w') as f:
+>         for record in valid_records:
+>             f.write(json.dumps(record) + '\n')
+>
+>     # Write error log
+>     with open(ERROR_LOG, 'w') as f:
+>         for error in errors:
+>             f.write(json.dumps(error) + '\n')
+>
+>     # Calculate statistics
+>     total_lines = line_num
+>     valid_count = len(valid_records)
+>     failed_count = len(errors)
+>     success_rate = (valid_count / total_lines * 100) if total_lines > 0 else 0.0
+>
+>     # Write summary report
+>     with open(SUMMARY_FILE, 'w') as f:
+>         f.write('AUDIT PROCESSING SUMMARY\n')
+>         f.write('========================\n')
+>         f.write(f'Input file: {INPUT_FILE}\n')
+>         f.write(f'Total lines processed: {total_lines}\n')
+>         f.write(f'Valid transactions: {valid_count}\n')
+>         f.write(f'Failed records: {failed_count}\n')
+>         f.write(f'Success rate: {success_rate:.2f}%\n')
+>         f.write('\n')
+>         f.write('Errors by type:\n')
+>         f.write(f"  malformed_json: {error_counts['malformed_json']}\n")
+>         f.write(f"  missing_field: {error_counts['missing_field']}\n")
+>         f.write(f"  invalid_format: {error_counts['invalid_format']}\n")
+>         f.write(f"  invalid_value: {error_counts['invalid_value']}\n")
+>         f.write('\n')
+>         f.write(f'Processing completed at: {processing_time}\n')
+>
+>     print(f'Processing complete!')
+>     print(f'Valid: {valid_count}, Errors: {failed_count}')
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+root@6be5dab4f914:/home/user# python3 /home/user/audit/process_audit.py
+Processing complete!
+Valid: 13, Errors: 12
+root@6be5dab4f914:/home/user#

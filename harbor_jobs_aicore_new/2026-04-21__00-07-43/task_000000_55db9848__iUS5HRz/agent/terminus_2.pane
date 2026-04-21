@@ -1,0 +1,159 @@
+[?2004hroot@71d6b07824b9:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@71d6b07824b9:/home/user# clear
+[?2004l[H[J[?2004hroot@71d6b07824b9:/home/user# head -50 /home/user/disk_inventory.txt
+[?2004l15728640	/var/data/logs/app.log
+5242880	/var/data/logs/debug.log
+52428800	/var/data/backups/full_backup.tar.gz
+10485760	/var/data/backups/incremental.tar.gz
+2097152	/var/data/backups/config.bak
+1048576	/var/data/cache/thumbnails/img001.jpg
+524288	/var/data/cache/thumbnails/img002.jpg
+262144	/var/data/cache/thumbnails/img003.jpg
+20971520	/var/data/cache/session_data.db
+3145728	/var/data/uploads/document.pdf
+7340032	/var/data/uploads/spreadsheet.xlsx
+15728640	/var/data/uploads/presentation.pptx
+1048576	/var/data/uploads/readme
+524288	/var/data/uploads/notes.txt
+104857600	/var/data/archives/2023_archive.tar.gz
+31457280	/var/data/archives/2022_archive.tar.gz
+8388608	/var/data/archives/old_logs
+4096	/var/data/logs
+4096	/var/data/backups
+4096	/var/data/cache/thumbnails
+4096	/var/data/cache
+4096	/var/data/uploads
+4096	/var/data/archives
+4096	/var/data
+[?2004hroot@71d6b07824b9:/home/user# wc -l /home/user/disk_inventory.txt
+[?2004l24 /home/user/disk_inventory.txt
+[?2004hroot@71d6b07824b9:/home/user# mkdir -p /home/user/reports
+[?2004l[?2004hroot@71d6b07824b9:/home/user# awk -F'\t' '
+[?2004l[?2004h> $1 >= 10485760 && $2 !~ /\/var\/data$/ && $2 !~ /\/var\/data\/[^\/]+$/ && !($2 ~ /\/var\/data\/cache\/thumbnails$/) {
+[?2004l[?2004h>   mb = int($1 / 1048576)
+[?2004l[?2004h>   print mb, $1, $2
+[?2004l[?2004h> }' /home/user/disk_inventory.txt | sort -t' ' -k2,2nr -k3,3 | awk '{print $1"MB "$3}' > /home/user/reports/large_files.txt
+[?2004l[?2004hroot@71d6b07824b9:/home/user# cat /home/user/reports/large_files.txt
+[?2004l100MB /var/data/archives/2023_archive.tar.gz
+50MB /var/data/backups/full_backup.tar.gz
+30MB /var/data/archives/2022_archive.tar.gz
+20MB /var/data/cache/session_data.db
+15MB /var/data/logs/app.log
+15MB /var/data/uploads/presentation.pptx
+10MB /var/data/backups/incremental.tar.gz
+[?2004hroot@71d6b07824b9:/home/user# awk -F'\t' '
+[?2004l[?2004h> BEGIN { OFS="," }
+[?2004l[?2004h> {
+[?2004l[?2004h>   path = $2
+[?2004l[?2004h>   bytes = $1
+[?2004l[?2004h>   # Skip directory entries (paths that are /var/data or /var/data/X or /var/data/X/Y where they are dirs)
+[?2004l[?2004h>   if (path == "/var/data") next
+[?2004l[?2004h>   if (path == "/var/data/logs") next
+[?2004l[?2004h>   if (path == "/var/data/backups") next
+[?2004l[?2004h>   if (path == "/var/data/cache") next
+[?2004l[?2004h>   if (path == "/var/data/cache/thumbnails") next
+[?2004l[?2004h>   if (path == "/var/data/uploads") next
+[?2004l[?2004h>   if (path == "/var/data/archives") next
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Get filename from path
+[?2004l[?2004h>   n = split(path, parts, "/")
+[?2004l[?2004h>   filename = parts[n]
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Get extension
+[?2004l[?2004h>   if (index(filename, ".") > 0) {
+[?2004l[?2004h>     n = split(filename, fparts, ".")
+[?2004l[?2004h>     ext = tolower(fparts[n])
+[?2004l[?2004h>   } else {
+[?2004l[?2004h>     ext = "NO_EXTENSION"
+[?2004l[?2004h>   }
+[?2004l[?2004h>   
+[?2004l[?2004h>   totals[ext] += bytes
+[?2004l[?2004h> }
+[?2004l[?2004h> END {
+[?2004l[?2004h>   print "extension,total_bytes"
+[?2004l[?2004h>   for (ext in totals) {
+[?2004l[?2004h>     print ext, totals[ext]
+[?2004l[?2004h>   }
+[?2004l[?2004h> }' /home/user/disk_inventory.txt | (read header; echo "$header"; sort -t',' -k2,2nr) > /home/user/reports/extension_summary.csv
+[?2004l[?2004hroot@71d6b07824b9:/home/user# cat /home/user/reports/extension_summary.csv
+[?2004lextension,total_bytes
+gz,199229440
+db,20971520
+log,20971520
+pptx,15728640
+NO_EXTENSION,9437184
+xlsx,7340032
+pdf,3145728
+bak,2097152
+jpg,1835008
+txt,524288
+[?2004hroot@71d6b07824b9:/home/user# awk -F'\t' '
+[?2004l[?2004h> {
+[?2004l[?2004h>   path = $2
+[?2004l[?2004h>   bytes = $1
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Skip the /var/data root entry
+[?2004l[?2004h>   if (path == "/var/data") next
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Skip directory entries (4096 bytes entries that are just directory markers)
+[?2004l[?2004h>   if (path == "/var/data/logs" || path == "/var/data/backups" || path == "/var/data/cache" || path == "/var/data/cache/thumbnails" || path == "/var/data/uploads" || path == "/var/data/archives") next
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Extract the immediate subdirectory name
+[?2004l[?2004h>   sub(/^\/var\/data\//, "", path)
+[?2004l[?2004h>   split(path, parts, "/")
+[?2004l[?2004h>   subdir = parts[1]
+[?2004l[?2004h>   
+[?2004l[?2004h>   dir_totals[subdir] += bytes
+[?2004l[?2004h>   grand_total += bytes
+[?2004l[?2004h> }
+[?2004l[?2004h> END {
+[?2004l[?2004h>   for (dir in dir_totals) {
+[?2004l[?2004h>     pct = (dir_totals[dir] / grand_total) * 100
+[?2004l[?2004h>     printf "%s %d %.1f\n", dir, dir_totals[dir], pct
+[?2004l[?2004h>   }
+[?2004l[?2004h> }' /home/user/disk_inventory.txt | sort -t' ' -k2,2nr | awk '{print $1" "$2" "$3"%"}' > /home/user/reports/directory_rollup.txt
+[?2004l[?2004hroot@71d6b07824b9:/home/user# cat /home/user/reports/directory_rollup.txt
+[?2004larchives 144703488 51.4%
+backups 65011712 23.1%
+uploads 27787264 9.9%
+cache 22806528 8.1%
+logs 20971520 7.5%
+[?2004hroot@71d6b07824b9:/home/user# ls -la /home/user/reports/
+[?2004ltotal 20
+drwxr-xr-x 2 root root 4096 Apr 21 00:31 [0m[01;34m.[0m
+drwxrwxrwx 1 root root 4096 Apr 21 00:30 [34;42m..[0m
+-rw-r--r-- 1 root root  109 Apr 21 00:31 directory_rollup.txt
+-rw-r--r-- 1 root root  155 Apr 21 00:31 extension_summary.csv
+-rw-r--r-- 1 root root  279 Apr 21 00:30 large_files.txt
+[?2004hroot@71d6b07824b9:/home/user# echo '=== large_files.txt ===' && cat /home/user/reports/large_files.txt
+[?2004l=== large_files.txt ===
+100MB /var/data/archives/2023_archive.tar.gz
+50MB /var/data/backups/full_backup.tar.gz
+30MB /var/data/archives/2022_archive.tar.gz
+20MB /var/data/cache/session_data.db
+15MB /var/data/logs/app.log
+15MB /var/data/uploads/presentation.pptx
+10MB /var/data/backups/incremental.tar.gz
+[?2004hroot@71d6b07824b9:/home/user# echo '=== extension_summary.csv ===' && cat /home/user/reports/extension_summary.csv
+[?2004l=== extension_summary.csv ===
+extension,total_bytes
+gz,199229440
+db,20971520
+log,20971520
+pptx,15728640
+NO_EXTENSION,9437184
+xlsx,7340032
+pdf,3145728
+bak,2097152
+jpg,1835008
+txt,524288
+[?2004hroot@71d6b07824b9:/home/user# echo '=== directory_rollup.txt ===' && cat /home/user/reports/directory_rollup.txt
+[?2004l=== directory_rollup.txt ===
+archives 144703488 51.4%
+backups 65011712 23.1%
+uploads 27787264 9.9%
+cache 22806528 8.1%
+logs 20971520 7.5%
+[?2004hroot@71d6b07824b9:/home/user# 

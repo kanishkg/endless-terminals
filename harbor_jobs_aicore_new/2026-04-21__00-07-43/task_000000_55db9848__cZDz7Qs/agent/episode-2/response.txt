@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "Report 1 (large_files.txt) is complete and correctly formatted. The files >= 10MB are listed with MB sizes (floor), sorted by size descending. When two files have the same MB size (15MB), they are sorted alphabetically by filepath. Now I need to create Report 2 (extension_summary.csv) and Report 3 (directory_rollup.txt).",
+  "plan": "Create Report 2: Extract extensions from filenames, sum bytes by extension, output as CSV. Files without extensions go under NO_EXTENSION. I need to filter out directory entries (the ones with 4096 bytes that are just directory paths) and only process actual files.",
+  "commands": [
+    {
+      "keystrokes": "awk -F'\\t' '\n$2 != \"/var/data\" && $2 != \"/var/data/logs\" && $2 != \"/var/data/backups\" && $2 != \"/var/data/cache\" && $2 != \"/var/data/cache/thumbnails\" && $2 != \"/var/data/uploads\" && $2 != \"/var/data/archives\" {\n  file = $2\n  n = split(file, parts, \"/\")\n  filename = parts[n]\n  if (index(filename, \".\") > 0) {\n    m = split(filename, dots, \".\")\n    ext = tolower(dots[m])\n  } else {\n    ext = \"NO_EXTENSION\"\n  }\n  bytes[ext] += $1\n}\nEND {\n  for (ext in bytes) {\n    print bytes[ext], ext\n  }\n}' /home/user/disk_inventory.txt | sort -k1,1nr | awk 'BEGIN {print \"extension,total_bytes\"} {print $2\",\"$1}' > /home/user/reports/extension_summary.csv\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/reports/extension_summary.csv\n",
+      "duration": 0.1
+    }
+  ]
+}
+```

@@ -1,0 +1,35 @@
+New Terminal Output:
+
+root@d1527bdf6378:/home/user# awk -F'\t' '
+> {
+>   size = $1
+>   path = $2
+>   # Skip directory entries (size 4096)
+>   if (size == 4096) next
+>   # Extract immediate subdirectory of /var/data
+>   # Path format: /var/data/subdir/...
+>   if (match(path, /^\/var\/data\/([^\/]+)/, arr)) {
+>     subdir = arr[1]
+>   } else {
+>     # Handle edge case - split manually
+>     n = split(path, parts, "/")
+>     if (n >= 4) subdir = parts[4]
+>     else next
+>   }
+>   totals[subdir] += size
+>   grand_total += size
+> }
+> END {
+>   for (dir in totals) {
+>     pct = (totals[dir] / grand_total) * 100
+>     printf "%s %d %.1f%%\n", dir, totals[dir], pct
+>   }
+> }
+> ' /home/user/disk_inventory.txt | sort -t' ' -k2 -rn > /home/user/reports/directory_rollup.txt
+root@d1527bdf6378:/home/user# cat /home/user/reports/directory_rollup.txt
+archives 144703488 51.4%
+backups 65011712 23.1%
+uploads 27787264 9.9%
+cache 22806528 8.1%
+logs 20971520 7.5%
+root@d1527bdf6378:/home/user#

@@ -1,0 +1,170 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@b310372d7fdd:~/migration$ cat > /tmp/gen_report.py << 'PYEND'
+= result.stdout
+        installed_ver = None
+        candidate_ver = None
+        for line in output.split('\n'):
+            if 'Installed:' in line:
+                installed_ver = line.split(':', 1)[1].strip()
+            if 'Candidate:' in line:
+                candidate_ver = line.split(':', 1)[1].strip()
+        if installed_ver and candidate_ver and installed_ver != candidate_ver and candidate_ver != '(none)':
+            if 'security' in output.lower():
+                has_security = True
+    except:
+        pass
+
+    return version, size, has_security
+
+removable_packages = []
+total_space = 0
+
+for pkg in sorted(removable):
+    version, size, has_sec = get_pkg_info(pkg)
+    total_space += size
+    removable_packages.append({
+        'name': pkg,
+        'installed_version': version,
+        'size_kb': size,
+        'has_security_update': has_sec
+    })
+
+dep_protected = []
+for pkg in sorted(protected):
+    req_by = sorted(list(set(protected_by.get(pkg, []))))
+    dep_protected.append({
+        'name': pkg,
+        'required_by': req_by
+    })
+
+report = {
+    'summary': {
+        'total_installed': len(installed),
+        'total_required': len(required),
+        'removable_count': len(removable),
+        'kept_as_dependencies': len(protected),
+        'total_space_savings_kb': total_space
+    },
+    'removable_packages': removable_packages,
+    'dependency_protected': dep_protected
+}
+
+with open('/home/user/migration/removal_report.json', 'w') as f:
+    json.dump(report, f, indent=2)
+
+print('Report written')
+PYEND
+python3 /tmp/gen_report.py
+> import subprocess
+> import json
+> import re
+>
+> installed = open('/home/user/migration/installed_packages.txt').read().strip().split('\n')
+> required = open('/home/user/migration/required_packages.txt').read().strip().split('\n')
+>
+> removable = ['apache2', 'dnsutils', 'git', 'htop', 'iputils-ping', 'lsof', 'mysql-client', 'nano', 'ncdu', 'netcat-openbsd', 'nodejs', 'npm', 'postgresql-clie
+nt', 'redis-tools', 'strace', 'tcpdump', 'tree', 'vim', 'wget']
+> protected = ['libc6', 'libssl3', 'zlib1g']
+> protected_by = {
+>     'libc6': ['bash', 'coreutils', 'curl', 'python3', 'nginx', 'openssl'],
+>     'libssl3': ['curl', 'openssl', 'nginx', 'python3'],
+>     'zlib1g': ['curl', 'nginx', 'python3']
+> }
+>
+> def get_pkg_info(pkg):
+>     version = 'unknown'
+>     size = 0
+>     has_security = False
+>
+>     try:
+>         result = subprocess.run(['dpkg-query', '-W', '-f', '${Version} ${Installed-Size}', pkg],
+>                                 capture_output=True, text=True, timeout=5)
+>         if result.returncode == 0:
+>             parts = result.stdout.strip().split()
+>             if len(parts) >= 1:
+>                 version = parts[0]
+>             if len(parts) >= 2:
+>                 try:
+>                     size = int(parts[1])
+>                 except:
+>                     size = 0
+>     except:
+>         pass
+>
+>     if version == 'unknown' or size == 0:
+>         try:
+>             result = subprocess.run(['apt-cache', 'show', pkg], capture_output=True, text=True, timeout=5)
+>             for line in result.stdout.split('\n'):
+>                 if line.startswith('Version:') and version == 'unknown':
+>                     version = line.split(':', 1)[1].strip()
+>                 if line.startswith('Installed-Size:') and size == 0:
+>                     try:
+>                         size = int(line.split(':', 1)[1].strip())
+>                     except:
+>                         pass
+>         except:
+>             pass
+>
+>     try:
+>         result = subprocess.run(['apt-cache', 'policy', pkg], capture_output=True, text=True, timeout=5)
+>         output = result.stdout
+>         installed_ver = None
+>         candidate_ver = None
+>         for line in output.split('\n'):
+>             if 'Installed:' in line:
+>                 installed_ver = line.split(':', 1)[1].strip()
+>             if 'Candidate:' in line:
+>                 candidate_ver = line.split(':', 1)[1].strip()
+>         if installed_ver and candidate_ver and installed_ver != candidate_ver and candidate_ver != '(none)':
+>             if 'security' in output.lower():
+>                 has_security = True
+>     except:
+>         pass
+>
+>     return version, size, has_security
+>
+> removable_packages = []
+> total_space = 0
+>
+> for pkg in sorted(removable):
+>     version, size, has_sec = get_pkg_info(pkg)
+>     total_space += size
+>     removable_packages.append({
+>         'name': pkg,
+>         'installed_version': version,
+>         'size_kb': size,
+>         'has_security_update': has_sec
+>     })
+>
+> dep_protected = []
+> for pkg in sorted(protected):
+>     req_by = sorted(list(set(protected_by.get(pkg, []))))
+>     dep_protected.append({
+>         'name': pkg,
+>         'required_by': req_by
+>     })
+>
+> report = {
+>     'summary': {
+>         'total_installed': len(installed),
+>         'total_required': len(required),
+>         'removable_count': len(removable),
+>         'kept_as_dependencies': len(protected),
+>         'total_space_savings_kb': total_space
+>     },
+>     'removable_packages': removable_packages,
+>     'dependency_protected': dep_protected
+> }
+>
+> with open('/home/user/migration/removal_report.json', 'w') as f:
+>     json.dump(report, f, indent=2)
+>
+> print('Report written')
+> PYEND
+user@b310372d7fdd:~/migration$ python3 /tmp/gen_report.py
+

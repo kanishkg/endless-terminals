@@ -1,0 +1,241 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@dfe663bd4b25:~/migration$ cat > /home/user/migration/analyze.py << 'SCRIPT'
+xt=True, timeout=10
+        )
+        output = result.stdout
+        # Check if there's a security pocket version available
+        if '-security' in output:
+            # Parse installed vs candidate
+            installed = None
+            candidate = None
+            for line in output.split('\n'):
+                if 'Installed:' in line:
+                    installed = line.split(':', 1)[1].strip()
+                elif 'Candidate:' in line:
+                    candidate = line.split(':', 1)[1].strip()
+            if installed and candidate and installed != candidate:
+                # Check if candidate comes from security
+                if '-security' in output.split(candidate)[1] if candidate in output else False:
+                    return True
+        return False
+    except:
+        return False
+
+# Read package lists
+with open('/home/user/migration/installed_packages.txt') as f:
+    installed = set(line.strip() for line in f if line.strip())
+
+with open('/home/user/migration/required_packages.txt') as f:
+    required = set(line.strip() for line in > #!/usr/bin/env python3
+> import subprocess
+> import json
+> import re
+>
+> def get_direct_deps(package):
+>     """Get direct dependencies of a package"""
+>     try:
+>         result = subprocess.run(
+>             ['apt-cache', 'depends', package],
+>             capture_output=True, text=True, timeout=10
+>         )
+>         deps = set()
+>         for line in result.stdout.split('\n'):
+>             if 'Depends:' in line or 'PreDepends:' in line:
+>                 # Extract package name, removing version constraints and <>
+>                 match = re.search(r'(?:Depends|PreDepends):\s*<?([a-zA-Z0-9][a-zA-Z0-9+.-]*)>?', line)
+>                 if match:
+>                     dep = match.group(1)
+>                     if dep and not dep.startswith('<'):
+>                         deps.add(dep)
+>         return deps
+>     except:
+>         return set()
+>
+> def get_deps_recursive(packages, max_depth=3):
+>     """Get all dependencies up to max_depth levels"""
+>     all_deps = {}  # package -> set of packages that need it
+>     visited = set()
+>
+>     def recurse(pkg, depth, required_by):
+>         if depth > max_depth or pkg in visited:
+>             return
+>         visited.add(pkg)
+>         deps = get_direct_deps(pkg)
+>         for dep in deps:
+>             if dep not in all_deps:
+>                 all_deps[dep] = set()
+>             all_deps[dep].add(required_by)
+>             recurse(dep, depth + 1, required_by)
+>
+>     for pkg in packages:
+>         visited.clear()
+>         recurse(pkg, 1, pkg)
+>
+>     return all_deps
+>
+> def get_package_info(package):
+>     """Get installed version and size of a package"""
+>     version = None
+>     size_kb = 0
+>
+>     # Try dpkg-query first for installed size
+>     try:
+>         result = subprocess.run(
+>             ['dpkg-query', '-W', '-f=${Version}\n${Installed-Size}\n', package],
+>             capture_output=True, text=True, timeout=10
+>         )
+>         if result.returncode == 0:
+>             lines = result.stdout.strip().split('\n')
+>             if len(lines) >= 2:
+>                 version = lines[0]
+>                 try:
+>                     size_kb = int(lines[1])
+>                 except:
+>                     pass
+>     except:
+>         pass
+>
+>     # Fallback to apt-cache show
+>     if not version:
+>         try:
+>             result = subprocess.run(
+>                 ['apt-cache', 'show', package],
+>                 capture_output=True, text=True, timeout=10
+>             )
+>             for line in result.stdout.split('\n'):
+>                 if line.startswith('Version:'):
+>                     version = line.split(':', 1)[1].strip()
+>                 elif line.startswith('Installed-Size:'):
+>                     try:
+>                         size_kb = int(line.split(':', 1)[1].strip())
+>                     except:
+>                         pass
+>         except:
+>             pass
+>
+>     return version or 'unknown', size_kb
+>
+> def check_security_update(package):
+>     """Check if package has a security update available"""
+>     try:
+>         result = subprocess.run(
+>             ['apt-cache', 'policy', package],
+>             capture_output=True, text=True, timeout=10
+>         )
+>         output = result.stdout
+>         # Check if there's a security pocket version available
+>         if '-security' in output:
+>             # Parse installed vs candidate
+>             installed = None
+>             candidate = None
+>             for line in output.split('\n'):
+>                 if 'Installed:' in line:
+>                     installed = line.split(':', 1)[1].strip()
+>                 elif 'Candidate:' in line:
+>                     candidate = line.split(':', 1)[1].strip()
+>             if installed and candidate and installed != candidate:
+>                 # Check if candidate comes from security
+>                 if '-security' in output.split(candidate)[1] if candidate in output else False:
+>                     return True
+>         return False
+>     except:
+>         return False
+>
+> # Read package lists
+> with open('/home/user/migration/installed_packages.txt') as f:
+>     installed = set(line.strip() for line in f if line.strip())
+>
+> with open('/home/user/migration/required_packages.txt') as f:
+>     required = set(line.strip() for line in f if line.strip())
+>
+> # Find extra packages (installed but not required)
+> extra = installed - required
+>
+> # Get all dependencies of required packages (up to 3 levels)
+> print("Analyzing dependencies (up to 3 levels deep)...")
+> dep_map = get_deps_recursive(required, max_depth=3)
+>
+> # Categorize extra packages
+> removable = []
+> dependency_protected = []
+>
+> for pkg in sorted(extra):
+>     if pkg in dep_map:
+>         dependency_protected.append({
+>             'name': pkg,
+>             'required_by': sorted(list(dep_map[pkg]))
+>         })
+>     else:
+>         version, size_kb = get_package_info(pkg)
+>         has_security = check_security_update(pkg)
+>         removable.append({
+>             'name': pkg,
+>             'installed_version': version,
+>             'size_kb': size_kb,
+>             'has_security_update': has_security
+>         })
+>
+> # Sort results
+> removable.sort(key=lambda x: x['name'])
+> dependency_protected.sort(key=lambda x: x['name'])
+>
+> # Calculate totals
+> total_space_savings = sum(p['size_kb'] for p in removable)
+>
+> # Build report
+> report = {
+>     'summary': {
+>         'total_installed': len(installed),
+>         'total_required': len(required),
+>         'removable_count': len(removable),
+>         'kept_as_dependencies': len(dependency_protected),
+>         'total_space_savings_kb': total_space_savings
+>     },
+>     'removable_packages': removable,
+>     'dependency_protected': dependency_protected
+> }
+>
+> # Write JSON report
+> with open('/home/user/migration/removal_report.json', 'w') as f:
+>     json.dump(report, f, indent=2)
+>
+> print(f"Report written to /home/user/migration/removal_report.json")
+> print(f"Total installed: {len(installed)}")
+> print(f"Total required: {len(required)}")
+> print(f"Removable: {len(removable)}")
+> print(f"Protected as dependencies: {len(dependency_protected)}")
+> print(f"Space savings: {total_space_savings} KB")
+>
+> # Create removal script
+> if removable:
+>     pkg_list = ' '.join(p['name'] for p in removable)
+>     script = f"""#!/bin/bash
+> # Auto-generated script to remove unnecessary packages
+> # Generated for cloud migration cleanup
+>
+> echo "The following packages will be removed:"
+> echo "{pkg_list}"
+> echo ""
+> echo "Dry run (no changes):"
+> apt-get remove --dry-run {pkg_list}
+>
+> echo ""
+> echo "Executing removal..."
+> apt-get remove -y {pkg_list}
+> """
+>     with open('/home/user/migration/remove_packages.sh', 'w') as f:
+>         f.write(script)
+>
+>     import os
+>     os.chmod('/home/user/migration/remove_packages.sh', 0o755)
+>     print("Removal script written to /home/user/migration/remove_packages.sh")
+>
+> SCRIPT
+user@dfe663bd4b25:~/migration$ python3 /home/user/migration/analyze.py
+Analyzing dependencies (up to 3 levels deep)...
+

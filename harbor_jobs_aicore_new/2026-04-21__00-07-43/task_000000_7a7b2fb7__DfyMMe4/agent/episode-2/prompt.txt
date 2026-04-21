@@ -1,0 +1,60 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@805564a713ca:~/migration$ comm -23 <(sort installed_packages.txt) <(sort required_packages.txt)
+apache2
+dnsutils
+git
+htop
+iputils-ping
+libc6
+libssl3
+lsof
+mysql-client
+nano
+ncdu
+netcat-openbsd
+nodejs
+npm
+postgresql-client
+redis-tools
+strace
+tcpdump
+tree
+vim
+wget
+zlib1g
+user@805564a713ca:~/migration$ cat > /tmp/analyze_deps.sh << 'EOF'
+> #!/bin/bash
+>
+> # Get all dependencies of a package up to 3 levels deep
+> get_deps() {
+>     local pkg=$1
+>     local level=$2
+>     local max_level=3
+>
+>     if [ $level -gt $max_level ]; then
+>         return
+>     fi
+>
+>     # Get direct dependencies
+>     local deps=$(apt-cache depends "$pkg" 2>/dev/null | grep -E "^\s+Depends:" | sed 's/.*Depends: //' | sed 's/<\|>//g' | cut -d':' -f1)
+>
+>     for dep in $deps; do
+>         echo "$dep"
+>         get_deps "$dep" $((level + 1))
+>     done
+> }
+>
+> # Read required packages and collect all their dependencies
+> while read -r pkg; do
+>     [ -z "$pkg" ] && continue
+>     get_deps "$pkg" 1
+> done < /home/user/migration/required_packages.txt | sort -u
+> EOF
+user@805564a713ca:~/migration$ chmod +x /tmp/analyze_deps.sh
+user@805564a713ca:~/migration$ bash /tmp/analyze_deps.sh > /tmp/all_deps.txt 2>/dev/null && echo 'Dependencies collected:' && cat /tmp/all_deps.txt
+

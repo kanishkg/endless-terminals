@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "I can see the two files. installed_packages.txt has 31 packages, required_packages.txt has 9 packages. I need to find which of the 22 non-required packages can be safely removed (not dependencies of required packages). I'll need to check dependencies up to 3 levels deep for each required package.",
+  "plan": "1. First, identify packages that are installed but not required\n2. For each required package, get its dependency tree (up to 3 levels) using apt-cache depends\n3. Mark packages that are dependencies as protected\n4. For removable packages, get their installed size and check for security updates\n5. Generate the JSON report and shell script\n\nLet me start by creating a comprehensive script to do all this analysis.",
+  "commands": [
+    {
+      "keystrokes": "cat > /tmp/analyze.sh << 'ENDSCRIPT'\n#!/bin/bash\ncd /home/user/migration\nmapfile -t INSTALLED < installed_packages.txt\nmapfile -t REQUIRED < required_packages.txt\ndeclare -A IS_REQUIRED IS_INSTALLED IS_DEPENDENCY DEP_OF\nfor pkg in \"${INSTALLED[@]}\"; do IS_INSTALLED[\"$pkg\"]=1; done\nfor pkg in \"${REQUIRED[@]}\"; do IS_REQUIRED[\"$pkg\"]=1; done\nget_deps() {\n    local pkg=\"$1\" level=\"$2\" parent=\"$3\"\n    [ \"$level\" -gt 3 ] && return\n    local deps=$(apt-cache depends \"$pkg\" 2>/dev/null | grep -E \"^  Depends:\" | sed 's/.*Depends: //' | sed 's/<.*//' | tr -d ' ')\n    for dep in $deps; do\n        [ -z \"$dep\" ] && continue\n        if [ -n \"${IS_INSTALLED[$dep]}\" ]; then\n            IS_DEPENDENCY[\"$dep\"]=1\n            if [ -z \"${DEP_OF[$dep]}\" ]; then\n                DEP_OF[\"$dep\"]=\"$parent\"\n            elif [[ ! \"${DEP_OF[$dep]}\" =~ \"$parent\" ]]; then\n                DEP_OF[\"$dep\"]=\"${DEP_OF[$dep]},$parent\"\n            fi\n            get_deps \"$dep\" $((level + 1)) \"$parent\"\n        fi\n    done\n}\necho \"Analyzing dependencies...\" >&2\nfor pkg in \"${REQUIRED[@]}\"; do\n    echo \"  Checking: $pkg\" >&2\n    get_deps \"$pkg\" 1 \"$pkg\"\ndone\ndeclare -a REMOVABLE PROTECTED\nfor pkg in \"${INSTALLED[@]}\"; do\n    if [ -z \"${IS_REQUIRED[$pkg]}\" ]; then\n        if [ -n \"${IS_DEPENDENCY[$pkg]}\" ]; then\n            PROTECTED+=(\"$pkg\")\n        else\n            REMOVABLE+=(\"$pkg\")\n        fi\n    fi\ndone\nIFS=$'\\n' REMOVABLE=($(sort <<<\"${REMOVABLE[*]}\")); unset IFS\nIFS=$'\\n' PROTECTED=($(sort <<<\"${PROTECTED[*]}\")); unset IFS\necho \"Removable: ${REMOVABLE[*]}\" >&2\necho \"Protected: ${PROTECTED[*]}\" >&2\nENDSCRIPT\nchmod +x /tmp/analyze.sh\n",
+      "duration": 1.0
+    },
+    {
+      "keystrokes": "bash /tmp/analyze.sh\n",
+      "duration": 15.0
+    }
+  ]
+}
+```
