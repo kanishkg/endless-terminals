@@ -1,0 +1,55 @@
+New Terminal Output:
+
+root@a99592dc3465:/home/user/pipelines# cat > process_builds.py << 'EOF'
+> import json
+> import csv
+>
+> # Read and process iOS builds
+> ios_failed = []
+> with open('ios_builds.csv', 'r') as f:
+>     reader = csv.DictReader(f)
+>     for row in reader:
+>         if row['status'] == 'FAILED':
+>             ios_failed.append({
+>                 'platform': 'ios',
+>                 'build_id': row['build_id'],
+>                 'app_name': row['app_name'],
+>                 'duration_minutes': round(float(row['build_time_seconds']) / 60, 2),
+>                 'branch': row['branch']
+>             })
+>
+> # Read and process Android builds
+> android_failed = []
+> with open('android_builds.json', 'r') as f:
+>     android_builds = json.load(f)
+>     for build in android_builds:
+>         if build['result'] == 'FAILED':
+>             android_failed.append({
+>                 'platform': 'android',
+>                 'build_id': build['buildId'],
+>                 'app_name': build['appName'],
+>                 'duration_minutes': round(float(build['buildDuration']) / 60, 2),
+>                 'branch': build['branch']
+>             })
+>
+> # Combine and sort
+> all_failed = ios_failed + android_failed
+> all_failed.sort(key=lambda x: (x['app_name'], x['build_id']))
+>
+> # Write JSON report
+> with open('failed_builds_report.json', 'w') as f:
+>     json.dump(all_failed, f, indent=2)
+>
+> # Create summary
+> total_failed = len(all_failed)
+> ios_count = len(ios_failed)
+> android_count = len(android_failed)
+>
+> with open('failure_summary.txt', 'w') as f:
+>     f.write(f'Total failed builds: {total_failed}\n')
+>     f.write(f'iOS failures: {ios_count}\n')
+>     f.write(f'Android failures: {android_count}\n')
+>
+> EOF
+root@a99592dc3465:/home/user/pipelines# python3 process_builds.py
+root@a99592dc3465:/home/user/pipelines#

@@ -1,0 +1,53 @@
+New Terminal Output:
+
+[{"id": 1, "name": "Alice", "email": "alice@examplroot@5cd9ed1cd324:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT_FILE="/home/user/pipeline_results.log"
+>
+> # Clear the output file
+> > "$OUTPUT_FILE"
+>
+> # Base URL
+> BASE_URL="http://localhost:8765"
+>
+> # Function to process endpoint
+> process_endpoint() {
+>     local endpoint=$1
+>     local temp_response=$(mktemp)
+>     local temp_headers=$(mktemp)
+>
+>     # Make request and capture response and status code
+>     http_code=$(curl -s -w "%{http_code}" -o "$temp_response" "${BASE_URL}${endpoint}")
+>
+>     echo "ENDPOINT: ${endpoint}" >> "$OUTPUT_FILE"
+>
+>     if [ "$http_code" -eq 200 ]; then
+>         echo "STATUS: SUCCESS" >> "$OUTPUT_FILE"
+>         # Count items in JSON array
+>         count=$(cat "$temp_response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(len(data))")
+>         echo "COUNT: ${count}" >> "$OUTPUT_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$OUTPUT_FILE"
+>         echo "ERROR_CODE: ${http_code}" >> "$OUTPUT_FILE"
+>     fi
+>
+>     # Clean up temp files
+>     rm -f "$temp_response" "$temp_headers"
+> }
+>
+> # Process each endpoint
+> process_endpoint "/api/users"
+> echo "" >> "$OUTPUT_FILE"
+>
+> process_endpoint "/api/products"
+> echo "" >> "$OUTPUT_FILE"
+>
+> process_endpoint "/api/orders"
+>
+> EOF
+root@5cd9ed1cd324:/home/user# chmod +x /home/user/data_pipeline.sh
+root@5cd9ed1cd324:/home/user# ls -la /home/user/data_pipeline.sh
+-rwxr-xr-x 1 root root 1170 Apr 20 19:44 /home/user/data_pipeline.sh
+root@5cd9ed1cd324:/home/user#

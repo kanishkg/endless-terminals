@@ -1,0 +1,43 @@
+New Terminal Output:
+
+root@a99592dc3465:/home/user/pipelines# cat > process_builds.sh << 'EOF'
+> #!/bin/bash
+>
+> # Extract failed iOS builds and convert to JSON format
+> echo '[' > /tmp/ios_failed.json
+> awk -F',' 'NR>1 && $4=="FAILED" {
+>   duration = sprintf("%.2f", $3/60)
+>   printf "{\"platform\":\"ios\",\"build_id\":\"%s\",\"app_name\":\"%s\",\"duration_minutes\":%s,\"branch\":\"%s\"},\n", $1, $2, duration, $5
+> }' ios_builds.csv >> /tmp/ios_failed.json
+>
+> # Extract failed Android builds and convert to JSON format
+> jq -r '.[] | select(.result=="FAILED") |
+>   {platform:"android", build_id:.buildId, app_name:.appName, duration_minutes:((.buildDuration/60*100|round)/100), branch:.branch}' \
+>   android_builds.json > /tmp/android_failed.json
+>
+> # Combine and format
+> cat /tmp/ios_failed.json | sed '$ s/,$//' > /tmp/combined_temp.json
+> echo ']' >> /tmp/combined_temp.json
+> jq -s 'add' /tmp/combined_temp.json /tmp/android_failed.json | \
+>   jq 'sort_by(.app_name, .build_id)' > failed_builds_report.json
+>
+> # Count failures
+> IOS_COUNT=$(awk -F',' 'NR>1 && $4=="FAILED"' ios_builds.csv | wc -l)
+> ANDROID_COUNT=$(jq '[.[] | select(.result=="FAILED")] | length' android_builds.json)
+> TOTAL=$((IOS_COUNT + ANDROID_COUNT))
+>
+> # Create summary
+> cat > failure_summary.txt << SUMMARY
+> Total failed builds: $TOTAL
+> iOS failures: $IOS_COUNT
+> Android failures: $ANDROID_COUNT
+> SUMMARY
+>
+> EOF
+root@a99592dc3465:/home/user/pipelines# chmod +x process_builds.sh
+root@a99592dc3465:/home/user/pipelines# bash process_builds.sh
+process_builds.sh: line 11: jq: command not found
+process_builds.sh: line 18: jq: command not found
+process_builds.sh: line 19: jq: command not found
+process_builds.sh: line 23: jq: command not found
+root@a99592dc3465:/home/user/pipelines#

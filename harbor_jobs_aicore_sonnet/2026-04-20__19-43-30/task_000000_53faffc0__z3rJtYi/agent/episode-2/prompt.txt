@@ -1,0 +1,99 @@
+New Terminal Output:
+
+root@a1484ff2265d:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT_FILE="/home/user/pipeline_results.log"
+>
+> # Clear the output file
+> > "$OUTPUT_FILE"
+>
+> # API base URL
+> BASE_URL="http://localhost:8765"
+>
+> # Function to process endpoint
+> process_endpoint() {
+>     local endpoint=$1
+>     local response
+>     local http_code
+>
+>     # Make request and capture both response and status code
+>     response=$(curl -s -w "\n%{http_code}" "${BASE_URL}${endpoint}")
+>
+>     # Extract status code (last line)
+>     http_code=$(echo "$response" | tail -n 1)
+>
+>     # Extract body (all but last line)
+>     body=$(echo "$response" | sed '$d')
+>
+>     echo "ENDPOINT: ${endpoint}" >> "$OUTPUT_FILE"
+>
+>     if [ "$http_code" = "200" ]; then
+>         echo "STATUS: SUCCESS" >> "$OUTPUT_FILE"
+>         # Count items in JSON array
+>         count=$(echo "$body" | grep -o '{' | wc -l)
+>         echo "COUNT: ${count}" >> "$OUTPUT_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$OUTPUT_FILE"
+>         echo "ERROR_CODE: ${http_code}" >> "$OUTPUT_FILE"
+>     fi
+>
+>     echo "" >> "$OUTPUT_FILE"
+> }
+>
+> # Process each endpoint
+> process_endpoint "/api/users"
+> process_endpoint "/api/products"
+> process_endpoint "/api/orders"
+>
+> EOF
+root@a1484ff2265d:/home/user# chmod +x /home/user/data_pipeline.sh
+root@a1484ff2265d:/home/user# cat /home/user/data_pipeline.sh
+#!/bin/bash
+
+# Output file
+OUTPUT_FILE="/home/user/pipeline_results.log"
+
+# Clear the output file
+> "$OUTPUT_FILE"
+
+# API base URL
+BASE_URL="http://localhost:8765"
+
+# Function to process endpoint
+process_endpoint() {
+    local endpoint=$1
+    local response
+    local http_code
+
+    # Make request and capture both response and status code
+    response=$(curl -s -w "\n%{http_code}" "${BASE_URL}${endpoint}")
+
+    # Extract status code (last line)
+    http_code=$(echo "$response" | tail -n 1)
+
+    # Extract body (all but last line)
+    body=$(echo "$response" | sed '$d')
+
+    echo "ENDPOINT: ${endpoint}" >> "$OUTPUT_FILE"
+
+    if [ "$http_code" = "200" ]; then
+        echo "STATUS: SUCCESS" >> "$OUTPUT_FILE"
+        # Count items in JSON array
+        count=$(echo "$body" | grep -o '{' | wc -l)
+        echo "COUNT: ${count}" >> "$OUTPUT_FILE"
+    else
+        echo "STATUS: ERROR" >> "$OUTPUT_FILE"
+        echo "ERROR_CODE: ${http_code}" >> "$OUTPUT_FILE"
+    fi
+
+    echo "" >> "$OUTPUT_FILE"
+}
+
+# Process each endpoint
+process_endpoint "/api/users"
+process_endpoint "/api/products"
+process_endpoint "/api/orders"
+
+root@a1484ff2265d:/home/user#

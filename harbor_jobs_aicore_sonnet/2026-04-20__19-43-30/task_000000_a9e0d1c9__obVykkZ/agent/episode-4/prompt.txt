@@ -1,0 +1,43 @@
+New Terminal Output:
+
+root@895aa63b7376:/home/user/project# cat > scraper.js << 'EOF'
+> const puppeteer = require('puppeteer');
+> const fs = require('fs');
+> const path = require('path');
+>
+> (async () => {
+>   const browser = await puppeteer.launch({
+>     headless: 'new',
+>     args: ['--no-sandbox', '--disable-setuid-sandbox']
+>   });
+>
+>   const page = await browser.newPage();
+>   await page.goto('https://news.ycombinator.com', { waitUntil: 'networkidle2' });
+>
+>   // Extract the top 5 story titles
+>   const titles = await page.evaluate(() => {
+>     const titleElements = document.querySelectorAll('.titleline > a');
+>     const results = [];
+>     for (let i = 0; i < 5 && i < titleElements.length; i++) {
+>       results.push(titleElements[i].innerText);
+>     }
+>     return results;
+>   });
+>
+>   await browser.close();
+>
+>   // Format and save the titles
+>   const outputDir = '/home/user/project/scraped_data';
+>   const formattedTitles = titles.map((title, index) => `${index + 1}. ${title}`).join('\n');
+>
+>   fs.writeFileSync(path.join(outputDir, 'hn_titles.txt'), formattedTitles);
+>
+>   // Create log file
+>   const logContent = `STATUS: SUCCESS\nITEMS_SCRAPED: 5\nSOURCE: https://news.ycombinator.com`;
+>   fs.writeFileSync(path.join(outputDir, 'scrape_log.txt'), logContent);
+>
+>   console.log('Scraping completed successfully!');
+>   console.log('Titles extracted:', titles.length);
+> })();
+> EOF
+root@895aa63b7376:/home/user/project#

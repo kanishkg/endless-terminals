@@ -1,0 +1,51 @@
+New Terminal Output:
+
+example.com"}]root@1731a10e9ec6:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT_FILE="/home/user/pipeline_results.log"
+>
+> # Clear the output file
+> > "$OUTPUT_FILE"
+>
+> # Function to process endpoint
+> process_endpoint() {
+>     local endpoint=$1
+>     local url="http://localhost:8765${endpoint}"
+>
+>     # Make request and capture response and status code
+>     response=$(curl -s -w "\n%{http_code}" "$url")
+>
+>     # Extract status code (last line) and body (everything else)
+>     status_code=$(echo "$response" | tail -n 1)
+>     body=$(echo "$response" | sed '$d')
+>
+>     # Write endpoint info
+>     echo "ENDPOINT: ${endpoint}" >> "$OUTPUT_FILE"
+>
+>     # Check if successful (2xx status code)
+>     if [[ $status_code -ge 200 && $status_code -lt 300 ]]; then
+>         echo "STATUS: SUCCESS" >> "$OUTPUT_FILE"
+>         # Count items in JSON array using grep
+>         count=$(echo "$body" | grep -o '"id"' | wc -l)
+>         echo "COUNT: ${count}" >> "$OUTPUT_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$OUTPUT_FILE"
+>         echo "ERROR_CODE: ${status_code}" >> "$OUTPUT_FILE"
+>     fi
+>
+>     # Add blank line separator
+>     echo "" >> "$OUTPUT_FILE"
+> }
+>
+> # Process each endpoint
+> process_endpoint "/api/users"
+> process_endpoint "/api/products"
+> process_endpoint "/api/orders"
+>
+> EOF
+root@1731a10e9ec6:/home/user# chmod +x /home/user/data_pipeline.sh
+root@1731a10e9ec6:/home/user# ls -la /home/user/data_pipeline.sh
+-rwxr-xr-x 1 root root 1215 Apr 20 21:21 /home/user/data_pipeline.sh
+root@1731a10e9ec6:/home/user#

@@ -1,0 +1,116 @@
+[?2004hroot@e8bd103c4f39:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@e8bd103c4f39:/home/user# clear
+[?2004l[H[J[?2004hroot@e8bd103c4f39:/home/user# ls -la /home/user/api_payload.json
+[?2004l-rw-rw-rw- 1 root root 210 Apr 17 18:28 /home/user/api_payload.json
+[?2004hroot@e8bd103c4f39:/home/user# cat /home/user/api_payload.json
+[?2004l{
+  "api_version": "2.1",
+  "endpoint": "/v2/transactions",
+  "method": "POST",
+  "test_id": "TX-20240115-001",
+  "payload": {
+    "amount": 150.00,
+    "currency": "USD",
+    "merchant_id": "MERCH-9876"
+  }
+}
+[?2004hroot@e8bd103c4f39:/home/user# cat > /tmp/gpg_batch_config << 'EOF'
+[?2004l[?2004h> %no-protection
+[?2004l[?2004h> Key-Type: RSA
+[?2004l[?2004h> Key-Length: 2048
+[?2004l[?2004h> Subkey-Type: RSA
+[?2004l[?2004h> Subkey-Length: 2048
+[?2004l[?2004h> Name-Real: API Test User
+[?2004l[?2004h> Name-Email: apitest@example.com
+[?2004l[?2004h> Expire-Date: 0
+[?2004l[?2004h> %commit
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# cat /tmp/gpg_batch_config
+[?2004l%no-protection
+Key-Type: RSA
+Key-Length: 2048
+Subkey-Type: RSA
+Subkey-Length: 2048
+Name-Real: API Test User
+Name-Email: apitest@example.com
+Expire-Date: 0
+%commit
+[?2004hroot@e8bd103c4f39:/home/user# gpg --batch --gen-key /tmp/gpg_batch_config
+[?2004lgpg: directory '/root/.gnupg' created
+gpg: keybox '/root/.gnupg/pubring.kbx' created
+gpg: /root/.gnupg/trustdb.gpg: trustdb created
+gpg: key 46FCD32E2689F731 marked as ultimately trusted
+gpg: directory '/root/.gnupg/openpgp-revocs.d' created
+gpg: revocation certificate stored as '/root/.gnupg/openpgp-revocs.d/3392A7DB41C9D78326FA436B46FCD32E2689F731.rev'
+[?2004hroot@e8bd103c4f39:/home/user# gpg --list-keys --fingerprint apitest@example.com
+[?2004lgpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+pub   rsa2048 2026-04-20 [SCEA]
+      3392 A7DB 41C9 D783 26FA  436B 46FC D32E 2689 F731
+uid           [ultimate] API Test User <apitest@example.com>
+sub   rsa2048 2026-04-20 [SEA]
+
+[?2004hroot@e8bd103c4f39:/home/user# gpg --list-keys --fingerprint --with-colons apitest@example.com | grep fpr | head -1 | cut -d: -f10
+[?2004l3392A7DB41C9D78326FA436B46FCD32E2689F731
+[?2004hroot@e8bd103c4f39:/home/user# gpg --detach-sign --armor --local-user apitest@example.com --output /home/user/api_payload.json.sig /home/user/api_payload.json
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# ls -la /home/user/api_payload.json.sig
+[?2004l-rw-r--r-- 1 root root 516 Apr 20 20:04 /home/user/api_payload.json.sig
+[?2004hroot@e8bd103c4f39:/home/user# gpg --encrypt --recipient apitest@example.com --output /home/user/api_payload.json.gpg /home/user/api_payload.json
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# ls -la /home/user/api_payload.json.gpg
+[?2004l-rw-r--r-- 1 root root 502 Apr 20 20:04 /home/user/api_payload.json.gpg
+[?2004hroot@e8bd103c4f39:/home/user# gpg --verify /home/user/api_payload.json.sig /home/user/api_payload.json
+[?2004lgpg: Signature made Mon Apr 20 20:04:43 2026 UTC
+gpg:                using RSA key 901A339A1B55A01A9210182B58CD23B6192340E0
+gpg:                issuer "apitest@example.com"
+gpg: Good signature from "API Test User <apitest@example.com>" [ultimate]
+[?2004hroot@e8bd103c4f39:/home/user# echo $?
+[?2004l0
+[?2004hroot@e8bd103c4f39:/home/user# gpg --decrypt --output /tmp/decrypted_payload.json /home/user/api_payload.json.gpg
+[?2004lgpg: encrypted with 2048-bit RSA key, ID 58CD23B6192340E0, created 2026-04-20
+      "API Test User <apitest@example.com>"
+[?2004hroot@e8bd103c4f39:/home/user# echo $?
+[?2004l0
+[?2004hroot@e8bd103c4f39:/home/user# sha256sum /home/user/api_payload.json
+[?2004lbb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1  /home/user/api_payload.json
+[?2004hroot@e8bd103c4f39:/home/user# sha256sum /tmp/decrypted_payload.json
+[?2004lbb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1  /tmp/decrypted_payload.json
+[?2004hroot@e8bd103c4f39:/home/user# diff /home/user/api_payload.json /tmp/decrypted_payload.json
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# FINGERPRINT="3392A7DB41C9D78326FA436B46FCD32E2689F731"
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# ORIGINAL_HASH=$(sha256sum /home/user/api_payload.json | awk '{print $1}')
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# DECRYPTED_HASH=$(sha256sum /tmp/decrypted_payload.json | awk '{print $1}')
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# cat > /home/user/gpg_test_results.log << EOF
+[?2004l[?2004h> KEY_FINGERPRINT=${FINGERPRINT}
+[?2004l[?2004h> SIGNATURE_VALID=YES
+[?2004l[?2004h> DECRYPTION_SUCCESSFUL=YES
+[?2004l[?2004h> ORIGINAL_HASH=${ORIGINAL_HASH}
+[?2004l[?2004h> DECRYPTED_HASH=${DECRYPTED_HASH}
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@e8bd103c4f39:/home/user# cat /home/user/gpg_test_results.log
+[?2004lKEY_FINGERPRINT=3392A7DB41C9D78326FA436B46FCD32E2689F731
+SIGNATURE_VALID=YES
+DECRYPTION_SUCCESSFUL=YES
+ORIGINAL_HASH=bb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1
+DECRYPTED_HASH=bb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1
+[?2004hroot@e8bd103c4f39:/home/user# ls -lh /home/user/api_payload.json* /home/user/gpg_test_results.log
+[?2004l-rw-rw-rw- 1 root root 210 Apr 17 18:28 /home/user/api_payload.json
+-rw-r--r-- 1 root root 502 Apr 20 20:04 /home/user/api_payload.json.gpg
+-rw-r--r-- 1 root root 516 Apr 20 20:04 /home/user/api_payload.json.sig
+-rw-r--r-- 1 root root 262 Apr 20 20:05 /home/user/gpg_test_results.log
+[?2004hroot@e8bd103c4f39:/home/user# echo '=== GPG Test Setup Complete ==='
+[?2004l=== GPG Test Setup Complete ===
+[?2004hroot@e8bd103c4f39:/home/user# echo 'Key created: API Test User <apitest@example.com>'
+[?2004lKey created: API Test User <apitest@example.com>
+[?2004hroot@e8bd103c4f39:/home/user# echo 'Fingerprint: 3392A7DB41C9D78326FA436B46FCD32E2689F731'
+[?2004lFingerprint: 3392A7DB41C9D78326FA436B46FCD32E2689F731
+[?2004hroot@e8bd103c4f39:/home/user# echo 'Files created:'
+[?2004lFiles created:
+[?2004hroot@e8bd103c4f39:/home/user# echo '  - /home/user/api_payload.json.sig (detached signature)'
+[?2004l  - /home/user/api_payload.json.sig (detached signature)
+[?2004hroot@e8bd103c4f39:/home/user# echo '  - /home/user/api_payload.json.gpg (encrypted payload)'
+[?2004l  - /home/user/api_payload.json.gpg (encrypted payload)
+[?2004hroot@e8bd103c4f39:/home/user# echo '  - /home/user/gpg_test_results.log (verification results)'
+[?2004l  - /home/user/gpg_test_results.log (verification results)
+[?2004hroot@e8bd103c4f39:/home/user# 

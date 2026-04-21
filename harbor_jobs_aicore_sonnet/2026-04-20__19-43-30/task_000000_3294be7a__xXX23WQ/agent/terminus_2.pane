@@ -1,0 +1,107 @@
+[?2004hroot@f2eafa45407e:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@f2eafa45407e:/home/user# clear
+[?2004l[H[J[?2004hroot@f2eafa45407e:/home/user# ls -la /home/user/logs/
+[?2004ltotal 12
+drwxrwxrwx 1 root root 4096 Apr 17 18:30 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 17 18:30 [34;42m..[0m
+-rw-r--r-- 1 root root 1478 Apr 17 18:30 access.log
+[?2004hroot@f2eafa45407e:/home/user# head -5 /home/user/logs/access.log
+[?2004l192.168.1.100 - - [15/Jan/2024:10:15:32 +0000] "GET /index.html HTTP/1.1" 200 1542 "-" "Mozilla/5.0"
+192.168.1.100 - - [15/Jan/2024:10:15:45 +0000] "GET /style.css HTTP/1.1" 200 892 "-" "Mozilla/5.0"
+10.0.0.55 - - [15/Jan/2024:10:16:01 +0000] "GET /api/users HTTP/1.1" 200 2048 "-" "curl/7.68.0"
+192.168.1.100 - - [15/Jan/2024:10:17:22 +0000] "GET /admin/login HTTP/1.1" 403 512 "-" "Mozilla/5.0"
+10.0.0.55 - - [15/Jan/2024:10:18:05 +0000] "POST /api/users HTTP/1.1" 201 256 "-" "curl/7.68.0"
+[?2004hroot@f2eafa45407e:/home/user# wc -l /home/user/logs/access.log
+[?2004l15 /home/user/logs/access.log
+[?2004hroot@f2eafa45407e:/home/user# mkdir -p /home/user/reports
+[?2004l[?2004hroot@f2eafa45407e:/home/user# awk '{print $1}' /home/user/logs/access.log | sort | uniq -c | sort -rn | awk '{print $1, $2}' > /home/user/reports/ip_counts.txt
+[?2004l[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/ip_counts.txt
+[?2004l5 192.168.1.100
+4 10.0.0.55
+3 203.0.113.50
+3 172.16.0.25
+[?2004hroot@f2eafa45407e:/home/user# echo 'ip,status,path' > /home/user/reports/errors.csv
+[?2004l[?2004hroot@f2eafa45407e:/home/user# awk '$9 ~ /^[45][0-9][0-9]$/ {match($7, /[^?]*/); print $1","$9","substr($7, RSTART, RLENGTH)}' /home/user/logs/access.log >> /home/user/reports/errors.csv
+[?2004l[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/errors.csv
+[?2004lip,status,path
+192.168.1.100,403,/admin/login
+10.0.0.55,404,/api/missing
+203.0.113.50,500,/broken
+192.168.1.100,403,/api/admin
+[?2004hroot@f2eafa45407e:/home/user# awk '{sum += $10} END {print sum}' /home/user/logs/access.log > /home/user/reports/total_bandwidth.txt
+[?2004l[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/total_bandwidth.txt
+[?2004l21386
+[?2004hroot@f2eafa45407e:/home/user# awk '{match($7, /[^?]*/); print substr($7, RSTART, RLENGTH)}' /home/user/logs/access.log | sort | uniq -c | sort -rn | head -5 | awk '{print $1, $2}' > /home/user/reports/top_paths.txt
+[?2004l[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/top_paths.txt
+[?2004l3 /products
+3 /index.html
+3 /api/users
+2 /style.css
+1 /broken
+[?2004hroot@f2eafa45407e:/home/user# UNIQUE_IPS=$(wc -l < /home/user/reports/ip_counts.txt)
+[?2004l[?2004hroot@f2eafa45407e:/home/user# TOTAL_REQUESTS=$(wc -l < /home/user/logs/access.log)
+[?2004l[?2004hroot@f2eafa45407e:/home/user# ERROR_REQUESTS=$(($(wc -l < /home/user/reports/errors.csv) - 1))
+[?2004l[?2004hroot@f2eafa45407e:/home/user# TOTAL_BANDWIDTH=$(cat /home/user/reports/total_bandwidth.txt)
+[?2004l[?2004hroot@f2eafa45407e:/home/user# echo "Unique IPs: $UNIQUE_IPS" > /home/user/reports/summary.txt
+[?2004l[?2004hroot@f2eafa45407e:/home/user# echo "Total Requests: $TOTAL_REQUESTS" >> /home/user/reports/summary.txt
+[?2004l[?2004hroot@f2eafa45407e:/home/user# echo "Error Requests: $ERROR_REQUESTS" >> /home/user/reports/summary.txt
+[?2004l[?2004hroot@f2eafa45407e:/home/user# echo "Total Bandwidth: $TOTAL_BANDWIDTH bytes" >> /home/user/reports/summary.txt
+[?2004l[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/summary.txt
+[?2004lUnique IPs: 4
+Total Requests: 15
+Error Requests: 4
+Total Bandwidth: 21386 bytes
+[?2004hroot@f2eafa45407e:/home/user# ls -la /home/user/reports/
+[?2004ltotal 28
+drwxr-xr-x 2 root root 4096 Apr 20 20:34 [0m[01;34m.[0m
+drwxrwxrwx 1 root root 4096 Apr 20 20:34 [34;42m..[0m
+-rw-r--r-- 1 root root  127 Apr 20 20:34 errors.csv
+-rw-r--r-- 1 root root   57 Apr 20 20:34 ip_counts.txt
+-rw-r--r-- 1 root root   80 Apr 20 20:34 summary.txt
+-rw-r--r-- 1 root root   62 Apr 20 20:34 top_paths.txt
+-rw-r--r-- 1 root root    6 Apr 20 20:34 total_bandwidth.txt
+[?2004hroot@f2eafa45407e:/home/user# echo "=== ip_counts.txt ==="
+[?2004l=== ip_counts.txt ===
+[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/ip_counts.txt
+[?2004l5 192.168.1.100
+4 10.0.0.55
+3 203.0.113.50
+3 172.16.0.25
+[?2004hroot@f2eafa45407e:/home/user# echo ""
+[?2004l
+[?2004hroot@f2eafa45407e:/home/user# echo "=== errors.csv ==="
+[?2004l=== errors.csv ===
+[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/errors.csv
+[?2004lip,status,path
+192.168.1.100,403,/admin/login
+10.0.0.55,404,/api/missing
+203.0.113.50,500,/broken
+192.168.1.100,403,/api/admin
+[?2004hroot@f2eafa45407e:/home/user# echo ""
+[?2004l
+[?2004hroot@f2eafa45407e:/home/user# echo "=== total_bandwidth.txt ==="
+[?2004l=== total_bandwidth.txt ===
+[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/total_bandwidth.txt
+[?2004l21386
+[?2004hroot@f2eafa45407e:/home/user# echo ""
+[?2004l
+[?2004hroot@f2eafa45407e:/home/user# echo "=== top_paths.txt ==="
+[?2004l=== top_paths.txt ===
+[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/top_paths.txt
+[?2004l3 /products
+3 /index.html
+3 /api/users
+2 /style.css
+1 /broken
+[?2004hroot@f2eafa45407e:/home/user# echo ""
+[?2004l
+[?2004hroot@f2eafa45407e:/home/user# echo "=== summary.txt ==="
+[?2004l=== summary.txt ===
+[?2004hroot@f2eafa45407e:/home/user# cat /home/user/reports/summary.txt
+[?2004lUnique IPs: 4
+Total Requests: 15
+Error Requests: 4
+Total Bandwidth: 21386 bytes
+[?2004hroot@f2eafa45407e:/home/user# 

@@ -1,0 +1,103 @@
+New Terminal Output:
+
+root@f2e5ef09aeeb:/home/user/pipelines# cat > process_builds.py << 'EOF'
+> import json
+> import csv
+>
+> # Read and process iOS builds
+> ios_failed = []
+> with open('ios_builds.csv', 'r') as f:
+>     reader = csv.DictReader(f)
+>     for row in reader:
+>         if row['status'] == 'FAILED':
+>             ios_failed.append({
+>                 'platform': 'ios',
+>                 'build_id': row['build_id'],
+>                 'app_name': row['app_name'],
+>                 'duration_minutes': round(float(row['build_time_seconds']) / 60, 2),
+>                 'branch': row['branch']
+>             })
+>
+> # Read and process Android builds
+> android_failed = []
+> with open('android_builds.json', 'r') as f:
+>     android_builds = json.load(f)
+>     for build in android_builds:
+>         if build['result'] == 'FAILED':
+>             android_failed.append({
+>                 'platform': 'android',
+>                 'build_id': build['buildId'],
+>                 'app_name': build['appName'],
+>                 'duration_minutes': round(float(build['buildDuration']) / 60, 2),
+>                 'branch': build['branch']
+>             })
+>
+> # Combine and sort
+> all_failed = ios_failed + android_failed
+> all_failed.sort(key=lambda x: (x['app_name'], x['build_id']))
+>
+> # Write JSON report
+> with open('failed_builds_report.json', 'w') as f:
+>     json.dump(all_failed, f, indent=2)
+>
+> # Write summary
+> with open('failure_summary.txt', 'w') as f:
+>     f.write(f'Total failed builds: {len(all_failed)}\n')
+>     f.write(f'iOS failures: {len(ios_failed)}\n')
+>     f.write(f'Android failures: {len(android_failed)}\n')
+>
+> print(f'Processed {len(ios_failed)} iOS failures and {len(android_failed)} Android failures')
+> print(f'Total: {len(all_failed)} failed builds')
+> EOF
+root@f2e5ef09aeeb:/home/user/pipelines# python3 process_builds.py
+Processed 3 iOS failures and 3 Android failures
+Total: 6 failed builds
+root@f2e5ef09aeeb:/home/user/pipelines# cat failed_builds_report.json
+[
+  {
+    "platform": "ios",
+    "build_id": "IOS004",
+    "app_name": "Analytics",
+    "duration_minutes": 7.6,
+    "branch": "develop"
+  },
+  {
+    "platform": "android",
+    "build_id": "AND004",
+    "app_name": "ChatModule",
+    "duration_minutes": 6.3,
+    "branch": "develop"
+  },
+  {
+    "platform": "ios",
+    "build_id": "IOS006",
+    "app_name": "ChatModule",
+    "duration_minutes": 8.72,
+    "branch": "feature/push"
+  },
+  {
+    "platform": "android",
+    "build_id": "AND002",
+    "app_name": "MobileApp",
+    "duration_minutes": 6.87,
+    "branch": "feature/login"
+  },
+  {
+    "platform": "ios",
+    "build_id": "IOS002",
+    "app_name": "MobileApp",
+    "duration_minutes": 5.2,
+    "branch": "feature/login"
+  },
+  {
+    "platform": "android",
+    "build_id": "AND005",
+    "app_name": "PaymentSDK",
+    "duration_minutes": 7.42,
+    "branch": "feature/checkout"
+  }
+]root@f2e5ef09aeeb:/home/user/pipelines# cat failure_summary.txt
+Total failed builds: 6
+iOS failures: 3
+Android failures: 3
+root@f2e5ef09aeeb:/home/user/pipelines#

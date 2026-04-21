@@ -1,0 +1,19 @@
+{
+  "analysis": "Good! I can see both files. The iOS CSV has 7 builds with 3 FAILED ones (IOS002, IOS004, IOS006). The Android JSON has 5 builds with 3 FAILED ones (AND002, AND004, AND005). Now I need to extract the failed builds, transform them to the unified format, sort them, and create both output files.",
+  "plan": "I'll use a combination of tools to process this data: 1) Use awk to extract failed iOS builds from CSV and convert to JSON format with duration in minutes, 2) Use jq to extract failed Android builds and transform them, 3) Combine both outputs into a single JSON array, 4) Sort by app_name then build_id, 5) Create the summary file with counts. I'll write a script to handle this efficiently.",
+  "commands": [
+    {
+      "keystrokes": "cat > process_builds.sh << 'EOF'\n#!/bin/bash\n\n# Extract failed iOS builds and convert to JSON format\necho '[' > /tmp/ios_failed.json\nawk -F',' 'NR>1 && $4==\"FAILED\" {\n  duration = sprintf(\"%.2f\", $3/60)\n  printf \"{\\\"platform\\\":\\\"ios\\\",\\\"build_id\\\":\\\"%s\\\",\\\"app_name\\\":\\\"%s\\\",\\\"duration_minutes\\\":%s,\\\"branch\\\":\\\"%s\\\"},\\n\", $1, $2, duration, $5\n}' ios_builds.csv >> /tmp/ios_failed.json\n\n# Extract failed Android builds and convert to JSON format\njq -r '.[] | select(.result==\"FAILED\") | \n  {platform:\"android\", build_id:.buildId, app_name:.appName, duration_minutes:((.buildDuration/60*100|round)/100), branch:.branch}' \\\n  android_builds.json > /tmp/android_failed.json\n\n# Combine and format\ncat /tmp/ios_failed.json | sed '$ s/,$//' > /tmp/combined_temp.json\necho ']' >> /tmp/combined_temp.json\njq -s 'add' /tmp/combined_temp.json /tmp/android_failed.json | \\\n  jq 'sort_by(.app_name, .build_id)' > failed_builds_report.json\n\n# Count failures\nIOS_COUNT=$(awk -F',' 'NR>1 && $4==\"FAILED\"' ios_builds.csv | wc -l)\nANDROID_COUNT=$(jq '[.[] | select(.result==\"FAILED\")] | length' android_builds.json)\nTOTAL=$((IOS_COUNT + ANDROID_COUNT))\n\n# Create summary\ncat > failure_summary.txt << SUMMARY\nTotal failed builds: $TOTAL\niOS failures: $IOS_COUNT\nAndroid failures: $ANDROID_COUNT\nSUMMARY\n\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "chmod +x process_builds.sh\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "bash process_builds.sh\n",
+      "duration": 1.0
+    }
+  ],
+  "task_complete": false
+}

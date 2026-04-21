@@ -1,0 +1,47 @@
+New Terminal Output:
+
+root@589175bb93f5:/home/user/project# cat > scraper.js << 'EOF'
+> const puppeteer = require('puppeteer');
+> const fs = require('fs');
+> const path = require('path');
+>
+> (async () => {
+>   const browser = await puppeteer.launch({
+>     headless: 'new',
+>     args: ['--no-sandbox', '--disable-setuid-sandbox']
+>   });
+>
+>   const page = await browser.newPage();
+>   await page.goto('https://news.ycombinator.com', { waitUntil: 'networkidle2' });
+>
+>   // Extract the top 5 story titles
+>   const titles = await page.evaluate(() => {
+>     const storyLinks = document.querySelectorAll('.titleline > a');
+>     const topFive = [];
+>     for (let i = 0; i < Math.min(5, storyLinks.length); i++) {
+>       topFive.push(storyLinks[i].textContent.trim());
+>     }
+>     return topFive;
+>   });
+>
+>   await browser.close();
+>
+>   // Format and save the titles
+>   const formatted = titles.map((title, index) => `${index + 1}. ${title}`).join('\n');
+>   const outputPath = path.join(__dirname, 'scraped_data', 'hn_titles.txt');
+>   fs.writeFileSync(outputPath, formatted, 'utf8');
+>
+>   console.log('Scraping completed successfully!');
+>   console.log('Extracted titles:');
+>   titles.forEach((title, index) => console.log(`${index + 1}. ${title}`));
+> })();
+> EOF
+root@589175bb93f5:/home/user/project# node scraper.js
+Scraping completed successfully!
+Extracted titles:
+1. Tim Cook to become Apple Executive Chairman
+2. AI Resistance Is Growing
+3. Qwen3.6-Max-Preview: Smarter, Sharper, Still Evolving
+4. Kimi vendor verifier – verify accuracy of inference providers
+5. We got 207 tok/s with Qwen3.5-27B on an RTX 3090
+root@589175bb93f5:/home/user/project#

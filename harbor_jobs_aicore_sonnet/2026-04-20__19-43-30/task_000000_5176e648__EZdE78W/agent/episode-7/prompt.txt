@@ -1,0 +1,61 @@
+New Terminal Output:
+
+root@2e1e5af9d909:/home/user/pipelines# echo '=== Verifying JSON structure and sorting ==='
+=== Verifying JSON structure and sorting ===
+root@2e1e5af9d909:/home/user/pipelines# python3 << 'EOF'
+ ===\n")
+with open('failure_summary.txt', 'r') as f:
+    content = f.read()
+    print(content)
+    lines = content.strip().split('\n')
+    print(f"Number of lines: {len(lines)}")
+EOF
+> import json
+>
+> # Verify the JSON report
+> with open('failed_builds_report.json', 'r') as f:
+>     data = json.load(f)
+>     print(f"Total records: {len(data)}")
+>     print("\nRecords sorted by app_name, then build_id:")
+>     for record in data:
+>         print(f"  {record['app_name']:15} | {record['build_id']:10} | {record['platform']:7} | {record['duration_minutes']:6.2f} min | {record['branch']}")
+>
+>     # Verify sorting
+>     is_sorted = all(data[i]['app_name'] < data[i+1]['app_name'] or
+>                     (data[i]['app_name'] == data[i+1]['app_name'] and data[i]['build_id'] <= data[i+1]['build_id'])
+>                     for i in range(len(data)-1))
+>     print(f"\nSorting correct: {is_sorted}")
+>
+>     # Verify all required fields
+>     required_fields = {'platform', 'build_id', 'app_name', 'duration_minutes', 'branch'}
+>     all_have_fields = all(set(record.keys()) == required_fields for record in data)
+>     print(f"All records have correct fields: {all_have_fields}")
+>
+> print("\n=== Verifying summary file ===\n")
+> with open('failure_summary.txt', 'r') as f:
+>     content = f.read()
+>     print(content)
+>     lines = content.strip().split('\n')
+>     print(f"Number of lines: {len(lines)}")
+> EOF
+Total records: 6
+
+Records sorted by app_name, then build_id:
+  Analytics       | IOS004     | ios     |   7.60 min | develop
+  ChatModule      | AND004     | android |   6.30 min | develop
+  ChatModule      | IOS006     | ios     |   8.72 min | feature/push
+  MobileApp       | AND002     | android |   6.87 min | feature/login
+  MobileApp       | IOS002     | ios     |   5.20 min | feature/login
+  PaymentSDK      | AND005     | android |   7.42 min | feature/checkout
+
+Sorting correct: True
+All records have correct fields: True
+
+=== Verifying summary file ===
+
+Total failed builds: 6
+iOS failures: 3
+Android failures: 3
+
+Number of lines: 3
+root@2e1e5af9d909:/home/user/pipelines#

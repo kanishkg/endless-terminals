@@ -1,0 +1,41 @@
+New Terminal Output:
+
+root@c9e7f5bec681:/home/user/project# cat > scraper.js << 'EOF'
+> const puppeteer = require('puppeteer');
+> const fs = require('fs');
+> const path = require('path');
+>
+> (async () => {
+>   const browser = await puppeteer.launch({
+>     headless: 'new',
+>     args: ['--no-sandbox', '--disable-setuid-sandbox']
+>   });
+>
+>   const page = await browser.newPage();
+>   await page.goto('https://news.ycombinator.com', { waitUntil: 'networkidle2' });
+>
+>   // Extract the top 5 story titles
+>   const titles = await page.evaluate(() => {
+>     const titleElements = document.querySelectorAll('.titleline > a');
+>     const results = [];
+>     for (let i = 0; i < 5 && i < titleElements.length; i++) {
+>       results.push(titleElements[i].innerText);
+>     }
+>     return results;
+>   });
+>
+>   await browser.close();
+>
+>   // Format and save the titles
+>   const outputPath = path.join(__dirname, 'scraped_data', 'hn_titles.txt');
+>   const formattedTitles = titles.map((title, index) => `${index + 1}. ${title}`).join('\n');
+>   fs.writeFileSync(outputPath, formattedTitles, 'utf8');
+>
+>   console.log('Scraping completed successfully!');
+>   console.log(`Extracted ${titles.length} titles`);
+> })();
+> EOF
+root@c9e7f5bec681:/home/user/project# node scraper.js
+Scraping completed successfully!
+Extracted 5 titles
+root@c9e7f5bec681:/home/user/project#

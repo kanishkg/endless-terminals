@@ -1,0 +1,56 @@
+New Terminal Output:
+
+root@db7b09812ca7:/home/user# python3 /home/user/api_server.py &
+[1] 451
+root@db7b09812ca7:/home/user# sleep 1
+root@db7b09812ca7:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT_FILE="/home/user/pipeline_results.log"
+>
+> # Clear the output file
+> > "$OUTPUT_FILE"
+>
+> # Function to process endpoint
+> process_endpoint() {
+>     local endpoint=$1
+>     local url="http://localhost:8765${endpoint}"
+>
+>     # Make the request and capture response and status code
+>     response=$(curl -s -w "\n%{http_code}" "$url")
+>
+>     # Extract status code (last line)
+>     status_code=$(echo "$response" | tail -n 1)
+>
+>     # Extract body (all but last line)
+>     body=$(echo "$response" | sed '$d')
+>
+>     # Write endpoint
+>     echo "ENDPOINT: ${endpoint}" >> "$OUTPUT_FILE"
+>
+>     # Check if successful (2xx status code)
+>     if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+>         echo "STATUS: SUCCESS" >> "$OUTPUT_FILE"
+>         # Count items in JSON array
+>         count=$(echo "$body" | python3 -c "import sys, json; data = json.load(sys.stdin); print(len(data))")
+>         echo "COUNT: ${count}" >> "$OUTPUT_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$OUTPUT_FILE"
+>         echo "ERROR_CODE: ${status_code}" >> "$OUTPUT_FILE"
+>     fi
+>
+>     # Add blank line separator
+>     echo "" >> "$OUTPUT_FILE"
+> }
+>
+> # Process all three endpoints
+> process_endpoint "/api/users"
+> process_endpoint "/api/products"
+> process_endpoint "/api/orders"
+>
+> EOF
+chmod +x /home/user/data_pipeline.sh
+root@db7b09812ca7:/home/user# chmod +x /home/user/data_pipeline.sh
+root@db7b09812ca7:/home/user# /home/user/data_pipeline.sh
+root@db7b09812ca7:/home/user#

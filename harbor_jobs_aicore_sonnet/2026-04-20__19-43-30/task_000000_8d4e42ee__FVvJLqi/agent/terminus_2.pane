@@ -1,0 +1,99 @@
+[?2004hroot@54d9641790b0:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@54d9641790b0:/home/user# clear
+[?2004l[H[J[?2004hroot@54d9641790b0:/home/user# ls -la /home/user/api_payload.json
+[?2004l-rw-rw-rw- 1 root root 210 Apr 17 18:28 /home/user/api_payload.json
+[?2004hroot@54d9641790b0:/home/user# cat /home/user/api_payload.json
+[?2004l{
+  "api_version": "2.1",
+  "endpoint": "/v2/transactions",
+  "method": "POST",
+  "test_id": "TX-20240115-001",
+  "payload": {
+    "amount": 150.00,
+    "currency": "USD",
+    "merchant_id": "MERCH-9876"
+  }
+}
+[?2004hroot@54d9641790b0:/home/user# cat > /tmp/gpg_key_params <<EOF
+[?2004l[?2004h> %no-protection
+[?2004l[?2004h> Key-Type: RSA
+[?2004l[?2004h> Key-Length: 2048
+[?2004l[?2004h> Name-Real: API Test User
+[?2004l[?2004h> Name-Email: apitest@example.com
+[?2004l[?2004h> Expire-Date: 0
+[?2004l[?2004h> %commit
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@54d9641790b0:/home/user# gpg --batch --generate-key /tmp/gpg_key_params
+[?2004lgpg: directory '/root/.gnupg' created
+gpg: keybox '/root/.gnupg/pubring.kbx' created
+gpg: /root/.gnupg/trustdb.gpg: trustdb created
+gpg: key 0ABED904C4112C91 marked as ultimately trusted
+gpg: directory '/root/.gnupg/openpgp-revocs.d' created
+gpg: revocation certificate stored as '/root/.gnupg/openpgp-revocs.d/12829E4442C0CBBDCB6F7C270ABED904C4112C91.rev'
+[?2004hroot@54d9641790b0:/home/user# gpg --list-keys --fingerprint apitest@example.com
+[?2004lgpg: checking the trustdb
+gpg: marginals needed: 3  completes needed: 1  trust model: pgp
+gpg: depth: 0  valid:   1  signed:   0  trust: 0-, 0q, 0n, 0m, 0f, 1u
+pub   rsa2048 2026-04-20 [SCEA]
+      1282 9E44 42C0 CBBD CB6F  7C27 0ABE D904 C411 2C91
+uid           [ultimate] API Test User <apitest@example.com>
+
+[?2004hroot@54d9641790b0:/home/user# gpg --detach-sign --armor --local-user apitest@example.com --output /home/user/api_payload.json.sig /home/user/api_payload.json
+[?2004l[?2004hroot@54d9641790b0:/home/user# ls -la /home/user/api_payload.json.sig
+[?2004l-rw-r--r-- 1 root root 516 Apr 20 21:14 /home/user/api_payload.json.sig
+[?2004hroot@54d9641790b0:/home/user# gpg --encrypt --armor --recipient apitest@example.com --output /home/user/api_payload.json.gpg /home/user/api_payload.json
+[?2004l[?2004hroot@54d9641790b0:/home/user# ls -la /home/user/api_payload.json.gpg
+[?2004l-rw-r--r-- 1 root root 740 Apr 20 21:14 /home/user/api_payload.json.gpg
+[?2004hroot@54d9641790b0:/home/user# gpg --verify /home/user/api_payload.json.sig /home/user/api_payload.json 2>&1
+[?2004lgpg: Signature made Mon Apr 20 21:14:02 2026 UTC
+gpg:                using RSA key 12829E4442C0CBBDCB6F7C270ABED904C4112C91
+gpg:                issuer "apitest@example.com"
+gpg: Good signature from "API Test User <apitest@example.com>" [ultimate]
+[?2004hroot@54d9641790b0:/home/user# gpg --decrypt --output /tmp/decrypted_payload.json /home/user/api_payload.json.gpg 2>&1
+[?2004lgpg: encrypted with 2048-bit RSA key, ID 0ABED904C4112C91, created 2026-04-20
+      "API Test User <apitest@example.com>"
+[?2004hroot@54d9641790b0:/home/user# ls -la /tmp/decrypted_payload.json
+[?2004l-rw-r--r-- 1 root root 210 Apr 20 21:14 /tmp/decrypted_payload.json
+[?2004hroot@54d9641790b0:/home/user# sha256sum /home/user/api_payload.json | awk '{print $1}'
+[?2004lbb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1
+[?2004hroot@54d9641790b0:/home/user# sha256sum /tmp/decrypted_payload.json | awk '{print $1}'
+[?2004lbb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1
+[?2004hroot@54d9641790b0:/home/user# cat > /home/user/gpg_test_results.log <<EOF
+[?2004l[?2004h> KEY_FINGERPRINT=12829E4442C0CBBDCB6F7C270ABED904C4112C91
+[?2004l[?2004h> SIGNATURE_VALID=YES
+[?2004l[?2004h> DECRYPTION_SUCCESSFUL=YES
+[?2004l[?2004h> ORIGINAL_HASH=bb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1
+[?2004l[?2004h> DECRYPTED_HASH=$(sha256sum /tmp/decrypted_payload.json | awk '{print $1}')
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@54d9641790b0:/home/user# cat /home/user/gpg_test_results.log
+[?2004lKEY_FINGERPRINT=12829E4442C0CBBDCB6F7C270ABED904C4112C91
+SIGNATURE_VALID=YES
+DECRYPTION_SUCCESSFUL=YES
+ORIGINAL_HASH=bb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1
+DECRYPTED_HASH=bb3c20f695b77ab00ff86a08518b772260548a1dfa03f450a672b696aac77ff1
+[?2004hroot@54d9641790b0:/home/user# ls -la /home/user/api_payload.json* /home/user/gpg_test_results.log
+[?2004l-rw-rw-rw- 1 root root 210 Apr 17 18:28 /home/user/api_payload.json
+-rw-r--r-- 1 root root 740 Apr 20 21:14 /home/user/api_payload.json.gpg
+-rw-r--r-- 1 root root 516 Apr 20 21:14 /home/user/api_payload.json.sig
+-rw-r--r-- 1 root root 262 Apr 20 21:14 /home/user/gpg_test_results.log
+[?2004hroot@54d9641790b0:/home/user# echo '=== Task Summary ==='
+[?2004l=== Task Summary ===
+[?2004hroot@54d9641790b0:/home/user# echo 'GPG Key Created: API Test User <apitest@example.com>'
+[?2004lGPG Key Created: API Test User <apitest@example.com>
+[?2004hroot@54d9641790b0:/home/user# echo 'Key Fingerprint: 12829E4442C0CBBDCB6F7C270ABED904C4112C91'
+[?2004lKey Fingerprint: 12829E4442C0CBBDCB6F7C270ABED904C4112C91
+[?2004hroot@54d9641790b0:/home/user# echo 'Detached Signature: /home/user/api_payload.json.sig'
+[?2004lDetached Signature: /home/user/api_payload.json.sig
+[?2004hroot@54d9641790b0:/home/user# echo 'Encrypted File: /home/user/api_payload.json.gpg'
+[?2004lEncrypted File: /home/user/api_payload.json.gpg
+[?2004hroot@54d9641790b0:/home/user# echo 'Verification Log: /home/user/gpg_test_results.log'
+[?2004lVerification Log: /home/user/gpg_test_results.log
+[?2004hroot@54d9641790b0:/home/user# echo 'Signature Verification: PASSED'
+[?2004lSignature Verification: PASSED
+[?2004hroot@54d9641790b0:/home/user# echo 'Decryption Test: PASSED'
+[?2004lDecryption Test: PASSED
+[?2004hroot@54d9641790b0:/home/user# echo 'Hash Verification: PASSED (hashes match)'
+[?2004lHash Verification: PASSED (hashes match)
+[?2004hroot@54d9641790b0:/home/user# 

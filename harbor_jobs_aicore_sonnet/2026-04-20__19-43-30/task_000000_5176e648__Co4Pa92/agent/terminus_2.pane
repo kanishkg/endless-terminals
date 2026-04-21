@@ -1,0 +1,136 @@
+[?2004hroot@f2e5ef09aeeb:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@f2e5ef09aeeb:/home/user# clear
+[?2004l[H[J[?2004hroot@f2e5ef09aeeb:/home/user# cd /home/user/pipelines
+[?2004l[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 17 18:28 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 17 18:28 [34;42m..[0m
+-rw-rw-rw- 1 root root  686 Apr 17 18:28 android_builds.json
+-rw-rw-rw- 1 root root  482 Apr 17 18:28 ios_builds.csv
+[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# head -20 ios_builds.csv
+[?2004lbuild_id,app_name,build_time_seconds,status,branch,timestamp
+IOS001,MobileApp,245,SUCCESS,main,2024-01-15T10:30:00Z
+IOS002,MobileApp,312,FAILED,feature/login,2024-01-15T11:45:00Z
+IOS003,PaymentSDK,189,SUCCESS,main,2024-01-15T12:00:00Z
+IOS004,Analytics,456,FAILED,develop,2024-01-15T13:15:00Z
+IOS005,MobileApp,278,SUCCESS,release/v2.0,2024-01-15T14:30:00Z
+IOS006,ChatModule,523,FAILED,feature/push,2024-01-15T15:45:00Z
+IOS007,PaymentSDK,201,SUCCESS,hotfix/crash,2024-01-15T16:00:00Z
+[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# cat android_builds.json
+[?2004l[
+  {"buildId": "AND001", "appName": "MobileApp", "buildDuration": 334, "result": "SUCCESS", "branch": "main", "date": "2024-01-15"},
+  {"buildId": "AND002", "appName": "MobileApp", "buildDuration": 412, "result": "FAILED", "branch": "feature/login", "date": "2024-01-15"},
+  {"buildId": "AND003", "appName": "Analytics", "buildDuration": 287, "result": "SUCCESS", "branch": "main", "date": "2024-01-15"},
+  {"buildId": "AND004", "appName": "ChatModule", "buildDuration": 378, "result": "FAILED", "branch": "develop", "date": "2024-01-15"},
+  {"buildId": "AND005", "appName": "PaymentSDK", "buildDuration": 445, "result": "FAILED", "branch": "feature/checkout", "date": "2024-01-15"}
+]
+[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# cat > process_builds.py << 'EOF'
+[?2004l[?2004h> import json
+[?2004l[?2004h> import csv
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read and process iOS builds
+[?2004l[?2004h> ios_failed = []
+[?2004l[?2004h> with open('ios_builds.csv', 'r') as f:
+[?2004l[?2004h>     reader = csv.DictReader(f)
+[?2004l[?2004h>     for row in reader:
+[?2004l[?2004h>         if row['status'] == 'FAILED':
+[?2004l[?2004h>             ios_failed.append({
+[?2004l[?2004h>                 'platform': 'ios',
+[?2004l[?2004h>                 'build_id': row['build_id'],
+[?2004l[?2004h>                 'app_name': row['app_name'],
+[?2004l[?2004h>                 'duration_minutes': round(float(row['build_time_seconds']) / 60, 2),
+[?2004l[?2004h>                 'branch': row['branch']
+[?2004l[?2004h>             })
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read and process Android builds
+[?2004l[?2004h> android_failed = []
+[?2004l[?2004h> with open('android_builds.json', 'r') as f:
+[?2004l[?2004h>     android_builds = json.load(f)
+[?2004l[?2004h>     for build in android_builds:
+[?2004l[?2004h>         if build['result'] == 'FAILED':
+[?2004l[?2004h>             android_failed.append({
+[?2004l[?2004h>                 'platform': 'android',
+[?2004l[?2004h>                 'build_id': build['buildId'],
+[?2004l[?2004h>                 'app_name': build['appName'],
+[?2004l[?2004h>                 'duration_minutes': round(float(build['buildDuration']) / 60, 2),
+[?2004l[?2004h>                 'branch': build['branch']
+[?2004l[?2004h>             })
+[?2004l[?2004h> 
+[?2004l[?2004h> # Combine and sort
+[?2004l[?2004h> all_failed = ios_failed + android_failed
+[?2004l[?2004h> all_failed.sort(key=lambda x: (x['app_name'], x['build_id']))
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write JSON report
+[?2004l[?2004h> with open('failed_builds_report.json', 'w') as f:
+[?2004l[?2004h>     json.dump(all_failed, f, indent=2)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write summary
+[?2004l[?2004h> with open('failure_summary.txt', 'w') as f:
+[?2004l[?2004h>     f.write(f'Total failed builds: {len(all_failed)}\n')
+[?2004l[?2004h>     f.write(f'iOS failures: {len(ios_failed)}\n')
+[?2004l[?2004h>     f.write(f'Android failures: {len(android_failed)}\n')
+[?2004l[?2004h> 
+[?2004l[?2004h> print(f'Processed {len(ios_failed)} iOS failures and {len(android_failed)} Android failures')
+[?2004l[?2004h> print(f'Total: {len(all_failed)} failed builds')
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# python3 process_builds.py
+[?2004lProcessed 3 iOS failures and 3 Android failures
+Total: 6 failed builds
+[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# cat failed_builds_report.json
+[?2004l[
+  {
+    "platform": "ios",
+    "build_id": "IOS004",
+    "app_name": "Analytics",
+    "duration_minutes": 7.6,
+    "branch": "develop"
+  },
+  {
+    "platform": "android",
+    "build_id": "AND004",
+    "app_name": "ChatModule",
+    "duration_minutes": 6.3,
+    "branch": "develop"
+  },
+  {
+    "platform": "ios",
+    "build_id": "IOS006",
+    "app_name": "ChatModule",
+    "duration_minutes": 8.72,
+    "branch": "feature/push"
+  },
+  {
+    "platform": "android",
+    "build_id": "AND002",
+    "app_name": "MobileApp",
+    "duration_minutes": 6.87,
+    "branch": "feature/login"
+  },
+  {
+    "platform": "ios",
+    "build_id": "IOS002",
+    "app_name": "MobileApp",
+    "duration_minutes": 5.2,
+    "branch": "feature/login"
+  },
+  {
+    "platform": "android",
+    "build_id": "AND005",
+    "app_name": "PaymentSDK",
+    "duration_minutes": 7.42,
+    "branch": "feature/checkout"
+  }
+][?2004hroot@f2e5ef09aeeb:/home/user/pipelines# cat failure_summary.txt
+[?2004lTotal failed builds: 6
+iOS failures: 3
+Android failures: 3
+[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# ls -la /home/user/pipelines/*.json /home/user/pipelines/*.txt
+[?2004l-rw-rw-rw- 1 root root 686 Apr 17 18:28 /home/user/pipelines/android_builds.json
+-rw-r--r-- 1 root root 886 Apr 20 20:06 /home/user/pipelines/failed_builds_report.json
+-rw-r--r-- 1 root root  59 Apr 20 20:06 /home/user/pipelines/failure_summary.txt
+[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# python3 -m json.tool failed_builds_report.json > /dev/null && echo "JSON is valid"
+[?2004lJSON is valid
+[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# rm process_builds.py
+[?2004l[?2004hroot@f2e5ef09aeeb:/home/user/pipelines# 

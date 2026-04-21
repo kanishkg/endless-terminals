@@ -1,0 +1,106 @@
+[?2004hroot@70e58c44a312:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@70e58c44a312:/home/user# clear
+[?2004l[H[J[?2004hroot@70e58c44a312:/home/user# cd /home/user/incidents
+[?2004l[?2004hroot@70e58c44a312:/home/user/incidents# ls -la
+[?2004ltotal 12
+drwxrwxrwx 1 root root 4096 Apr 17 18:34 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 17 18:34 [34;42m..[0m
+-rw-rw-rw- 1 root root  544 Apr 17 18:34 incident_log.csv
+[?2004hroot@70e58c44a312:/home/user/incidents# head -20 incident_log.csv
+[?2004lincident_id,timestamp,severity,service,status,assigned_to
+INC001,2024-01-15T08:30:00Z,critical,payment-api,open,alice
+INC002,2024-01-15T09:15:00Z,low,user-service,closed,bob
+INC003,2024-01-15T10:00:00Z,high,payment-api,open,charlie
+INC004,2024-01-15T10:45:00Z,medium,notification-service,open,alice
+INC005,2024-01-15T11:30:00Z,critical,database-cluster,open,dave
+INC006,2024-01-15T12:00:00Z,high,auth-service,closed,eve
+INC007,2024-01-15T12:45:00Z,high,inventory-service,open,frank
+INC008,2024-01-15T13:30:00Z,critical,payment-api,closed,alice
+[?2004hroot@70e58c44a312:/home/user/incidents# cat incident_log.csv | awk -F',' 'NR==1 || (($3=="critical" || $3=="high") && $5=="open")' > filtered_incidents.csv
+[?2004l[?2004hroot@70e58c44a312:/home/user/incidents# cat filtered_incidents.csv
+[?2004lincident_id,timestamp,severity,service,status,assigned_to
+INC001,2024-01-15T08:30:00Z,critical,payment-api,open,alice
+INC003,2024-01-15T10:00:00Z,high,payment-api,open,charlie
+INC005,2024-01-15T11:30:00Z,critical,database-cluster,open,dave
+INC007,2024-01-15T12:45:00Z,high,inventory-service,open,frank
+[?2004hroot@70e58c44a312:/home/user/incidents# python3 << 'EOF'
+[?2004l[?2004h> import csv
+[?2004l[?2004h> import json
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('filtered_incidents.csv', 'r') as csvfile:
+[?2004l[?2004h>     reader = csv.DictReader(csvfile)
+[?2004l[?2004h>     incidents = [row for row in reader]
+[?2004l[?2004h> 
+[?2004l[?2004h> with open('priority_incidents.json', 'w') as jsonfile:
+[?2004l[?2004h>     json.dump(incidents, jsonfile, indent=2)
+[?2004l[?2004h> 
+[?2004l[?2004h> print(f"Converted {len(incidents)} incidents to JSON")
+[?2004l[?2004h> EOF
+[?2004lConverted 4 incidents to JSON
+[?2004hroot@70e58c44a312:/home/user/incidents# cat priority_incidents.json
+[?2004l[
+  {
+    "incident_id": "INC001",
+    "timestamp": "2024-01-15T08:30:00Z",
+    "severity": "critical",
+    "service": "payment-api",
+    "status": "open",
+    "assigned_to": "alice"
+  },
+  {
+    "incident_id": "INC003",
+    "timestamp": "2024-01-15T10:00:00Z",
+    "severity": "high",
+    "service": "payment-api",
+    "status": "open",
+    "assigned_to": "charlie"
+  },
+  {
+    "incident_id": "INC005",
+    "timestamp": "2024-01-15T11:30:00Z",
+    "severity": "critical",
+    "service": "database-cluster",
+    "status": "open",
+    "assigned_to": "dave"
+  },
+  {
+    "incident_id": "INC007",
+    "timestamp": "2024-01-15T12:45:00Z",
+    "severity": "high",
+    "service": "inventory-service",
+    "status": "open",
+    "assigned_to": "frank"
+  }
+][?2004hroot@70e58c44a312:/home/user/incidents# echo "Priority Incidents Report" > triage_summary.txt
+[?2004l[?2004hroot@70e58c44a312:/home/user/incidents# echo "Total critical/high open incidents: 4" >> triage_summary.txt
+[?2004l[?2004hroot@70e58c44a312:/home/user/incidents# echo "" >> triage_summary.txt
+[?2004l[?2004hroot@70e58c44a312:/home/user/incidents# tail -n +2 filtered_incidents.csv | cut -d',' -f4 | sort -u >> triage_summary.txt
+[?2004l[?2004hroot@70e58c44a312:/home/user/incidents# cat triage_summary.txt
+[?2004lPriority Incidents Report
+Total critical/high open incidents: 4
+
+database-cluster
+inventory-service
+payment-api
+[?2004hroot@70e58c44a312:/home/user/incidents# ls -la /home/user/incidents/
+[?2004ltotal 28
+drwxrwxrwx 1 root root 4096 Apr 20 20:01 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 17 18:34 [34;42m..[0m
+-rw-r--r-- 1 root root  302 Apr 20 20:01 filtered_incidents.csv
+-rw-rw-rw- 1 root root  544 Apr 17 18:34 incident_log.csv
+-rw-r--r-- 1 root root  750 Apr 20 20:01 priority_incidents.json
+-rw-r--r-- 1 root root  112 Apr 20 20:01 triage_summary.txt
+[?2004hroot@70e58c44a312:/home/user/incidents# echo "=== Verification ==="
+[?2004l=== Verification ===
+[?2004hroot@70e58c44a312:/home/user/incidents# echo "JSON file validation:"
+[?2004lJSON file validation:
+[?2004hroot@70e58c44a312:/home/user/incidents# python3 -m json.tool priority_incidents.json > /dev/null && echo "✓ Valid JSON" || echo "✗ Invalid JSON"
+[?2004l✓ Valid JSON
+[?2004hroot@70e58c44a312:/home/user/incidents# echo "Files created:"
+[?2004lFiles created:
+[?2004hroot@70e58c44a312:/home/user/incidents# ls -lh priority_incidents.json triage_summary.txt
+[?2004l-rw-r--r-- 1 root root 750 Apr 20 20:01 priority_incidents.json
+-rw-r--r-- 1 root root 112 Apr 20 20:01 triage_summary.txt
+[?2004hroot@70e58c44a312:/home/user/incidents# 
