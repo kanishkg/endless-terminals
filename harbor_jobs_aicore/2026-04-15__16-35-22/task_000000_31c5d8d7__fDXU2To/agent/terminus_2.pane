@@ -1,0 +1,38 @@
+[?2004hroot@50c8f830e121:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@50c8f830e121:/home/user# clear
+[?2004l[H[J[?2004hroot@50c8f830e121:/home/user# cat /home/user/incidents/incident_log.csv
+[?2004lincident_id,timestamp,severity,service,status,assigned_to
+INC001,2024-01-15T08:30:00Z,critical,payment-api,open,alice
+INC002,2024-01-15T09:15:00Z,low,user-service,closed,bob
+INC003,2024-01-15T10:00:00Z,high,payment-api,open,charlie
+INC004,2024-01-15T10:45:00Z,medium,notification-service,open,alice
+INC005,2024-01-15T11:30:00Z,critical,database-cluster,open,dave
+INC006,2024-01-15T12:00:00Z,high,auth-service,closed,eve
+INC007,2024-01-15T12:45:00Z,high,inventory-service,open,frank
+INC008,2024-01-15T13:30:00Z,critical,payment-api,closed,alice
+[?2004hroot@50c8f830e121:/home/user# awk -F',' 'NR==1 {header=$0; next} ($3=="critical" || $3=="high") && $5=="open" {print}' /home/user/incidents/incident_log.csv
+[?2004lINC001,2024-01-15T08:30:00Z,critical,payment-api,open,alice
+INC003,2024-01-15T10:00:00Z,high,payment-api,open,charlie
+INC005,2024-01-15T11:30:00Z,critical,database-cluster,open,dave
+INC007,2024-01-15T12:45:00Z,high,inventory-service,open,frank
+[?2004hroot@50c8f830e121:/home/user# awk -F',' 'NR==1 {next} ($3=="critical" || $3=="high") && $5=="open" {printf "{\"incident_id\":\"%s\",\"timestamp\":\"%s\",\"severity\":\"%s\",\"service\":\"%s\",\"status\":\"%s\",\"assigned_to\":\"%s\"}\n", $1, $2, $3, $4, $5, $6}' /home/user/incidents/incident_log.csv | awk 'BEGIN {print "["} {if(NR>1) printf ","; print} END {print "]"}' > /home/user/incidents/priority_incidents.json
+[?2004l[?2004hroot@50c8f830e121:/home/user# cat /home/user/incidents/priority_incidents.json
+[?2004l[
+{"incident_id":"INC001","timestamp":"2024-01-15T08:30:00Z","severity":"critical","service":"payment-api","status":"open","assigned_to":"alice"}
+,{"incident_id":"INC003","timestamp":"2024-01-15T10:00:00Z","severity":"high","service":"payment-api","status":"open","assigned_to":"charlie"}
+,{"incident_id":"INC005","timestamp":"2024-01-15T11:30:00Z","severity":"critical","service":"database-cluster","status":"open","assigned_to":"dave"}
+,{"incident_id":"INC007","timestamp":"2024-01-15T12:45:00Z","severity":"high","service":"inventory-service","status":"open","assigned_to":"frank"}
+]
+[?2004hroot@50c8f830e121:/home/user# echo 'Priority Incidents Report' > /home/user/incidents/triage_summary.txt && echo 'Total critical/high open incidents: 4' >> /home/user/incidents/triage_summary.txt && echo '' >> /home/user/incidents/triage_summary.txt && awk -F',' 'NR==1 {next} ($3=="critical" || $3=="high") && $5=="open" {print $4}' /home/user/incidents/incident_log.csv | sort -u >> /home/user/incidents/triage_summary.txt
+[?2004l[?2004hroot@50c8f830e121:/home/user# cat /home/user/incidents/triage_summary.txt
+[?2004lPriority Incidents Report
+Total critical/high open incidents: 4
+
+database-cluster
+inventory-service
+payment-api
+[?2004hroot@50c8f830e121:/home/user# python3 -c "import json; data=json.load(open('/home/user/incidents/priority_incidents.json')); print('Valid JSON with', len(data), 'incidents')"
+[?2004lValid JSON with 4 incidents
+[?2004hroot@50c8f830e121:/home/user# 

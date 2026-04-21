@@ -1,0 +1,49 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@97db58e73788:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> BASE_URL="http://localhost:8765"
+> RESULTS_FILE="/home/user/pipeline_results.log"
+>
+> # Clear results file
+> > "$RESULTS_FILE"
+>
+> # Function to process endpoint
+> process_endpoint() {
+>     local endpoint=$1
+>     local response_file=$(mktemp)
+>
+>     # Make request and capture HTTP status code
+>     http_code=$(curl -s -w "%{http_code}" -o "$response_file" "${BASE_URL}${endpoint}")
+>
+>     echo "ENDPOINT: $endpoint" >> "$RESULTS_FILE"
+>
+>     if [ "$http_code" -eq 200 ]; then
+>         echo "STATUS: SUCCESS" >> "$RESULTS_FILE"
+>         # Count items in JSON array using grep to count id fields
+>         count=$(cat "$response_file" | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
+>         echo "COUNT: $count" >> "$RESULTS_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$RESULTS_FILE"
+>         echo "ERROR_CODE: $http_code" >> "$RESULTS_FILE"
+>     fi
+>
+>     rm -f "$response_file"
+> }
+>
+> # Process all endpoints
+> process_endpoint "/api/users"
+> echo "" >> "$RESULTS_FILE"
+>
+> process_endpoint "/api/products"
+> echo "" >> "$RESULTS_FILE"
+>
+> process_endpoint "/api/orders"
+> EOF
+root@97db58e73788:/home/user# chmod +x /home/user/data_pipeline.sh
+root@97db58e73788:/home/user#

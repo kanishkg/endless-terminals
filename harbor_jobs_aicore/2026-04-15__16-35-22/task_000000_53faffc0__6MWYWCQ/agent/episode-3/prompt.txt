@@ -1,0 +1,87 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+example.com"}]root@e24b678482d7:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> OUTPUT_FILE="/home/user/pipeline_results.log"
+> BASE_URL="http://localhost:8765"
+>
+> # Clear output file
+> > "$OUTPUT_FILE"
+>
+> # Function to process endpoint
+> process_endpoint() {
+>     local endpoint=$1
+>     local response
+>     local http_code
+>
+>     # Make request and capture both body and status code
+>     response=$(curl -s -w "\n%{http_code}" "${BASE_URL}${endpoint}")
+>     http_code=$(echo "$response" | tail -n1)
+>     body=$(echo "$response" | sed '$d')
+>
+>     echo "ENDPOINT: $endpoint" >> "$OUTPUT_FILE"
+>
+>     if [ "$http_code" -eq 200 ]; then
+>         # Count items in JSON array using grep to count id occurrences
+>         count=$(echo "$body" | grep -o '"id"' | wc -l)
+>         echo "STATUS: SUCCESS" >> "$OUTPUT_FILE"
+>         echo "COUNT: $count" >> "$OUTPUT_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$OUTPUT_FILE"
+>         echo "ERROR_CODE: $http_code" >> "$OUTPUT_FILE"
+>     fi
+>
+>     echo "" >> "$OUTPUT_FILE"
+> }
+>
+> # Process all endpoints
+> process_endpoint "/api/users"
+> process_endpoint "/api/products"
+> process_endpoint "/api/orders"
+> EOF
+root@e24b678482d7:/home/user# chmod +x /home/user/data_pipeline.sh
+root@e24b678482d7:/home/user# cat /home/user/data_pipeline.sh
+#!/bin/bash
+
+OUTPUT_FILE="/home/user/pipeline_results.log"
+BASE_URL="http://localhost:8765"
+
+# Clear output file
+> "$OUTPUT_FILE"
+
+# Function to process endpoint
+process_endpoint() {
+    local endpoint=$1
+    local response
+    local http_code
+
+    # Make request and capture both body and status code
+    response=$(curl -s -w "\n%{http_code}" "${BASE_URL}${endpoint}")
+    http_code=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+
+    echo "ENDPOINT: $endpoint" >> "$OUTPUT_FILE"
+
+    if [ "$http_code" -eq 200 ]; then
+        # Count items in JSON array using grep to count id occurrences
+        count=$(echo "$body" | grep -o '"id"' | wc -l)
+        echo "STATUS: SUCCESS" >> "$OUTPUT_FILE"
+        echo "COUNT: $count" >> "$OUTPUT_FILE"
+    else
+        echo "STATUS: ERROR" >> "$OUTPUT_FILE"
+        echo "ERROR_CODE: $http_code" >> "$OUTPUT_FILE"
+    fi
+
+    echo "" >> "$OUTPUT_FILE"
+}
+
+# Process all endpoints
+process_endpoint "/api/users"
+process_endpoint "/api/products"
+process_endpoint "/api/orders"
+root@e24b678482d7:/home/user#

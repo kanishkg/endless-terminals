@@ -1,0 +1,113 @@
+[?2004hroot@97db58e73788:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@97db58e73788:/home/user# clear
+[?2004l[H[J[?2004hroot@97db58e73788:/home/user# ls -la /home/user/
+[?2004ltotal 12
+drwxrwxrwx 1 root root 4096 Apr  9 18:20 [0m[34;42m.[0m
+drwxr-xr-x 1 root root 4096 Apr  9 18:20 [01;34m..[0m
+-rwxrwxrwx 1 root root 1567 Apr  9 18:20 [01;32mapi_server.py[0m
+[?2004hroot@97db58e73788:/home/user# cat /home/user/api_server.py
+[?2004l#!/usr/bin/env python3
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+
+class MockAPIHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/api/users':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            data = [
+                {"id": 1, "name": "Alice", "email": "alice@example.com"},
+                {"id": 2, "name": "Bob", "email": "bob@example.com"},
+                {"id": 3, "name": "Charlie", "email": "charlie@example.com"}
+            ]
+            self.wfile.write(json.dumps(data).encode())
+        elif self.path == '/api/products':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            data = [
+                {"id": 101, "name": "Widget", "price": 9.99},
+                {"id": 102, "name": "Gadget", "price": 19.99}
+            ]
+            self.wfile.write(json.dumps(data).encode())
+        elif self.path == '/api/orders':
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Internal Server Error"}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        pass  # Suppress logging
+
+if __name__ == '__main__':
+    server = HTTPServer(('localhost', 8765), MockAPIHandler)
+    server.serve_forever()
+[?2004hroot@97db58e73788:/home/user# python3 /home/user/api_server.py &
+[?2004l[1] 451
+[?2004hroot@97db58e73788:/home/user# sleep 1
+[?2004l[?2004hroot@97db58e73788:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> BASE_URL="http://localhost:8765"
+[?2004l[?2004h> RESULTS_FILE="/home/user/pipeline_results.log"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clear results file
+[?2004l[?2004h> > "$RESULTS_FILE"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Function to process endpoint
+[?2004l[?2004h> process_endpoint() {
+[?2004l[?2004h>     local endpoint=$1
+[?2004l[?2004h>     local response_file=$(mktemp)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Make request and capture HTTP status code
+[?2004l[?2004h>     http_code=$(curl -s -w "%{http_code}" -o "$response_file" "${BASE_URL}${endpoint}")
+[?2004l[?2004h>     
+[?2004l[?2004h>     echo "ENDPOINT: $endpoint" >> "$RESULTS_FILE"
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [ "$http_code" -eq 200 ]; then
+[?2004l[?2004h>         echo "STATUS: SUCCESS" >> "$RESULTS_FILE"
+[?2004l[?2004h>         # Count items in JSON array using grep to count id fields
+[?2004l[?2004h>         count=$(cat "$response_file" | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
+[?2004l[?2004h>         echo "COUNT: $count" >> "$RESULTS_FILE"
+[?2004l[?2004h>     else
+[?2004l[?2004h>         echo "STATUS: ERROR" >> "$RESULTS_FILE"
+[?2004l[?2004h>         echo "ERROR_CODE: $http_code" >> "$RESULTS_FILE"
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     
+[?2004l[?2004h>     rm -f "$response_file"
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process all endpoints
+[?2004l[?2004h> process_endpoint "/api/users"
+[?2004l[?2004h> echo "" >> "$RESULTS_FILE"
+[?2004l[?2004h> 
+[?2004l[?2004h> process_endpoint "/api/products"
+[?2004l[?2004h> echo "" >> "$RESULTS_FILE"
+[?2004l[?2004h> 
+[?2004l[?2004h> process_endpoint "/api/orders"
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@97db58e73788:/home/user# chmod +x /home/user/data_pipeline.sh
+[?2004l[?2004hroot@97db58e73788:/home/user# /home/user/data_pipeline.sh
+[?2004l[?2004hroot@97db58e73788:/home/user# cat /home/user/pipeline_results.log
+[?2004lENDPOINT: /api/users
+STATUS: SUCCESS
+COUNT: 3
+
+ENDPOINT: /api/products
+STATUS: SUCCESS
+COUNT: 2
+
+ENDPOINT: /api/orders
+STATUS: ERROR
+ERROR_CODE: 500
+[?2004hroot@97db58e73788:/home/user# kill 451
+[?2004l[?2004hroot@97db58e73788:/home/user# ps aux | grep api_server
+[?2004lroot         551  0.0  0.0   3856  2076 pts/0    S+   17:29   0:00 grep --color=auto [01;31m[Kapi_server[m[K
+[1]+  Terminated              python3 /home/user/api_server.py
+[?2004hroot@97db58e73788:/home/user# 

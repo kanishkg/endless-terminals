@@ -1,0 +1,53 @@
+New Terminal Output:
+
+root@c033ed780005:/home/user/project# cat > scraper.js << 'EOF'
+> const puppeteer = require('puppeteer');
+> const fs = require('fs');
+> const path = require('path');
+>
+> async function scrapeHackerNews() {
+>   const browser = await puppeteer.launch({
+>     headless: 'new',
+>     args: ['--no-sandbox', '--disable-setuid-sandbox']
+>   });
+>
+>   const page = await browser.newPage();
+>   await page.goto('https://news.ycombinator.com', { waitUntil: 'networkidle2' });
+>
+>   // Extract the top 5 story titles
+>   const titles = await page.evaluate(() => {
+>     const titleElements = document.querySelectorAll('.titleline > a');
+>     const result = [];
+>     for (let i = 0; i < 5 && i < titleElements.length; i++) {
+>       result.push(titleElements[i].innerText);
+>     }
+>     return result;
+>   });
+>
+>   await browser.close();
+>
+>   // Format and save titles
+>   const outputDir = '/home/user/project/scraped_data';
+>   const titlesContent = titles.map((title, index) => `${index + 1}. ${title}`).join('\n');
+>   fs.writeFileSync(path.join(outputDir, 'hn_titles.txt'), titlesContent);
+>
+>   // Create log file
+>   const logContent = `STATUS: SUCCESS\nITEMS_SCRAPED: 5\nSOURCE: https://news.ycombinator.com`;
+>   fs.writeFileSync(path.join(outputDir, 'scrape_log.txt'), logContent);
+>
+>   console.log('Scraping completed successfully!');
+>   console.log('Titles extracted:');
+>   titles.forEach((title, index) => console.log(`${index + 1}. ${title}`));
+> }
+>
+> scrapeHackerNews().catch(console.error);
+> EOF
+root@c033ed780005:/home/user/project# node scraper.js
+Scraping completed successfully!
+Titles extracted:
+1. God Sleeps in the Minerals
+2. Open Source Isn't Dead. Cal.com Just Learned the Wrong Lesson
+3. Want to Write a Compiler? Just Read These Two Papers (2008)
+4. Your Backpack Got Worse on Purpose
+5. Good Sleep, Good Learning (2012)
+root@c033ed780005:/home/user/project#

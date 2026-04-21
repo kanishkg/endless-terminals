@@ -1,0 +1,74 @@
+New Terminal Output:
+
+root@dadbe6f26cc0:/home/user/project# cat > scraper.js << 'EOF'
+ath.join(outputDir, 'hn_titles.txt'), formattedTitles);
+
+  // Create log file
+  const logContent = 'STATUS: SUCCESS\nITEMS_SCRAPED: 5\nSOURCE: https://news.ycombinator.com';
+  fs.writeFileSync(path.join(outputDir, 'scrape_log.txt'), logContent);
+
+  console.log('Scraping completed successfully!');
+  console.log('Titles extracted:');
+  console.log(formattedTitles);
+}
+
+scrapeHackerNews().catch(err => {
+  console.error('Error:', err);
+  process.exit(1);
+});
+EOF
+> const puppeteer = require('puppeteer');
+> const fs = require('fs');
+> const path = require('path');
+>
+> async function scrapeHackerNews() {
+>   const browser = await puppeteer.launch({
+>     headless: 'new',
+>     args: ['--no-sandbox', '--disable-setuid-sandbox']
+>   });
+>
+>   const page = await browser.newPage();
+>   await page.goto('https://news.ycombinator.com', { waitUntil: 'networkidle2' });
+>
+>   // Extract story titles - they are in span.titleline > a elements
+>   const titles = await page.evaluate(() => {
+>     const titleElements = document.querySelectorAll('span.titleline > a');
+>     const result = [];
+>     for (let i = 0; i < 5 && i < titleElements.length; i++) {
+>       result.push(titleElements[i].textContent.trim());
+>     }
+>     return result;
+>   });
+>
+>   await browser.close();
+>
+>   // Format titles with numbers
+>   const formattedTitles = titles.map((title, index) => `${index + 1}. ${title}`).join('\n');
+>
+>   // Save to file
+>   const outputDir = '/home/user/project/scraped_data';
+>   fs.writeFileSync(path.join(outputDir, 'hn_titles.txt'), formattedTitles);
+>
+>   // Create log file
+>   const logContent = 'STATUS: SUCCESS\nITEMS_SCRAPED: 5\nSOURCE: https://news.ycombinator.com';
+>   fs.writeFileSync(path.join(outputDir, 'scrape_log.txt'), logContent);
+>
+>   console.log('Scraping completed successfully!');
+>   console.log('Titles extracted:');
+>   console.log(formattedTitles);
+> }
+>
+> scrapeHackerNews().catch(err => {
+>   console.error('Error:', err);
+>   process.exit(1);
+> });
+> EOF
+root@dadbe6f26cc0:/home/user/project# node scraper.js
+Scraping completed successfully!
+Titles extracted:
+1. God Sleeps in the Minerals
+2. Want to Write a Compiler? Just Read These Two Papers (2008)
+3. Open Source Isn't Dead. Cal.com Just Learned the Wrong Lesson
+4. Show HN: Libretto – Making AI browser automations deterministic
+5. Good Sleep, Good Learning (2012)
+root@dadbe6f26cc0:/home/user/project#

@@ -1,0 +1,55 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@b9775489e306:/home/user# python3 /home/user/api_server.py &
+[1] 451
+root@b9775489e306:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> BASE_URL="http://localhost:8765"
+> LOG_FILE="/home/user/pipeline_results.log"
+>
+> # Clear the log file
+> > "$LOG_FILE"
+>
+> # Function to fetch endpoint and log results
+> fetch_endpoint() {
+>     local endpoint="$1"
+>     local response
+>     local http_code
+>
+>     # Make request and capture both response body and HTTP status code
+>     response=$(curl -s -w "\n%{http_code}" "${BASE_URL}${endpoint}")
+>     http_code=$(echo "$response" | tail -n1)
+>     body=$(echo "$response" | sed '$d')
+>
+>     echo "ENDPOINT: ${endpoint}" >> "$LOG_FILE"
+>
+>     if [ "$http_code" -eq 200 ]; then
+>         # Count items in JSON array
+>         count=$(echo "$body" | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
+>         echo "STATUS: SUCCESS" >> "$LOG_FILE"
+>         echo "COUNT: ${count}" >> "$LOG_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$LOG_FILE"
+>         echo "ERROR_CODE: ${http_code}" >> "$LOG_FILE"
+>     fi
+>
+>     echo "" >> "$LOG_FILE"
+> }
+>
+> # Fetch all endpoints
+> fetch_endpoint "/api/users"
+> fetch_endpoint "/api/products"
+> fetch_endpoint "/api/orders"
+>
+> # Remove trailing blank line
+> sed -i '$ d' "$LOG_FILE"
+>
+> echo "Pipeline completed. Results saved to $LOG_FILE"
+> EOF
+root@b9775489e306:/home/user# chmod +x /home/user/data_pipeline.sh
+root@b9775489e306:/home/user#

@@ -1,0 +1,55 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@702f8a6a6c40:/home/user# python3 /home/user/api_server.py &
+[1] 451
+root@702f8a6a6c40:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> BASE_URL="http://localhost:8765"
+> RESULTS_FILE="/home/user/pipeline_results.log"
+>
+> # Clear results file
+> > "$RESULTS_FILE"
+>
+> # Function to fetch endpoint and log results
+> fetch_endpoint() {
+>     local endpoint="$1"
+>     local url="${BASE_URL}${endpoint}"
+>
+>     # Make request and capture response and HTTP code
+>     response=$(curl -s -w "\n%{http_code}" "$url")
+>     http_code=$(echo "$response" | tail -n1)
+>     body=$(echo "$response" | sed '$d')
+>
+>     echo "ENDPOINT: $endpoint" >> "$RESULTS_FILE"
+>
+>     if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+>         # Success - count items in JSON array
+>         count=$(echo "$body" | python3 -c "import sys, json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+>         echo "STATUS: SUCCESS" >> "$RESULTS_FILE"
+>         echo "COUNT: $count" >> "$RESULTS_FILE"
+>     else
+>         # Error
+>         echo "STATUS: ERROR" >> "$RESULTS_FILE"
+>         echo "ERROR_CODE: $http_code" >> "$RESULTS_FILE"
+>     fi
+>
+>     echo "" >> "$RESULTS_FILE"
+> }
+>
+> # Fetch all endpoints
+> fetch_endpoint "/api/users"
+> fetch_endpoint "/api/products"
+> fetch_endpoint "/api/orders"
+>
+> # Remove trailing blank line
+> sed -i '$ { /^$/d }' "$RESULTS_FILE"
+>
+> echo "Pipeline completed. Results saved to $RESULTS_FILE"
+> EOF
+root@702f8a6a6c40:/home/user# chmod +x /home/user/data_pipeline.sh
+root@702f8a6a6c40:/home/user#

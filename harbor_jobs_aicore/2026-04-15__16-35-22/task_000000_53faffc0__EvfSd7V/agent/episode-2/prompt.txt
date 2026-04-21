@@ -1,0 +1,53 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@ec395b477982:/home/user# python3 /home/user/api_server.py &
+[1] 451
+root@ec395b477982:/home/user# cat > /home/user/data_pipeline.sh << 'EOF'
+> #!/bin/bash
+>
+> RESULTS_FILE="/home/user/pipeline_results.log"
+> BASE_URL="http://localhost:8765"
+>
+> # Clear results file
+> > "$RESULTS_FILE"
+>
+> # Function to process endpoint
+> process_endpoint() {
+>     local endpoint="$1"
+>     local response
+>     local http_code
+>
+>     # Make request and capture both body and status code
+>     response=$(curl -s -w "\n%{http_code}" "${BASE_URL}${endpoint}")
+>     http_code=$(echo "$response" | tail -n1)
+>     body=$(echo "$response" | sed '$d')
+>
+>     echo "ENDPOINT: ${endpoint}" >> "$RESULTS_FILE"
+>
+>     if [ "$http_code" -eq 200 ]; then
+>         # Count items in JSON array using grep to count id occurrences
+>         count=$(echo "$body" | grep -o '"id"' | wc -l)
+>         echo "STATUS: SUCCESS" >> "$RESULTS_FILE"
+>         echo "COUNT: ${count}" >> "$RESULTS_FILE"
+>     else
+>         echo "STATUS: ERROR" >> "$RESULTS_FILE"
+>         echo "ERROR_CODE: ${http_code}" >> "$RESULTS_FILE"
+>     fi
+>
+>     echo "" >> "$RESULTS_FILE"
+> }
+>
+> # Process all endpoints
+> process_endpoint "/api/users"
+> process_endpoint "/api/products"
+> process_endpoint "/api/orders"
+>
+> # Remove trailing blank line
+> sed -i '$ { /^$/d }' "$RESULTS_FILE"
+> EOF
+root@ec395b477982:/home/user# chmod +x /home/user/data_pipeline.sh
+root@ec395b477982:/home/user#

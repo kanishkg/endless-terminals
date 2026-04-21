@@ -1,0 +1,12 @@
+```json
+{
+  "analysis": "I can see both data files. iOS CSV has 7 builds with 3 failures (IOS002, IOS004, IOS006). Android JSON has 5 builds with 3 failures (AND002, AND004, AND005). I need to extract the failed builds, convert duration from seconds to minutes (rounded to 2 decimal places), and create the unified report sorted by app_name then build_id.",
+  "plan": "I'll create a Python script to process both files, extract failed builds, convert durations to minutes, create the unified JSON report with proper sorting, and generate the summary file.",
+  "commands": [
+    {
+      "keystrokes": "python3 << 'EOF'\nimport csv\nimport json\n\n# Read iOS CSV and extract failed builds\nios_failed = []\nwith open('/home/user/pipelines/ios_builds.csv', 'r') as f:\n    reader = csv.DictReader(f)\n    for row in reader:\n        if row['status'] == 'FAILED':\n            ios_failed.append({\n                'platform': 'ios',\n                'build_id': row['build_id'],\n                'app_name': row['app_name'],\n                'duration_minutes': round(int(row['build_time_seconds']) / 60, 2),\n                'branch': row['branch']\n            })\n\n# Read Android JSON and extract failed builds\nandroid_failed = []\nwith open('/home/user/pipelines/android_builds.json', 'r') as f:\n    android_data = json.load(f)\n    for build in android_data:\n        if build['result'] == 'FAILED':\n            android_failed.append({\n                'platform': 'android',\n                'build_id': build['buildId'],\n                'app_name': build['appName'],\n                'duration_minutes': round(build['buildDuration'] / 60, 2),\n                'branch': build['branch']\n            })\n\n# Combine and sort by app_name, then by build_id\nall_failed = ios_failed + android_failed\nall_failed.sort(key=lambda x: (x['app_name'], x['build_id']))\n\n# Write the JSON report\nwith open('/home/user/pipelines/failed_builds_report.json', 'w') as f:\n    json.dump(all_failed, f, indent=2)\n\n# Write the summary file\nwith open('/home/user/pipelines/failure_summary.txt', 'w') as f:\n    f.write(f'Total failed builds: {len(all_failed)}\\n')\n    f.write(f'iOS failures: {len(ios_failed)}\\n')\n    f.write(f'Android failures: {len(android_failed)}\\n')\n\nprint('Done!')\nEOF\n",
+      "duration": 1.0
+    }
+  ]
+}
+```
