@@ -1,0 +1,32 @@
+New Terminal Output:
+
+MemAvaiuser@3a816ecd5f64:~$ cat > /tmp/process_mem.sh << 'EOF'
+> #!/bin/bash
+> for file in /home/user/memstats/host*.txt; do
+>     hostname=$(basename "$file" .txt)
+>
+>     # Extract MemTotal and MemAvailable
+>     memtotal=$(grep -oP '^MemTotal:\s+\K[0-9]+' "$file" 2>/dev/null)
+>     memavail=$(grep -oP '^MemAvailable:\s+\K[0-9]+' "$file" 2>/dev/null)
+>
+>     # Skip if we can't get both values
+>     if [[ -z "$memtotal" ]] || [[ -z "$memavail" ]]; then
+>         continue
+>     fi
+>
+>     # Calculate percentage available
+>     percent=$(awk "BEGIN {printf \"%.2f\", ($memavail / $memtotal) * 100}")
+>
+>     # Check if less than 20%
+>     if (( $(awk "BEGIN {print ($percent < 20)}") )); then
+>         echo -e "$hostname\t$percent"
+>     fi
+> done | sort -t$'\t' -k2 -n
+> EOF
+user@3a816ecd5f64:~$ chmod +x /tmp/process_mem.sh
+user@3a816ecd5f64:~$ bash /tmp/process_mem.sh
+host07  10.00
+host02  15.00
+host04  16.00
+host06  16.00
+user@3a816ecd5f64:~$

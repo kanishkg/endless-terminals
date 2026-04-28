@@ -1,0 +1,59 @@
+New Terminal Output:
+
+MemAvaiuser@f7167fdeadee:~$ cat > process_memstats.sh << 'EOF'
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT="/home/user/low_memory_report.txt"
+>
+> # Temporary file for collecting results
+> TEMP_FILE=$(mktemp)
+>
+> # Process each host file
+> for hostfile in /home/user/memstats/host*.txt; do
+>     hostname=$(basename "$hostfile" .txt)
+>
+>     # Extract MemTotal and MemAvailable, handle missing/corrupted data
+>     memtotal=$(grep -E '^MemTotal:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>     memavail=$(grep -E '^MemAvailable:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>
+>     # Skip if we couldn't get both values (corrupted file)
+>     if [[ -z "$memtotal" ]] || [[ -z "$memavail" ]]; then
+>         continue
+>     fi
+>
+>     # Calculate percentage available (using bc for floating point)
+>     percentage=$(echo "scale=2; ($memavail * 100) / $memtotal" | bc)
+>
+>     # Check if less than 20%
+>     is_low=$(echo "$percentage < 20" | bc)
+>
+>     if [[ $is_low -eq 1 ]]; then
+>         echo -e "${hostname}\t${percentage}" >> "$TEMP_FILE"
+>     fi
+> done
+>
+> # Sort by percentage (ascending - worst first) and write to output
+> sort -t$'\t' -k2 -n "$TEMP_FILE" > "$OUTPUT"
+>
+> # Clean up
+> rm -f "$TEMP_FILE"
+> EOF
+user@f7167fdeadee:~$ chmod +x process_memstats.sh
+user@f7167fdeadee:~$ ./process_memstats.sh
+./process_memstats.sh: line 23: bc: command not found
+./process_memstats.sh: line 26: bc: command not found
+./process_memstats.sh: line 23: bc: command not found
+./process_memstats.sh: line 26: bc: command not found
+./process_memstats.sh: line 23: bc: command not found
+./process_memstats.sh: line 26: bc: command not found
+./process_memstats.sh: line 23: bc: command not found
+./process_memstats.sh: line 26: bc: command not found
+./process_memstats.sh: line 23: bc: command not found
+./process_memstats.sh: line 26: bc: command not found
+./process_memstats.sh: line 23: bc: command not found
+./process_memstats.sh: line 26: bc: command not found
+./process_memstats.sh: line 23: bc: command not found
+./process_memstats.sh: line 26: bc: command not found
+user@f7167fdeadee:~$ cat /home/user/low_memory_report.txt
+user@f7167fdeadee:~$

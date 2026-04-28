@@ -1,0 +1,152 @@
+[?2004huser@e4df61a05d7e:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@e4df61a05d7e:~$ clear
+[?2004l[H[J[?2004huser@e4df61a05d7e:~$ ls -la /home/user/
+[?2004ltotal 36
+drwxrwxrwx 1 user user 4096 Apr 28 23:29 [0m[34;42m.[0m
+drwxr-xr-x 1 root root 4096 Apr 28 23:14 [01;34m..[0m
+-rw-r--r-- 1 user user  220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 user user 3771 Jan  6  2022 .bashrc
+drwxr-xr-x 3 user user 4096 Apr 28 23:29 [01;34m.config[0m
+-rw-r--r-- 1 user user  807 Jan  6  2022 .profile
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34mbackups[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34mprojects[0m
+[?2004huser@e4df61a05d7e:~$ ls -R /home/user/projects 2>/dev/null || echo 'Some directories not accessible'
+[?2004l/home/user/projects:
+[0m[01;34malpha[0m  [01;34mbeta[0m  [01;34mdelta[0m  [01;34mgamma[0m
+
+/home/user/projects/alpha:
+config.json  secret.key
+
+/home/user/projects/beta:
+data.csv  notes.txt
+
+/home/user/projects/gamma:
+locked.dat  readable.md  [01;34msubdir[0m
+
+/home/user/projects/gamma/subdir:
+deep.txt
+Some directories not accessible
+[?2004huser@e4df61a05d7e:~$ find /home/user/projects -type f 2>/dev/null | head -20
+[?2004l/home/user/projects/beta/notes.txt
+/home/user/projects/beta/data.csv
+/home/user/projects/alpha/secret.key
+/home/user/projects/alpha/config.json
+/home/user/projects/gamma/subdir/deep.txt
+/home/user/projects/gamma/locked.dat
+/home/user/projects/gamma/readable.md
+[?2004huser@e4df61a05d7e:~$ ls -la /home/user/backups/
+[?2004ltotal 8
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [0m[01;34m.[0m
+drwxrwxrwx 1 user user 4096 Apr 28 23:29 [34;42m..[0m
+[?2004huser@e4df61a05d7e:~$ test -r /home/user/projects/alpha/config.json && echo 'config.json readable' || echo 'config.json not readable'
+[?2004lconfig.json readable
+[?2004huser@e4df61a05d7e:~$ stat -c '%U:%G' /home/user/projects/alpha/config.json 2>/dev/null || echo 'Cannot stat'
+[?2004luser:user
+[?2004huser@e4df61a05d7e:~$ cat > /home/user/backup.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Backup script that handles permission issues gracefully
+[?2004l[?2004h> 
+[?2004l[?2004h> SOURCE_DIR="/home/user/projects"
+[?2004l[?2004h> BACKUP_DIR="/home/user/backups"
+[?2004l[?2004h> MANIFEST="${BACKUP_DIR}/manifest.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clear or create manifest
+[?2004l[?2004h> > "$MANIFEST"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find all files, suppressing permission errors
+[?2004l[?2004h> while IFS= read -r file; do
+[?2004l[?2004h>     # Test if file is readable
+[?2004l[?2004h>     if [ -r "$file" ]; then
+[?2004l[?2004h>         # Get relative path
+[?2004l[?2004h>         rel_path="${file#$SOURCE_DIR/}"
+[?2004l[?2004h>         dest_file="${BACKUP_DIR}/${rel_path}"
+[?2004l[?2004h>         dest_dir="$(dirname "$dest_file")"
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Create destination directory structure
+[?2004l[?2004h>         mkdir -p "$dest_dir" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Copy the file
+[?2004l[?2004h>         if cp "$file" "$dest_file" 2>/dev/null; then
+[?2004l[?2004h>             # Get owner:group info
+[?2004l[?2004h>             owner_group=$(stat -c '%U:%G' "$file" 2>/dev/null)
+[?2004l[?2004h>             if [ -n "$owner_group" ]; then
+[?2004l[?2004h>                 echo "${rel_path} ${owner_group}" >> "$MANIFEST"
+[?2004l[?2004h>             fi
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done < <(find "$SOURCE_DIR" -type f 2>/dev/null)
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Backup complete. Manifest written to $MANIFEST"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@e4df61a05d7e:~$ chmod +x /home/user/backup.sh
+[?2004l[?2004huser@e4df61a05d7e:~$ cat /home/user/backup.sh
+[?2004l#!/bin/bash
+
+# Backup script that handles permission issues gracefully
+
+SOURCE_DIR="/home/user/projects"
+BACKUP_DIR="/home/user/backups"
+MANIFEST="${BACKUP_DIR}/manifest.txt"
+
+# Clear or create manifest
+> "$MANIFEST"
+
+# Find all files, suppressing permission errors
+while IFS= read -r file; do
+    # Test if file is readable
+    if [ -r "$file" ]; then
+        # Get relative path
+        rel_path="${file#$SOURCE_DIR/}"
+        dest_file="${BACKUP_DIR}/${rel_path}"
+        dest_dir="$(dirname "$dest_file")"
+        
+        # Create destination directory structure
+        mkdir -p "$dest_dir" 2>/dev/null
+        
+        # Copy the file
+        if cp "$file" "$dest_file" 2>/dev/null; then
+            # Get owner:group info
+            owner_group=$(stat -c '%U:%G' "$file" 2>/dev/null)
+            if [ -n "$owner_group" ]; then
+                echo "${rel_path} ${owner_group}" >> "$MANIFEST"
+            fi
+        fi
+    fi
+done < <(find "$SOURCE_DIR" -type f 2>/dev/null)
+
+echo "Backup complete. Manifest written to $MANIFEST"
+[?2004huser@e4df61a05d7e:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest written to /home/user/backups/manifest.txt
+[?2004huser@e4df61a05d7e:~$ echo '--- Backup directory structure ---'
+[?2004l--- Backup directory structure ---
+[?2004huser@e4df61a05d7e:~$ find /home/user/backups -type f | sort
+[?2004l/home/user/backups/alpha/config.json
+/home/user/backups/beta/data.csv
+/home/user/backups/beta/notes.txt
+/home/user/backups/gamma/readable.md
+/home/user/backups/gamma/subdir/deep.txt
+/home/user/backups/manifest.txt
+[?2004huser@e4df61a05d7e:~$ echo '--- Manifest contents ---'
+[?2004l--- Manifest contents ---
+[?2004huser@e4df61a05d7e:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@e4df61a05d7e:~$ echo '--- Verifying skipped files ---'
+[?2004l--- Verifying skipped files ---
+[?2004huser@e4df61a05d7e:~$ test -r /home/user/projects/alpha/secret.key && echo 'secret.key is readable' || echo 'secret.key was correctly skipped (not readable)'
+[?2004lsecret.key was correctly skipped (not readable)
+[?2004huser@e4df61a05d7e:~$ test -r /home/user/projects/gamma/locked.dat && echo 'locked.dat is readable' || echo 'locked.dat was correctly skipped (not readable)'
+[?2004llocked.dat was correctly skipped (not readable)
+[?2004huser@e4df61a05d7e:~$ echo '--- Final verification ---'
+[?2004l--- Final verification ---
+[?2004huser@e4df61a05d7e:~$ ls -lh /home/user/backup.sh
+[?2004l-rwxr-xr-x 1 user user 1.1K Apr 28 23:29 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@e4df61a05d7e:~$ wc -l /home/user/backups/manifest.txt
+[?2004l5 /home/user/backups/manifest.txt
+[?2004huser@e4df61a05d7e:~$ 

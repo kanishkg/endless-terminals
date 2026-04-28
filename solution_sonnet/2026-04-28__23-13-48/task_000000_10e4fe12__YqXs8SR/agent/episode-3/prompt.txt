@@ -1,0 +1,85 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+user@61692f097713:~$ cat > /home/user/backup.sh << 'EOF'
+> #!/bin/bash
+>
+> # Source and destination directories
+> SOURCE="/home/user/projects"
+> BACKUP="/home/user/backups"
+> MANIFEST="$BACKUP/manifest.txt"
+>
+> # Clear/create manifest
+> > "$MANIFEST"
+>
+> # Find all files, suppressing errors
+> find "$SOURCE" -type f 2>/dev/null | while IFS= read -r filepath; do
+>     # Test if file is readable
+>     if [ -r "$filepath" ]; then
+>         # Get relative path from source
+>         relpath="${filepath#$SOURCE/}"
+>
+>         # Get owner:group information
+>         ownerinfo=$(stat -c '%U:%G' "$filepath" 2>/dev/null)
+>
+>         if [ -n "$ownerinfo" ]; then
+>             # Create destination directory structure
+>             destdir="$BACKUP/$(dirname "$relpath")"
+>             mkdir -p "$destdir" 2>/dev/null
+>
+>             # Copy the file
+>             cp "$filepath" "$BACKUP/$relpath" 2>/dev/null
+>
+>             # If copy succeeded, add to manifest
+>             if [ $? -eq 0 ]; then
+>                 echo "$relpath $ownerinfo" >> "$MANIFEST"
+>             fi
+>         fi
+>     fi
+> done
+>
+> echo "Backup complete. Manifest written to $MANIFEST"
+> EOF
+user@61692f097713:~$ chmod +x /home/user/backup.sh
+user@61692f097713:~$ cat /home/user/backup.sh
+#!/bin/bash
+
+# Source and destination directories
+SOURCE="/home/user/projects"
+BACKUP="/home/user/backups"
+MANIFEST="$BACKUP/manifest.txt"
+
+# Clear/create manifest
+> "$MANIFEST"
+
+# Find all files, suppressing errors
+find "$SOURCE" -type f 2>/dev/null | while IFS= read -r filepath; do
+    # Test if file is readable
+    if [ -r "$filepath" ]; then
+        # Get relative path from source
+        relpath="${filepath#$SOURCE/}"
+
+        # Get owner:group information
+        ownerinfo=$(stat -c '%U:%G' "$filepath" 2>/dev/null)
+
+        if [ -n "$ownerinfo" ]; then
+            # Create destination directory structure
+            destdir="$BACKUP/$(dirname "$relpath")"
+            mkdir -p "$destdir" 2>/dev/null
+
+            # Copy the file
+            cp "$filepath" "$BACKUP/$relpath" 2>/dev/null
+
+            # If copy succeeded, add to manifest
+            if [ $? -eq 0 ]; then
+                echo "$relpath $ownerinfo" >> "$MANIFEST"
+            fi
+        fi
+    fi
+done
+
+echo "Backup complete. Manifest written to $MANIFEST"
+user@61692f097713:~$

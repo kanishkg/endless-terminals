@@ -1,0 +1,194 @@
+[?2004huser@5950ff933bb0:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@5950ff933bb0:~$ clear
+[?2004l[H[J[?2004huser@5950ff933bb0:~$ ls -la /home/user/memstats/
+[?2004ltotal 40
+drwxrwxrwx 1 user user 4096 Apr 28 23:14 .
+drwxrwxrwx 1 user user 4096 Apr 28 23:52 ..
+-rw-r--r-- 1 user user  224 Apr 28 23:14 host01.txt
+-rw-r--r-- 1 user user  224 Apr 28 23:14 host02.txt
+-rw-r--r-- 1 user user   35 Apr 28 23:14 host03.txt
+-rw-r--r-- 1 user user  224 Apr 28 23:14 host04.txt
+-rw-r--r-- 1 user user  224 Apr 28 23:14 host05.txt
+-rw-r--r-- 1 user user  224 Apr 28 23:14 host06.txt
+-rw-r--r-- 1 user user  224 Apr 28 23:14 host07.txt
+-rw-r--r-- 1 user user  224 Apr 28 23:14 host08.txt
+[?2004huser@5950ff933bb0:~$ head -20 /home/user/memstats/host01.txt
+[?2004lMemTotal:       16384000 kB
+MemFree:         2048000 kB
+MemAvailable:    8192000 kB
+Buffers:          512000 kB
+Cached:          4096000 kB
+SwapCached:            0 kB
+Active:          8192000 kB
+Inactive:        4096000 kB
+[?2004huser@5950ff933bb0:~$ cat /home/user/memstats/host03.txt
+[?2004lMemTotal:       16384000 kB
+MemAvai[?2004huser@5950ff933bb0:~$ cat > process_mem.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Output file
+[?2004l[?2004h> OUTPUT="/home/user/low_memory_report.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Temporary file for collecting results
+[?2004l[?2004h> TEMP_FILE=$(mktemp)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process each host file
+[?2004l[?2004h> for hostfile in /home/user/memstats/host*.txt; do
+[?2004l[?2004h>     hostname=$(basename "$hostfile" .txt)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try to extract MemTotal and MemAvailable
+[?2004l[?2004h>     mem_total=$(grep -E '^MemTotal:' "$hostfile" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     mem_available=$(grep -E '^MemAvailable:' "$hostfile" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Skip if either value is missing or empty
+[?2004l[?2004h>     if [[ -z "$mem_total" || -z "$mem_available" ]]; then
+[?2004l[?2004h>         continue
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Calculate percentage available (using bc for floating point)
+[?2004l[?2004h>     percentage=$(echo "scale=2; ($mem_available * 100) / $mem_total" | bc)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check if less than 20%
+[?2004l[?2004h>     is_low=$(echo "$percentage < 20" | bc)
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [[ "$is_low" -eq 1 ]]; then
+[?2004l[?2004h>         # Store for sorting: percentage hostname
+[?2004l[?2004h>         echo "$percentage $hostname" >> "$TEMP_FILE"
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Sort by percentage (ascending - worst first) and format output
+[?2004l[?2004h> if [[ -f "$TEMP_FILE" && -s "$TEMP_FILE" ]]; then
+[?2004l[?2004h>     sort -n "$TEMP_FILE" | while read pct host; do
+[?2004l[?2004h>         echo -e "${host}\t${pct}%"
+[?2004l[?2004h>     done > "$OUTPUT"
+[?2004l[?2004h> else
+[?2004l[?2004h>     # Create empty file if no results
+[?2004l[?2004h>     touch "$OUTPUT"
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Cleanup
+[?2004l[?2004h> rm -f "$TEMP_FILE"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@5950ff933bb0:~$ chmod +x process_mem.sh
+[?2004l[?2004huser@5950ff933bb0:~$ bash process_mem.sh
+[?2004lprocess_mem.sh: line 23: bc: command not found
+process_mem.sh: line 26: bc: command not found
+process_mem.sh: line 23: bc: command not found
+process_mem.sh: line 26: bc: command not found
+process_mem.sh: line 23: bc: command not found
+process_mem.sh: line 26: bc: command not found
+process_mem.sh: line 23: bc: command not found
+process_mem.sh: line 26: bc: command not found
+process_mem.sh: line 23: bc: command not found
+process_mem.sh: line 26: bc: command not found
+process_mem.sh: line 23: bc: command not found
+process_mem.sh: line 26: bc: command not found
+process_mem.sh: line 23: bc: command not found
+process_mem.sh: line 26: bc: command not found
+[?2004huser@5950ff933bb0:~$ cat > process_mem.sh << 'EOF'
+[?2004lge (ascending - worst first) and format output
+if [[ -f "$TEMP_FILE" && -s "$TEMP_FILE" ]]; then
+    sort -n "$TEMP_FILE" | while read pct host; do
+        printf "%s\t%s%%\n" "$host" "$pct"
+    done > "$OUTPUT"
+else
+    # Create empty file if no results
+    touch "$OUTPUT"
+fi
+
+# Cleanup
+rm -f "$TEMP_FILE"
+EOF
+[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Output file
+[?2004l[?2004h> OUTPUT="/home/user/low_memory_report.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Temporary file for collecting results
+[?2004l[?2004h> TEMP_FILE=$(mktemp)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process each host file
+[?2004l[?2004h> for hostfile in /home/user/memstats/host*.txt; do
+[?2004l[?2004h>     hostname=$(basename "$hostfile" .txt)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try to extract MemTotal and MemAvailable
+[?2004l[?2004h>     mem_total=$(grep -E '^MemTotal:' "$hostfile" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     mem_available=$(grep -E '^MemAvailable:' "$hostfile" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Skip if either value is missing or empty
+[?2004l[?2004h>     if [[ -z "$mem_total" || -z "$mem_available" ]]; then
+[?2004l[?2004h>         continue
+[?2004l[?2004h>     fi
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Calculate percentage and check if less than 20% using awk
+[?2004l[?2004h>     awk -v total="$mem_total" -v avail="$mem_available" -v host="$hostname" '
+[?2004l[?2004h>     BEGIN {
+[?2004l[?2004h>         if (total > 0) {
+[?2004l[?2004h>             percentage = (avail * 100) / total
+[?2004l[?2004h>             if (percentage < 20) {
+[?2004l[?2004h>                 printf "%.2f %s\n", percentage, host
+[?2004l[?2004h>             }
+[?2004l[?2004h>         }
+[?2004l[?2004h>     }' >> "$TEMP_FILE"
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Sort by percentage (ascending - worst first) and format output
+[?2004l[?2004h> if [[ -f "$TEMP_FILE" && -s "$TEMP_FILE" ]]; then
+[?2004l[?2004h>     sort -n "$TEMP_FILE" | while read pct host; do
+[?2004l[?2004h>         printf "%s\t%s%%\n" "$host" "$pct"
+[?2004l[?2004h>     done > "$OUTPUT"
+[?2004l[?2004h> else
+[?2004l[?2004h>     # Create empty file if no results
+[?2004l[?2004h>     touch "$OUTPUT"
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Cleanup
+[?2004l[?2004h> rm -f "$TEMP_FILE"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@5950ff933bb0:~$ bash process_mem.sh
+[?2004l[?2004huser@5950ff933bb0:~$ cat /home/user/low_memory_report.txt
+[?2004lhost07	10.00%
+host02	15.00%
+host04	16.00%
+host06	16.00%
+[?2004huser@5950ff933bb0:~$ echo "--- Verifying calculations ---"
+[?2004l--- Verifying calculations ---
+[?2004huser@5950ff933bb0:~$ for host in host01 host02 host04 host05 host06 host07 host08; do echo "$host:"; grep -E '^Mem(Total|Available):' /home/user/memstats/${host}.txt; echo; done
+[?2004lhost01:
+MemTotal:       16384000 kB
+MemAvailable:    8192000 kB
+
+host02:
+MemTotal:       32768000 kB
+MemAvailable:    4915200 kB
+
+host04:
+MemTotal:       16384000 kB
+MemAvailable:    2621440 kB
+
+host05:
+MemTotal:        8192000 kB
+MemAvailable:    4096000 kB
+
+host06:
+MemTotal:       32768000 kB
+MemAvailable:    5242880 kB
+
+host07:
+MemTotal:       16384000 kB
+MemAvailable:    1638400 kB
+
+host08:
+MemTotal:        8192000 kB
+MemAvailable:    2457600 kB
+
+[?2004huser@5950ff933bb0:~$ echo "Manual verification: host07 = 1638400/16384000 * 100 = $(awk 'BEGIN {printf "%.2f", (1638400/16384000)*100}')%"
+[?2004lManual verification: host07 = 1638400/16384000 * 100 = 10.00%
+[?2004huser@5950ff933bb0:~$ echo "host03 status: corrupted file gracefully skipped"
+[?2004lhost03 status: corrupted file gracefully skipped
+[?2004huser@5950ff933bb0:~$ ls -lh /home/user/low_memory_report.txt
+[?2004l-rw-r--r-- 1 user user 56 Apr 28 23:52 /home/user/low_memory_report.txt
+[?2004huser@5950ff933bb0:~$ 

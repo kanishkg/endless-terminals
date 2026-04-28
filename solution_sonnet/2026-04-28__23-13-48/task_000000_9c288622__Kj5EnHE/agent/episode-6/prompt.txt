@@ -1,0 +1,78 @@
+New Terminal Output:
+
+user@76393adfa0c6:~/scheduler$ cp app.py app.py.backup
+user@76393adfa0c6:~/scheduler$ cat > app.py << 'EOF'
+> #!/usr/bin/env python3
+> """
+> Meeting reminder application.
+> Sends reminders 15 minutes before each meeting.
+> Converts UTC times to Europe/Berlin timezone.
+> """
+>
+> import json
+> import pytz
+> from datetime import datetime, timedelta
+>
+> MEETINGS_FILE = '/home/user/scheduler/meetings.json'
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def load_meetings():
+>     """Load meetings from JSON file."""
+>     with open(MEETINGS_FILE, 'r') as f:
+>         return json.load(f)
+>
+> def convert_to_berlin(utc_time_str):
+>     """
+>     Convert UTC time string to Berlin timezone.
+>     """
+>     # Parse the UTC time string
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>
+>     # Localize as UTC first, then convert to Berlin time
+>     utc_dt_aware = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt_aware.astimezone(BERLIN_TZ)
+>
+>     return berlin_dt
+>
+> def get_current_time_berlin():
+>     """Get current time in Berlin timezone."""
+>     return datetime.now(BERLIN_TZ)
+>
+> def check_reminders():
+>     """Check for meetings that need reminders (15-75 minutes from now)."""
+>     meetings = load_meetings()
+>     now = get_current_time_berlin()
+>
+>     reminder_start = now + timedelta(minutes=15)
+>     reminder_end = now + timedelta(minutes=75)
+>
+>     reminders = []
+>
+>     for meeting in meetings:
+>         berlin_time = convert_to_berlin(meeting['utc_time'])
+>
+>         # Check if meeting falls within reminder window
+>         if reminder_start <= berlin_time <= reminder_end:
+>             reminders.append({
+>                 'title': meeting['title'],
+>                 'time': berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')
+>             })
+>
+>     return reminders
+>
+> def main():
+>     """Main entry point."""
+>     reminders = check_reminders()
+>
+>     if reminders:
+>         print("=== Meeting Reminders ===")
+>         for reminder in reminders:
+>             print(f"REMINDER: {reminder['title']} at {reminder['time']}")
+>     else:
+>         print("No upcoming meetings in the next 15-75 minutes.")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+user@76393adfa0c6:~/scheduler$

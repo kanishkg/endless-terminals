@@ -1,0 +1,80 @@
+New Terminal Output:
+
+user@f51ce637451c:~/inventory$ python3 << 'EOF'
+> import json
+>
+> # Validate assets.json
+> with open('assets.json', 'r') as f:
+>     assets = json.load(f)
+>
+> print(f"Total valid assets: {len(assets)}")
+> print(f"\nFirst asset:")
+> print(json.dumps(assets[0], indent=2))
+>
+> # Check all required fields and types
+> required_fields = ['id', 'name', 'serial', 'purchase_date', 'price_cents', 'location']
+> errors = []
+>
+> for i, asset in enumerate(assets):
+>     # Check all fields present
+>     for field in required_fields:
+>         if field not in asset:
+>             errors.append(f"Asset {i}: Missing field {field}")
+>
+>     # Check price_cents is positive integer
+>     if 'price_cents' in asset:
+>         if not isinstance(asset['price_cents'], int):
+>             errors.append(f"Asset {i} ({asset.get('id')}): price_cents not an integer")
+>         elif asset['price_cents'] <= 0:
+>             errors.append(f"Asset {i} ({asset.get('id')}): price_cents not positive")
+>
+>     # Check date format (ISO 8601: YYYY-MM-DD)
+>     if 'purchase_date' in asset:
+>         date_str = asset['purchase_date']
+>         if not (len(date_str) == 10 and date_str[4] == '-' and date_str[7] == '-'):
+>             errors.append(f"Asset {i} ({asset.get('id')}): Invalid date format {date_str}")
+>
+> if errors:
+>     print(f"\n❌ Found {len(errors)} validation errors:")
+>     for err in errors[:10]:
+>         print(f"  {err}")
+> else:
+>     print(f"\n✅ All {len(assets)} assets validated successfully!")
+>
+> # Validate rejected.json
+> with open('rejected.json', 'r') as f:
+>     rejected = json.load(f)
+>
+> print(f"\nTotal rejected records: {len(rejected)}")
+> print(f"\nFirst rejected record:")
+> print(json.dumps(rejected[0], indent=2))
+> EOF
+Total valid assets: 809
+
+First asset:
+{
+  "id": "AST-00001",
+  "name": "Whiteboard Digital",
+  "serial": "SN-QQB-00002",
+  "purchase_date": "2023-10-08",
+  "price_cents": 381700,
+  "location": "Warehouse A"
+}
+
+✅ All 809 assets validated successfully!
+
+Total rejected records: 37
+
+First rejected record:
+{
+  "original_row": {
+    "id": "AST-00743",
+    "name": "Office Chair Ergonomic",
+    "serial": "SN-RCM-00744",
+    "purchase_date": "10/16/2017",
+    "price": "-579.02",
+    "location": "Office 202"
+  },
+  "reason": "Price must be positive: -57902"
+}
+user@f51ce637451c:~/inventory$

@@ -1,0 +1,52 @@
+New Terminal Output:
+
+user@76393adfa0c6:~/scheduler$ cat > test_dst_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test DST conversion fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> # Import the fixed function
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+> from app import convert_to_berlin
+>
+> def test_dst_transition():
+>     """Test conversion during DST transition (March 31, 2024)."""
+>
+>     # The problematic meeting time: 2024-03-31T01:30:00 UTC
+>     # On March 31, 2024, Europe/Berlin transitions from CET to CEST at 2am
+>     # At 2am CET, clocks spring forward to 3am CEST
+>     # So 01:30 UTC should become 03:30 CEST (not 02:30 CET)
+>
+>     utc_time_str = '2024-03-31T01:30:00'
+>     berlin_time = convert_to_berlin(utc_time_str)
+>
+>     print(f"UTC Time: {utc_time_str}")
+>     print(f"Berlin Time: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"Hour: {berlin_time.hour}")
+>     print(f"Timezone offset: {berlin_time.strftime('%z')}")
+>
+>     # Verify it's 3:30am CEST (+0200), not 2:30am CET (+0100)
+>     assert berlin_time.hour == 3, f"Expected hour 3, got {berlin_time.hour}"
+>     assert berlin_time.minute == 30, f"Expected minute 30, got {berlin_time.minute}"
+>     assert 'CEST' in berlin_time.strftime('%Z'), f"Expected CEST timezone"
+>     assert '+0200' in berlin_time.strftime('%z'), f"Expected +0200 offset"
+>
+>     print("\n✓ DST transition handled correctly!")
+>     print("  01:30 UTC correctly converts to 03:30 CEST (not 02:30 CET)")
+>
+>     # Test the old buggy way to show the difference
+>     print("\n--- Comparing with the buggy approach ---")
+>     berlin_tz = pytz.timezone('Europe/Berlin')
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     buggy_berlin = berlin_tz.localize(utc_dt)  # The old buggy way
+>     print(f"Buggy conversion: {buggy_berlin.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"Buggy hour: {buggy_berlin.hour}")
+>     print(f"This would send the reminder at the wrong time!")
+>
+> if __name__ == '__main__':
+>     test_dst_transition()
+> EOF
+user@76393adfa0c6:~/scheduler$
