@@ -1,0 +1,23 @@
+{
+  "analysis": "Found the problem! The pre-push hook has a hardcoded `cd /srv/repos/project` command on line 2, which is the old path before the repository was moved. When the hook runs during a push, it tries to change to the old directory that no longer exists, causing all subsequent git commands in the hook to fail with 'fatal: not in a git directory'. When running the hook manually, the user is already in the correct directory, but the cd command still tries to go to the old path. The git config looks fine with the updated paths.",
+  "plan": "I need to fix the pre-push hook by updating the hardcoded path from /srv/repos/project to /home/user/project. Alternatively, I can make it more robust by removing the cd command entirely since hooks run in the repository directory by default, or use a relative path approach.",
+  "commands": [
+    {
+      "keystrokes": "cp .git/hooks/pre-push .git/hooks/pre-push.backup\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat > .git/hooks/pre-push << 'EOF'\n#!/bin/bash\nHASH=$(git rev-parse --verify HEAD)\necho \"$(date): push verified, HEAD=$HASH\" >> /var/log/git-hooks.log\nexit 0\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "chmod +x .git/hooks/pre-push\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat .git/hooks/pre-push\n",
+      "duration": 0.1
+    }
+  ],
+  "task_complete": false
+}

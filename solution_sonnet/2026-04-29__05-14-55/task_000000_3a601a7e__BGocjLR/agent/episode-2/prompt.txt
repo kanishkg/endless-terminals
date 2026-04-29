@@ -1,0 +1,40 @@
+New Terminal Output:
+
+root@dcd87d848e5d:/home/user/collector# cat .env
+API_HOST=http://localhost:8080
+API_KEY=sk_stg_9f7a2e3c8b
+LOG_LEVEL=debug
+root@dcd87d848e5d:/home/user/collector# cat healthcheck.sh
+#!/bin/bash
+set -e
+
+# Load environment
+source /home/user/collector/config.sh
+
+RESPONSE=$(curl -s -w "%{http_code}" -o /tmp/health_response.json \
+    -H "Authorization: Bearer $API_KEY" \
+    "$API_HOST/v1/status")
+
+if [ "$RESPONSE" -eq 200 ]; then
+    echo "Health check passed"
+    exit 0
+else
+    echo "Health check failed with status: $RESPONSE"
+    exit 1
+fi
+root@dcd87d848e5d:/home/user/collector# cat config.sh
+#!/bin/bash
+# Collector configuration loader
+
+# Source the env file
+if [ -f /home/user/collector/.env ]; then
+    export $(cat /home/user/collector/.env | xargs)
+fi
+
+# Override with cached credentials if present (for backwards compat)
+if [ -f /home/user/collector/.credentials_cache ]; then
+    source /home/user/collector/.credentials_cache
+fi
+root@dcd87d848e5d:/home/user/collector# cat .credentials_cache
+API_KEY=sk_stg_7d4b1a9e2f
+root@dcd87d848e5d:/home/user/collector#

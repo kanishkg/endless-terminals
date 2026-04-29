@@ -1,0 +1,84 @@
+New Terminal Output:
+
+user@1c85edd2d583:~/scheduler$ cat > test_dst_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """
+> Test to verify DST handling is correct.
+> Tests the specific case of meetings around 2am-3am Berlin time.
+> """
+>
+> import pytz
+> from datetime import datetime
+>
+> # Old buggy implementation
+> def convert_to_berlin_OLD(utc_time_str):
+>     BERLIN_TZ = pytz.timezone('Europe/Berlin')
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)  # BUG: treats as Berlin time
+>     return berlin_dt
+>
+> # New fixed implementation
+> def convert_to_berlin_NEW(utc_time_str):
+>     BERLIN_TZ = pytz.timezone('Europe/Berlin')
+>     UTC_TZ = pytz.utc
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt = UTC_TZ.localize(utc_dt)  # Localize as UTC
+>     berlin_dt = utc_dt.astimezone(BERLIN_TZ)  # Convert to Berlin
+>     return berlin_dt
+>
+> print("Testing timezone conversion fix...\n")
+>
+> # Test case: The problematic maintenance window at 01:30 UTC
+> # This should be 2:30 or 3:30 Berlin time depending on DST
+> test_time = "2024-03-31T01:30:00"  # UTC
+>
+> print(f"Test time (UTC): {test_time}")
+> print()
+>
+> old_result = convert_to_berlin_OLD(test_time)
+> print(f"OLD (buggy) conversion: {old_result}")
+> print(f"  Formatted: {old_result.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+> print()
+>
+> new_result = convert_to_berlin_NEW(test_time)
+> print(f"NEW (fixed) conversion: {new_result}")
+> print(f"  Formatted: {new_result.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+> print()
+>
+> # Show the difference
+> time_diff = (new_result - old_result).total_seconds() / 3600
+> print(f"Time difference: {abs(time_diff):.1f} hour(s)")
+> print()
+>
+> # Verify the correct conversion
+> print("Verification:")
+> print(f"  01:30 UTC should convert to a Berlin time")
+> print(f"  March 31, 2024 is around DST transition in Europe")
+> print(f"  The NEW conversion shows: {new_result.strftime('%H:%M %Z')}")
+> print()
+>
+> if time_diff != 0:
+>     print("✓ FIX CONFIRMED: The conversions now differ, bug is fixed!")
+> else:
+>     print("✗ WARNING: No difference detected")
+> EOF
+user@1c85edd2d583:~/scheduler$ python3 test_dst_fix.py
+Testing timezone conversion fix...
+
+Test time (UTC): 2024-03-31T01:30:00
+
+OLD (buggy) conversion: 2024-03-31 01:30:00+01:00
+  Formatted: 2024-03-31 01:30:00 CET (UTC+0100)
+
+NEW (fixed) conversion: 2024-03-31 03:30:00+02:00
+  Formatted: 2024-03-31 03:30:00 CEST (UTC+0200)
+
+Time difference: 1.0 hour(s)
+
+Verification:
+  01:30 UTC should convert to a Berlin time
+  March 31, 2024 is around DST transition in Europe
+  The NEW conversion shows: 03:30 CEST
+
+✓ FIX CONFIRMED: The conversions now differ, bug is fixed!
+user@1c85edd2d583:~/scheduler$

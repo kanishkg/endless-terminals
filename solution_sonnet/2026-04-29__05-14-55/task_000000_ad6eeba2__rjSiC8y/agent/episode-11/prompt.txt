@@ -1,0 +1,120 @@
+New Terminal Output:
+
+user@6f0c20b3912a:~/inventory$ python3 << 'EOF'
+> import json
+> import re
+> from datetime import datetime
+>
+> # Load files
+> with open('assets.json', 'r') as f:
+>     assets = json.load(f)
+>
+> with open('rejected.json', 'r') as f:
+>     rejected = json.load(f)
+>
+> print("=== FINAL VALIDATION ===")
+> print(f"\nTotal valid assets: {len(assets)}")
+> print(f"Total rejected records: {len(rejected)}")
+> print(f"Total processed: {len(assets) + len(rejected)}")
+>
+> # Validate structure
+> required_fields = ['id', 'name', 'serial', 'purchase_date', 'price_cents', 'location']
+> errors = []
+>
+> for asset in assets:
+>     # Check all fields present
+>     if not all(field in asset for field in required_fields):
+>         errors.append(f"Missing fields in {asset.get('id', 'unknown')}")
+>
+>     # Validate date format (ISO 8601)
+>     if not re.match(r'^\d{4}-\d{2}-\d{2}$', asset['purchase_date']):
+>         errors.append(f"Invalid date format in {asset['id']}: {asset['purchase_date']}")
+>     else:
+>         # Verify it's a valid date
+>         try:
+>             datetime.strptime(asset['purchase_date'], '%Y-%m-%d')
+>         except ValueError:
+>             errors.append(f"Invalid date value in {asset['id']}: {asset['purchase_date']}")
+>
+>     # Validate price_cents is positive integer
+>     if not isinstance(asset['price_cents'], int) or asset['price_cents'] <= 0:
+>         errors.append(f"Invalid price in {asset['id']}: {asset['price_cents']}")
+>
+> if errors:
+>     print("\n❌ VALIDATION ERRORS:")
+>     for error in errors[:10]:
+>         print(f"  - {error}")
+> else:
+>     print("\n✅ All validations passed!")
+>
+> # Check for duplicates
+> ids = [a['id'] for a in assets]
+> if len(ids) != len(set(ids)):
+>     print("\n❌ Duplicate IDs found!")
+> else:
+>     print("✅ No duplicate IDs")
+>
+> # Show price range
+> prices = [a['price_cents'] for a in assets]
+> print(f"\nPrice range: ${min(prices)/100:.2f} - ${max(prices)/100:.2f}")
+>
+> # Show date range
+> dates = sorted([a['purchase_date'] for a in assets])
+> print(f"Date range: {dates[0]} to {dates[-1]}")
+>
+> # Show rejection reasons summary
+> print("\nRejection reasons:")
+> reasons = {}
+> for rec in rejected:
+>     reason = rec['reason'].split(':')[0]  # Get first part before colon
+>     reasons[reason] = reasons.get(reason, 0) + 1
+>
+> for reason, count in sorted(reasons.items(), key=lambda x: x[1], reverse=True):
+>     print(f"  - {reason}: {count}")
+>
+> print("\n✅ Files generated successfully:")
+> print("  - /home/user/inventory/assets.json")
+> print("  - /home/user/inventory/rejected.json")
+>
+> EOF
+=== FINAL VALIDATION ===
+
+Total valid assets: 809
+Total rejected records: 37
+Total processed: 846
+
+✅ All validations passed!
+✅ No duplicate IDs
+
+Price range: $54.42 - $4994.00
+Date range: 2015-01-18 to 2023-12-25
+
+Rejection reasons:
+  - Invalid price: 10
+  - Invalid date format: 4
+  - Missing asset ID: 2
+  - Duplicate asset ID AST-00333, kept record with latest date: 2
+  - Duplicate asset ID AST-00312, kept record with latest date: 1
+  - Duplicate asset ID AST-00306, kept record with latest date: 1
+  - Duplicate asset ID AST-00300, kept record with latest date: 1
+  - Duplicate asset ID AST-00317, kept record with latest date: 1
+  - Duplicate asset ID AST-00305, kept record with latest date: 1
+  - Duplicate asset ID AST-00316, kept record with latest date: 1
+  - Duplicate asset ID AST-00318, kept record with latest date: 1
+  - Duplicate asset ID AST-00313, kept record with latest date: 1
+  - Duplicate asset ID AST-00307, kept record with latest date: 1
+  - Duplicate asset ID AST-00315, kept record with latest date: 1
+  - Duplicate asset ID AST-00308, kept record with latest date: 1
+  - Duplicate asset ID AST-00303, kept record with latest date: 1
+  - Duplicate asset ID AST-00314, kept record with latest date: 1
+  - Duplicate asset ID AST-00301, kept record with latest date: 1
+  - Duplicate asset ID AST-00311, kept record with latest date: 1
+  - Duplicate asset ID AST-00310, kept record with latest date: 1
+  - Duplicate asset ID AST-00304, kept record with latest date: 1
+  - Duplicate asset ID AST-00309, kept record with latest date: 1
+  - Duplicate asset ID AST-00302, kept record with latest date: 1
+
+✅ Files generated successfully:
+  - /home/user/inventory/assets.json
+  - /home/user/inventory/rejected.json
+user@6f0c20b3912a:~/inventory$

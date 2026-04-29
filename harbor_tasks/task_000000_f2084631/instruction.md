@@ -1,0 +1,5 @@
+Suricata's been running on /var/log/suricata for about a week and the eve.json looks fine — alerts firing, flow records, the usual. But when I run our correlation script at /home/user/correlate.py against it, it's finding way fewer lateral movement candidates than the old Zeek-based pipeline did on the same traffic. Like, 80% fewer. The script logic looks right to me — it's just grouping internal-to-internal connections by src and counting distinct dst hosts within a 5-minute window, flagging anything over 3. Same threshold we used before.
+
+Spent an hour staring at this and I'm stuck. Either Suricata is missing flows that Zeek caught, or my script is misreading the eve.json structure somehow, or there's something about how Suricata logs flows that I'm not accounting for. The weird thing is if I just grep for flow events and eyeball them, there's definitely traffic between internal hosts in there.
+
+Need the correlation actually working — should be flagging the scanning activity that I know is in that capture.

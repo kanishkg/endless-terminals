@@ -1,0 +1,14 @@
+{
+  "analysis": "Excellent! The diff confirms that the resumed run produced identical results to the full uninterrupted run. This proves the checkpoint/resume functionality is now working correctly. Now I should create a summary document explaining what was fixed and do one final test of the actual run.sh script to ensure it works as expected.",
+  "plan": "1. Create a summary document explaining the bugs and fixes\n2. Test the actual run.sh script with a simulated interruption to confirm it works end-to-end\n3. Mark the task as complete",
+  "commands": [
+    {
+      "keystrokes": "cat > BUGFIX_SUMMARY.md << 'EOF'\n# Pipeline Checkpoint Resume - Bug Fixes\n\n## Problems Identified\n\nThe checkpoint/resume functionality had three critical bugs:\n\n### 1. **Semantic Mismatch Bug (CRITICAL)**\n- **Problem**: `save_checkpoint(batch_num)` saved the batch number (e.g., 5 for 5000 records) but stored it as 'last_line'\n- **Impact**: On resume, the code compared line number `i < start_from`, so if batch_num=5, it only skipped 5 lines instead of 5000\n- **Fix**: Changed to save `records_processed` (actual line/record number) instead of batch number\n\n### 2. **Buffer Flush Bug**\n- **Problem**: Checkpoint file opened with `open('.checkpoint', 'w')` without context manager or flush\n- **Impact**: Data might not be written to disk before a crash, leaving stale or empty checkpoint\n- **Fix**: Use context manager with explicit `f.flush()` and `os.fsync()` to ensure data reaches disk\n\n### 3. **Data Overwrite Bug**\n- **Problem**: Used `INSERT OR REPLACE` which overwrites existing aggregates instead of accumulating\n- **Impact**: On resume, previously aggregated data was replaced instead of added to, causing data loss\n- **Fix**: Changed to `UPDATE` with addition (accumulation), falling back to `INSERT` for new categories\n\n## Verification\n\n- Tested by processing 50,000 records\n- Killed process at 25,000 records\n- Resumed from checkpoint\n- Verified final results match a full uninterrupted run (identical output)\n\n## Result\n\nCheckpoint/resume now works correctly:\n- Kills midway preserve progress\n- Restarts resume from exact position\n- No data duplication or loss\n- Proper accumulation of aggregates\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat BUGFIX_SUMMARY.md\n",
+      "duration": 0.1
+    }
+  ]
+}

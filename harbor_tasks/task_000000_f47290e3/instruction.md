@@ -1,0 +1,5 @@
+Got a weird one. Our deploy script at /home/user/deploy/sync-manifests.sh is supposed to diff local k8s manifests against what's in the cluster (via dry-run), then only apply the changed ones. Except it's applying *everything* every single run, even when nothing changed. The diff logic looks right to me — it's doing `kubectl diff` and checking the exit code, 0 means no changes, 1 means changes. But somehow every manifest comes back as "changed" even when I literally just applied it 5 seconds ago.
+
+Cluster's mocked out with a fake kubectl at /usr/local/bin/kubectl that reads/writes state to /home/user/.kube-state/ so you can test without a real cluster. State dir has current "applied" versions of everything.
+
+Really don't want to gut the script — it's integrated into a bunch of CI stuff. Just need it to actually skip unchanged manifests. There's a test script at /home/user/deploy/test-sync.sh that applies everything fresh, then immediately runs sync again — second run should report 0 changes and apply nothing.

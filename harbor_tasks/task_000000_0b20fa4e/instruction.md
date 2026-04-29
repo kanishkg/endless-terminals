@@ -1,0 +1,1 @@
+Got a tarball at /home/user/metrics-export.tar.gz from the old monitoring box — need to pull out just the grafana dashboards json files from it, not the whole thing. They should be under some dashboards/ folder inside the archive. Drop them into /home/user/dashboards/, flat (no nested dirs).

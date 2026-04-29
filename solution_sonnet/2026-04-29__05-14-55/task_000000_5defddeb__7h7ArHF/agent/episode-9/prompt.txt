@@ -1,0 +1,41 @@
+New Terminal Output:
+
+I have no name!@e7af89d0efc8:/home/user$ cat > /home/user/backup/incremental.sh << 'EOF'
+> #!/bin/bash
+> set -e
+> SOURCE="/home/user/data"
+> ARCHIVE_DIR="/home/user/backup/archives"
+> STATE_DIR="/home/user/backup/state"
+> TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+>
+> ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+>
+> if [[ -f "$TIMESTAMP_FILE" ]]; then
+>     NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+>     find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+>         tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME"
+>     date +%s > "$TIMESTAMP_FILE"
+> else
+>     # First incremental = full
+>     tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+>     date +%s > "$TIMESTAMP_FILE"
+>     touch "$STATE_DIR/reference"
+> fi
+> EOF
+I have no name!@e7af89d0efc8:/home/user$ chmod +x /home/user/backup/incremental.sh
+I have no name!@e7af89d0efc8:/home/user$ diff -u /home/user/backup/incremental.sh.bak /home/user/backup/incremental.sh
+--- /home/user/backup/incremental.sh.bak        2026-04-29 09:47:44.304627042 +0000
++++ /home/user/backup/incremental.sh    2026-04-29 09:47:59.595442795 +0000
+@@ -10,10 +10,8 @@
+ if [[ -f "$TIMESTAMP_FILE" ]]; then
+     NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+     find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+-        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+-    TAR_PID=$!
++        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME"
+     date +%s > "$TIMESTAMP_FILE"
+-    wait $TAR_PID
+ else
+     # First incremental = full
+     tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+I have no name!@e7af89d0efc8:/home/user$

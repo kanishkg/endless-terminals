@@ -1,0 +1,62 @@
+New Terminal Output:
+
+user@0ea22e051c4f:~/scheduler$ cat > test_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test the timezone conversion fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def convert_to_berlin_old(utc_time_str):
+>     """OLD buggy version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)
+>     return berlin_dt
+>
+> def convert_to_berlin_new(utc_time_str):
+>     """NEW fixed version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+>     return berlin_dt
+>
+> # Test case: March 31, 2024 01:30 UTC (DST transition day)
+> test_time = "2024-03-31T01:30:00"
+>
+> print("Testing DST transition case:")
+> print(f"UTC time: {test_time}")
+> print()
+>
+> old_result = convert_to_berlin_old(test_time)
+> print(f"OLD (buggy) conversion: {old_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> new_result = convert_to_berlin_new(test_time)
+> print(f"NEW (fixed) conversion: {new_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print()
+>
+> # On March 31, 2024, DST starts at 2am (clocks jump to 3am)
+> # So 01:30 UTC should be 03:30 CEST (UTC+2), not 02:30
+> print("Expected: 2024-03-31 03:30:00 CEST+0200")
+> print(f"Got:      {new_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print()
+>
+> if new_result.hour == 3 and new_result.minute == 30:
+>     print("✓ Fix is correct!")
+> else:
+>     print("✗ Fix failed!")
+> EOF
+user@0ea22e051c4f:~/scheduler$ python3 test_fix.py
+Testing DST transition case:
+UTC time: 2024-03-31T01:30:00
+
+OLD (buggy) conversion: 2024-03-31 01:30:00 CET+0100
+NEW (fixed) conversion: 2024-03-31 03:30:00 CEST+0200
+
+Expected: 2024-03-31 03:30:00 CEST+0200
+Got:      2024-03-31 03:30:00 CEST+0200
+
+✓ Fix is correct!
+user@0ea22e051c4f:~/scheduler$

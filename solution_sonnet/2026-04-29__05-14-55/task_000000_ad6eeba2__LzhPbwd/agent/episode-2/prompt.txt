@@ -1,0 +1,157 @@
+New Terminal Output:
+
+user@eb2cbed3b54d:~$ grep -E '\$|"' /home/user/inventory/assets.csv | head -10
+AST-00741,External SSD,SN-GFX-00742,2017-05-24,"$3,779.70",Remote Site
+AST-00794,Whiteboard Digital,SN-EOS-00795,2023-02-26,"$4,646.53",Building C
+AST-00579,USB Hub,SN-ECQ-00580,12/05/2022,"$1,130.87",Building C
+AST-00375,Server Rack,SN-LFR-00376,2018-01-26,"$3,193.18",Storage Room
+AST-00203,Whiteboard Digital,SN-OEZ-00204,08/02/2017,$523.20,Storage Room
+AST-00727,Network Switch,SN-MSV-00728,2016-09-01,$647.35,Storage Room
+AST-00494,Phone VoIP,SN-KER-00495,12/19/2022,"$1,938.42",Office 101
+AST-00191,Webcam HD,SN-BUF-00192,2020-11-21,"$4,965.59",Building C
+AST-00669,Printer LaserJet,SN-PZJ-00670,08/04/2016,"$3,672.11",IT Closet
+AST-00292,SN-PXN-00293,UPS Battery,11/07/2023,"$1,103.23",IT Closet
+user@eb2cbed3b54d:~$ cat > /home/user/inventory/process_assets.py << 'EOF'
+> import csv
+> import json
+> import re
+> from datetime import datetime
+> from collections import defaultdict
+>
+> def parse_date(date_str):
+>     """Parse various date formats to ISO 8601"""
+>     date_str = date_str.strip()
+>
+>     # Try MM/DD/YYYY
+>     try:
+>         dt = datetime.strptime(date_str, '%m/%d/%Y')
+>         return dt.strftime('%Y-%m-%d')
+>     except ValueError:
+>         pass
+>
+>     # Try YYYY-MM-DD (already ISO)
+>     try:
+>         dt = datetime.strptime(date_str, '%Y-%m-%d')
+>         return dt.strftime('%Y-%m-%d')
+>     except ValueError:
+>         pass
+>
+>     # Try DD.MM.YYYY (European)
+>     try:
+>         dt = datetime.strptime(date_str, '%d.%m.%Y')
+>         return dt.strftime('%Y-%m-%d')
+>     except ValueError:
+>         pass
+>
+>     return None
+>
+> def parse_price(price_str):
+>     """Parse price to cents (integer)"""
+>     price_str = str(price_str).strip()
+>
+>     # Remove dollar signs, commas, quotes
+>     price_str = price_str.replace('$', '').replace(',', '').replace('"', '').strip()
+>
+>     try:
+>         # Convert to float first, then to cents
+>         price_float = float(price_str)
+>         price_cents = int(round(price_float * 100))
+>
+>         if price_cents <= 0:
+>             return None
+>
+>         return price_cents
+>     except (ValueError, TypeError):
+>         return None
+>
+> def process_csv():
+>     valid_records = {}
+>     rejected_records = []
+>
+>     with open('/home/user/inventory/assets.csv', 'r', encoding='utf-8') as f:
+>         reader = csv.DictReader(f)
+>
+>         for row_num, row in enumerate(reader, start=2):
+>             original_row = dict(row)
+>             rejection_reasons = []
+>
+>             # Extract and validate fields
+>             asset_id = row.get('id', '').strip()
+>             name = row.get('name', '').strip()
+>             serial = row.get('serial', '').strip()
+>             location = row.get('location', '').strip()
+>
+>             if not asset_id:
+>                 rejected_records.append({
+>                     'original_row': original_row,
+>                     'reason': 'Missing asset ID'
+>                 })
+>                 continue
+>
+>             # Parse date
+>             purchase_date = parse_date(row.get('purchase_date', ''))
+>             if not purchase_date:
+>                 rejection_reasons.append(f"Invalid date format: {row.get('purchase_date', '')}")
+>
+>             # Parse price
+>             price_cents = parse_price(row.get('price', ''))
+>             if price_cents is None:
+>                 rejection_reasons.append(f"Invalid price: {row.get('price', '')}")
+>
+>             # Check for missing required fields
+>             if not name:
+>                 rejection_reasons.append('Missing name')
+>             if not serial:
+>                 rejection_reasons.append('Missing serial')
+>             if not location:
+>                 rejection_reasons.append('Missing location')
+>
+>             # If any validation failed, reject the record
+>             if rejection_reasons:
+>                 rejected_records.append({
+>                     'original_row': original_row,
+>                     'reason': '; '.join(rejection_reasons)
+>                 })
+>                 continue
+>
+>             # Create valid record
+>             record = {
+>                 'id': asset_id,
+>                 'name': name,
+>                 'serial': serial,
+>                 'purchase_date': purchase_date,
+>                 'price_cents': price_cents,
+>                 'location': location
+>             }
+>
+>             # Handle duplicates - keep the one with latest purchase date
+>             if asset_id in valid_records:
+>                 existing_date = valid_records[asset_id]['purchase_date']
+>                 if purchase_date > existing_date:
+>                     valid_records[asset_id] = record
+>             else:
+>                 valid_records[asset_id] = record
+>
+>     # Convert to list
+>     assets_list = list(valid_records.values())
+>
+>     # Write valid records
+>     with open('/home/user/inventory/assets.json', 'w', encoding='utf-8') as f:
+>         json.dump(assets_list, f, indent=2)
+>
+>     # Write rejected records
+>     with open('/home/user/inventory/rejected.json', 'w', encoding='utf-8') as f:
+>         json.dump(rejected_records, f, indent=2)
+>
+>     print(f"Processed {len(assets_list)} valid assets")
+>     print(f"Rejected {len(rejected_records)} records")
+>     print(f"Total input rows: {len(assets_list) + len(rejected_records)}")
+>
+> if __name__ == '__main__':
+>     process_csv()
+> EOF
+user@eb2cbed3b54d:~$ python3 /home/user/inventory/process_assets.py
+Processed 809 valid assets
+Rejected 16 records
+Total input rows: 825
+user@eb2cbed3b54d:~$

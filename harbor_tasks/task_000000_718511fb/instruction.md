@@ -1,0 +1,3 @@
+ETL job on /home/user/etl/sync_to_warehouse.sh started failing last night with "Permission denied (publickey)" when it tries to rsync to the warehouse box. Nothing changed on our end afaict — cron's been running this same script for months. I regenerated the keypair this morning thinking maybe it got corrupted somehow, put the new keys in ~/.ssh/etl_warehouse and updated the config, but still getting the same error.
+
+The script worked fine when I ran it manually back in January, and the warehouse team says they haven't touched anything on their side. Need this unblocked — nightly loads are piling up.

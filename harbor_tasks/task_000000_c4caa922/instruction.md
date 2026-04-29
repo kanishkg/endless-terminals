@@ -1,0 +1,1 @@
+Got a CSV backup at /home/user/backups/users_20240115.csv that I need to convert to JSON for the restore test — just need it as an array of objects at /home/user/restore/users.json. The CSV has headers already so should be straightforward.

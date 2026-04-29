@@ -1,0 +1,63 @@
+New Terminal Output:
+
+MemAvaiuser@0b52afb56a16:~$ cat > /tmp/analyze_memory.sh << 'EOF'
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT="/home/user/low_memory_report.txt"
+>
+> # Temporary file for collecting results
+> TEMP_FILE=$(mktemp)
+>
+> # Loop through all host files
+> for file in /home/user/memstats/host*.txt; do
+>     # Extract hostname from filename
+>     hostname=$(basename "$file" .txt)
+>
+>     # Extract MemTotal and MemAvailable, handle errors gracefully
+>     memtotal=$(grep -E '^MemTotal:' "$file" 2>/dev/null | awk '{print $2}')
+>     memavail=$(grep -E '^MemAvailable:' "$file" 2>/dev/null | awk '{print $2}')
+>
+>     # Check if both values were found and are valid numbers
+>     if [[ -n "$memtotal" && -n "$memavail" && "$memtotal" -gt 0 ]]; then
+>         # Calculate percentage available (using bc for floating point)
+>         percentage=$(echo "scale=2; ($memavail * 100) / $memtotal" | bc)
+>
+>         # Check if less than 20%
+>         is_low=$(echo "$percentage < 20" | bc)
+>         if [[ "$is_low" -eq 1 ]]; then
+>             # Store hostname, percentage, and raw percentage for sorting
+>             echo -e "${percentage}\t${hostname}\t${percentage}" >> "$TEMP_FILE"
+>         fi
+>     fi
+> done
+>
+> # Sort by percentage (ascending = worst first) and output hostname + percentage
+> if [[ -s "$TEMP_FILE" ]]; then
+>     sort -n "$TEMP_FILE" | awk -F'\t' '{printf "%s\t%s\n", $2, $3}' > "$OUTPUT"
+> else
+>     # Create empty file if no hosts meet criteria
+>     touch "$OUTPUT"
+> fi
+>
+> # Cleanup
+> rm -f "$TEMP_FILE"
+> EOF
+user@0b52afb56a16:~$ chmod +x /tmp/analyze_memory.sh
+user@0b52afb56a16:~$ bash /tmp/analyze_memory.sh
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+user@0b52afb56a16:~$ cat /home/user/low_memory_report.txt
+user@0b52afb56a16:~$

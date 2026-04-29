@@ -1,0 +1,118 @@
+[?2004huser@e4779b46f011:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@e4779b46f011:~$ clear
+[?2004l[H[J[?2004huser@e4779b46f011:~$ ls -la /home/user/bin
+[?2004ltotal 8
+drwxrwxrwx 1 user user 4096 Apr 29 07:57 .
+drwxrwxrwx 1 user user 4096 Apr 29 07:58 ..
+[?2004huser@e4779b46f011:~$ cat /home/user/project/.env.defaults
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=false
+API_KEY=default-key-123
+[?2004huser@e4779b46f011:~$ cat /home/user/project/.env.local
+[?2004lDEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@e4779b46f011:~$ cat > /home/user/bin/env-merge.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> if [ $# -ne 2 ]; then
+[?2004l[?2004h>     echo "Usage: $0 <env-file-1> <env-file-2>" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> if [ ! -f "$1" ]; then
+[?2004l[?2004h>     echo "Error: File '$1' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> if [ ! -f "$2" ]; then
+[?2004l[?2004h>     echo "Error: File '$2' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Use awk to merge the files, second file wins on conflicts
+[?2004l[?2004h> awk -F= '
+[?2004l[?2004h> # Skip empty lines and comments
+[?2004l[?2004h> /^[[:space:]]*$/ { next }
+[?2004l[?2004h> /^[[:space:]]*#/ { next }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process key=value lines
+[?2004l[?2004h> /=/ {
+[?2004l[?2004h>     # Extract key (trim whitespace)
+[?2004l[?2004h>     key = $1
+[?2004l[?2004h>     gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Store the entire line with the key
+[?2004l[?2004h>     # FILENAME changes between files, so second file overwrites first
+[?2004l[?2004h>     env[key] = $0
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> END {
+[?2004l[?2004h>     # Output all key=value pairs
+[?2004l[?2004h>     for (key in env) {
+[?2004l[?2004h>         print env[key]
+[?2004l[?2004h>     }
+[?2004l[?2004h> }
+[?2004l[?2004h> ' "$1" "$2" | sort
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@e4779b46f011:~$ chmod +x /home/user/bin/env-merge.sh
+[?2004l[?2004huser@e4779b46f011:~$ cat /home/user/bin/env-merge.sh
+[?2004l#!/bin/bash
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <env-file-1> <env-file-2>" >&2
+    exit 1
+fi
+
+if [ ! -f "$1" ]; then
+    echo "Error: File '$1' not found" >&2
+    exit 1
+fi
+
+if [ ! -f "$2" ]; then
+    echo "Error: File '$2' not found" >&2
+    exit 1
+fi
+
+# Use awk to merge the files, second file wins on conflicts
+awk -F= '
+# Skip empty lines and comments
+/^[[:space:]]*$/ { next }
+/^[[:space:]]*#/ { next }
+
+# Process key=value lines
+/=/ {
+    # Extract key (trim whitespace)
+    key = $1
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+    
+    # Store the entire line with the key
+    # FILENAME changes between files, so second file overwrites first
+    env[key] = $0
+}
+
+END {
+    # Output all key=value pairs
+    for (key in env) {
+        print env[key]
+    }
+}
+' "$1" "$2" | sort
+[?2004huser@e4779b46f011:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /home/user/project/.env.local
+[?2004lAPI_KEY=secret-prod-key-456
+CACHE_TTL=300
+DATABASE_URL=postgres://localhost/dev
+DEBUG=true
+NEW_FEATURE=enabled
+[?2004huser@e4779b46f011:~$ /home/user/bin/env-merge.sh /home/user/project/.env.local /home/user/project/.env.defaults
+[?2004lAPI_KEY=default-key-123
+CACHE_TTL=300
+DATABASE_URL=postgres://localhost/dev
+DEBUG=false
+NEW_FEATURE=enabled
+[?2004huser@e4779b46f011:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /nonexistent
+[?2004lError: File '/nonexistent' not found
+[?2004huser@e4779b46f011:~$ 

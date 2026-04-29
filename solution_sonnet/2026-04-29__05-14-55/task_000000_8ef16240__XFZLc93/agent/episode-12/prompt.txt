@@ -1,0 +1,244 @@
+New Terminal Output:
+
+root@96dd82738e33:/home/user/pipeline# cat > FIXES.md << 'EOF'
+> # Pipeline Checkpoint Resume - Bug Fixes
+>
+> ## Problem
+> The batch job at /home/user/pipeline/run.sh was not resuming correctly after interruptions. The checkpoint file was being created, but on restart the script w
+ould reprocess everything from the beginning.
+>
+> ## Root Causes - Three Critical Bugs
+>
+> ### Bug #1: Semantic Mismatch Between Save and Load
+> **Original Code:**
+> ```python
+> def save_checkpoint(batch_num):
+>     json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))
+> ```
+>
+> **Problem:**
+> - The function saved `batch_num` (number of batches processed) as 'last_line'
+> - With BATCH_SIZE=1000, after processing 5 batches (5000 lines), it saved batch_num=5
+> - On resume, the code would skip only 5 lines instead of 5000 lines
+> - This caused almost complete reprocessing
+>
+> **Fix:** Track and save actual line numbers instead of batch numbers
+>
+> ### Bug #2: Checkpoint Not Flushed to Disk
+> **Original Code:**
+> ```python
+> json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))
+> ```
+>
+> **Problem:**
+> - File opened without context manager
+> - No explicit flush or fsync
+> - If process crashed/killed, buffered data might not be written to disk
+> - Checkpoint file could be empty or incomplete
+>
+> **Fix:** Use context manager with explicit flush and fsync
+>
+> ### Bug #3: INSERT OR REPLACE Loses Data
+> **Original Code:**
+> ```python
+> conn.execute('INSERT OR REPLACE INTO summary VALUES (?, ?, ?)',
+>              (cat, data['total'], data['count']))
+> ```
+>
+> **Problem:**
+> - INSERT OR REPLACE overwrites existing rows completely
+> - On resume, previously aggregated data for each category was replaced, not accumulated
+> - Lost all progress from before the interruption
+>
+> **Fix:** Use INSERT with ON CONFLICT UPDATE to accumulate values
+>
+> ## Solutions Implemented
+>
+> ### Fix #1: Correct Line Number Tracking
+> ```python
+> def process():
+>     # ...
+>     line_num = 0  # Track actual line number
+>     for i, line in enumerate(f):
+>         if i < start_from:
+>             continue
+>         batch.append(json.loads(line))
+>         line_num = i + 1  # Track the line we just processed
+>         if len(batch) >= BATCH_SIZE:
+>             process_batch(conn, batch)
+>             save_checkpoint(line_num)  # Save actual line number
+>             batch = []
+> ```
+>
+> ### Fix #2: Proper File Flushing
+> ```python
+> def save_checkpoint(line_num):
+>     with open('.checkpoint', 'w') as f:
+>         json.dump({'last_line': line_num}, f)
+>         f.flush()  # Ensure data is written to disk
+>         os.fsync(f.fileno())  # Force OS to write to disk
+> ```
+>
+> ### Fix #3: Accumulate Instead of Replace
+> ```python
+> conn.execute('''
+>     INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+>     ON CONFLICT(category) DO UPDATE SET
+>         total_value = total_value + excluded.total_value,
+>         count = count + excluded.count
+> ''', (cat, data['total'], data['count']))
+> ```
+>
+> ### Additional Fix: Commit After Each Batch
+> ```python
+> if len(batch) >= BATCH_SIZE:
+>     process_batch(conn, batch)
+>     conn.commit()  # Commit after each batch
+>     save_checkpoint(line_num)
+>     batch = []
+> ```
+>
+> ## Verification
+>
+> Tested with multiple scenarios:
+>
+> 1. **Single interruption and resume:**
+>    - Interrupted at 45,000 events
+>    - Resumed and completed with exactly 50,000 events total
+>
+> 2. **Multiple interruptions:**
+>    - Interrupt 1: 16,000 events
+>    - Interrupt 2: 33,000 events (accumulated correctly)
+>    - Completion: 50,000 events (no duplication)
+>
+> 3. **Checkpoint at arbitrary position:**
+>    - Set checkpoint to line 10,000
+>    - Processed exactly 40,000 remaining events
+>
+> ## Result
+> ✓ Checkpoint resume now works correctly
+> ✓ No data loss on interruption
+> ✓ No data duplication on resume
+> ✓ Multiple resume cycles work properly
+> EOF
+root@96dd82738e33:/home/user/pipeline# cat FIXES.md
+# Pipeline Checkpoint Resume - Bug Fixes
+
+## Problem
+The batch job at /home/user/pipeline/run.sh was not resuming correctly after interruptions. The checkpoint file was being created, but on restart the script wou
+ld reprocess everything from the beginning.
+
+## Root Causes - Three Critical Bugs
+
+### Bug #1: Semantic Mismatch Between Save and Load
+**Original Code:**
+```python
+def save_checkpoint(batch_num):
+    json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))
+```
+
+**Problem:**
+- The function saved `batch_num` (number of batches processed) as 'last_line'
+- With BATCH_SIZE=1000, after processing 5 batches (5000 lines), it saved batch_num=5
+- On resume, the code would skip only 5 lines instead of 5000 lines
+- This caused almost complete reprocessing
+
+**Fix:** Track and save actual line numbers instead of batch numbers
+
+### Bug #2: Checkpoint Not Flushed to Disk
+**Original Code:**
+```python
+json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))
+```
+
+**Problem:**
+- File opened without context manager
+- No explicit flush or fsync
+- If process crashed/killed, buffered data might not be written to disk
+- Checkpoint file could be empty or incomplete
+
+**Fix:** Use context manager with explicit flush and fsync
+
+### Bug #3: INSERT OR REPLACE Loses Data
+**Original Code:**
+```python
+conn.execute('INSERT OR REPLACE INTO summary VALUES (?, ?, ?)',
+             (cat, data['total'], data['count']))
+```
+
+**Problem:**
+- INSERT OR REPLACE overwrites existing rows completely
+- On resume, previously aggregated data for each category was replaced, not accumulated
+- Lost all progress from before the interruption
+
+**Fix:** Use INSERT with ON CONFLICT UPDATE to accumulate values
+
+## Solutions Implemented
+
+### Fix #1: Correct Line Number Tracking
+```python
+def process():
+    # ...
+    line_num = 0  # Track actual line number
+    for i, line in enumerate(f):
+        if i < start_from:
+            continue
+        batch.append(json.loads(line))
+        line_num = i + 1  # Track the line we just processed
+        if len(batch) >= BATCH_SIZE:
+            process_batch(conn, batch)
+            save_checkpoint(line_num)  # Save actual line number
+            batch = []
+```
+
+### Fix #2: Proper File Flushing
+```python
+def save_checkpoint(line_num):
+    with open('.checkpoint', 'w') as f:
+        json.dump({'last_line': line_num}, f)
+        f.flush()  # Ensure data is written to disk
+        os.fsync(f.fileno())  # Force OS to write to disk
+```
+
+### Fix #3: Accumulate Instead of Replace
+```python
+conn.execute('''
+    INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+    ON CONFLICT(category) DO UPDATE SET
+        total_value = total_value + excluded.total_value,
+        count = count + excluded.count
+''', (cat, data['total'], data['count']))
+```
+
+### Additional Fix: Commit After Each Batch
+```python
+if len(batch) >= BATCH_SIZE:
+    process_batch(conn, batch)
+    conn.commit()  # Commit after each batch
+    save_checkpoint(line_num)
+    batch = []
+```
+
+## Verification
+
+Tested with multiple scenarios:
+
+1. **Single interruption and resume:**
+   - Interrupted at 45,000 events
+   - Resumed and completed with exactly 50,000 events total
+
+2. **Multiple interruptions:**
+   - Interrupt 1: 16,000 events
+   - Interrupt 2: 33,000 events (accumulated correctly)
+   - Completion: 50,000 events (no duplication)
+
+3. **Checkpoint at arbitrary position:**
+   - Set checkpoint to line 10,000
+   - Processed exactly 40,000 remaining events
+
+## Result
+✓ Checkpoint resume now works correctly
+✓ No data loss on interruption
+✓ No data duplication on resume
+✓ Multiple resume cycles work properly
+root@96dd82738e33:/home/user/pipeline#

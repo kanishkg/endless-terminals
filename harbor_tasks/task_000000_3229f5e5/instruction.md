@@ -1,0 +1,1 @@
+Need to pull all the "latency_p99" values from /home/user/metrics/traces.json and sum them — there's like 200 service entries in there. jq is installed, just need a one-liner that spits out the total.

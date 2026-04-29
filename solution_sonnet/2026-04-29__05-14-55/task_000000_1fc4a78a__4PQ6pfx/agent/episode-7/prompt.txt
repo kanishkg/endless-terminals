@@ -1,0 +1,71 @@
+New Terminal Output:
+
+root@efd2c4312528:/home/user/monitoring# cat > check_yaml.py << 'EOF'
+> #!/usr/bin/env python3
+> import sys
+> import yaml
+>
+> def check_duplicate_keys(node, seen=None):
+>     if seen is None:
+>         seen = set()
+>     if isinstance(node, yaml.MappingNode):
+>         for key_node, value_node in node.value:
+>             key = key_node.value
+>             if key in seen:
+>                 raise yaml.constructor.ConstructorError(
+>                     "while constructing a mapping",
+>                     node.start_mark,
+>                     f"found duplicate key: {key}",
+>                     key_node.start_mark
+>                 )
+>             seen.add(key)
+>             check_duplicate_keys(value_node, set())
+>     elif isinstance(node, yaml.SequenceNode):
+>         for item in node.value:
+>             check_duplicate_keys(item, set())
+>
+> for path in sys.argv[1:]:
+>     try:
+>         with open(path) as f:
+>             content = f.read()
+>             node = yaml.compose(content)
+>             if node:
+>                 check_duplicate_keys(node)
+>             yaml.safe_load(content)
+>         print(f"OK: {path}")
+>     except yaml.YAMLError as e:
+>         print(f"ERROR: {path}: {e}")
+>     except Exception as e:
+>         print(f"ERROR: {path}: {e}")
+> EOF
+root@efd2c4312528:/home/user/monitoring# ./validate_alerts.sh
+OK: /home/user/monitoring/alerts/platform/cpu_high.yaml
+OK: /home/user/monitoring/alerts/platform/memory_critical.yaml
+ERROR: /home/user/monitoring/alerts/infra/disk_full.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: disk_full
+    ^
+found duplicate key: threshold
+  in "<unicode string>", line 5, column 1:
+    threshold: 90
+    ^
+OK: /home/user/monitoring/alerts/infra/network_down.yaml
+OK: /home/user/monitoring/alerts/app/latency_spike.yaml
+OK: /home/user/monitoring/alerts/app/queue_depth.yaml
+ERROR: /home/user/monitoring/alerts/app/error_rate.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: error_rate
+    ^
+found duplicate key: severity
+  in "<unicode string>", line 4, column 1:
+    severity: critical
+    ^
+ERROR: /home/user/monitoring/alerts/test_duplicate.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: test
+    ^
+found duplicate key: name
+  in "<unicode string>", line 3, column 1:
+    name: duplicate
+    ^
+root@efd2c4312528:/home/user/monitoring#

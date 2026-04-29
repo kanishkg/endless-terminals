@@ -1,0 +1,74 @@
+New Terminal Output:
+
+root@3aa63b9cbae8:/home/user/netmon# cat > Makefile << 'EOF'
+> .PHONY: report clean check-config
+>
+> # Check if hosts.conf exists before doing anything
+> check-config:
+> @if [ ! -f hosts.conf ]; then \
+>
+aggregate.py  hosts.conf    scripts/
+> echo "ERROR: hosts.conf is missing. Cannot proceed with monitoring checks."; \
+>
+aggregate.py  hosts.conf    scripts/
+> exit 1; \
+> fi
+> @echo "Configuration file hosts.conf found."
+>
+> # Run ping checks
+> results/ping.txt: hosts.conf check-config
+> @echo "Running ping checks..."
+> ./scripts/check_ping.sh
+>
+> # Run port checks
+> results/ports.txt: hosts.conf check-config
+> @echo "Running port checks..."
+> ./scripts/check_ports.sh
+>
+> # Generate the aggregated JSON report
+> results/status.json: results/ping.txt results/ports.txt aggregate.py
+> @echo "Generating aggregated report..."
+> ./aggregate.py
+>
+> # Main target to generate the full report
+> report: results/status.json
+> @echo "Monitoring report complete!"
+>
+> # Clean up generated results
+> clean:
+> rm -rf results
+> EOF
+root@3aa63b9cbae8:/home/user/netmon# cat Makefile
+.PHONY: report clean check-config
+
+# Check if hosts.conf exists before doing anything
+check-config:
+@if [ ! -f hosts.conf ]; then \
+echo "ERROR: hosts.conf is missing. Cannot proceed with monitoring checks."; \
+exit 1; \
+fi
+@echo "Configuration file hosts.conf found."
+
+# Run ping checks
+results/ping.txt: hosts.conf check-config
+@echo "Running ping checks..."
+./scripts/check_ping.sh
+
+# Run port checks
+results/ports.txt: hosts.conf check-config
+@echo "Running port checks..."
+./scripts/check_ports.sh
+
+# Generate the aggregated JSON report
+results/status.json: results/ping.txt results/ports.txt aggregate.py
+@echo "Generating aggregated report..."
+./aggregate.py
+
+# Main target to generate the full report
+report: results/status.json
+@echo "Monitoring report complete!"
+
+# Clean up generated results
+clean:
+rm -rf results
+root@3aa63b9cbae8:/home/user/netmon#

@@ -1,0 +1,5 @@
+Trying to reconstruct some corrupted audit logs in /home/user/audit — we have the original baseline from backup at baseline.log, and someone saved a unified diff at changes.patch that should bring it up to current. Problem is the patch file got partially corrupted during transfer (some context lines got mangled, maybe truncated, idk). `patch` refuses to apply it, says hunks fail.
+
+The weird part: I also have a partial copy of what the final output *should* look like at reference_fragment.txt — it's lines 847-901 of the correct final file, pulled from a separate system before that one went down too. So you've got some ground truth to cross-reference against.
+
+Need you to reconstruct a working patch file at /home/user/audit/fixed.patch that actually applies cleanly to baseline.log and produces output matching that reference fragment in its corresponding line range. The rest of the patched output I can't verify but it shouldn't be garbage — use whatever you can salvage from the original diff to get the other hunks right.

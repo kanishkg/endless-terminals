@@ -1,0 +1,412 @@
+[?2004hroot@a17ca4a7ea85:/# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@a17ca4a7ea85:/# clear
+[?2004l[H[J[?2004hroot@a17ca4a7ea85:/# cd /home/user/admin
+[?2004l[?2004hroot@a17ca4a7ea85:/home/user/admin# ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 29 07:47 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 07:47 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 07:47 [34;42mdata[0m
+-rwxrwxrwx 1 root root 3030 Apr 29 07:47 [01;32mexport_users.sh[0m
+[?2004hroot@a17ca4a7ea85:/home/user/admin# cat export_users.sh
+[?2004l#!/bin/bash
+# export_users.sh - Export user data to CSV format
+# Combines data from multiple source files
+
+DATA_DIR="/home/user/admin/data"
+OUTPUT_FILE="/home/user/admin/export.csv"
+
+# Source files
+USERS_DAT="$DATA_DIR/users.dat"
+EMAILS_DAT="$DATA_DIR/emails.dat"
+GROUPS_DAT="$DATA_DIR/groups.dat"
+MEMBERSHIPS_DAT="$DATA_DIR/memberships.dat"
+
+# Create temporary directory
+TMPDIR=$(mktemp -d)
+trap "rm -rf $TMPDIR" EXIT
+
+# Write header
+echo "username,uid,primary_group,email,shell,supplementary_groups" > "$OUTPUT_FILE"
+
+# Extract and sort user data (sorted alphabetically by username)
+sort -t'|' -k1,1 "$USERS_DAT" > "$TMPDIR/users_sorted.tmp"
+
+# Extract emails - BUG 1: using space delimiter instead of tab
+# emails.dat is tab-delimited but we use cut -d' ' (space)
+cut -d' ' -f1 "$EMAILS_DAT" | sort -n > "$TMPDIR/email_uids.tmp"
+cut -d' ' -f2 "$EMAILS_DAT" | sort -n > "$TMPDIR/emails.tmp"
+
+# BUG 2: Sorting mismatch - users are sorted alphabetically, but we're pasting
+# with emails sorted by UID numerically. The paste will combine wrong lines.
+# We sort users by username but emails by uid, so line N of users doesn't
+# correspond to line N of emails.
+
+# Extract uid from users for joining
+awk -F'|' '{print $2}' "$TMPDIR/users_sorted.tmp" > "$TMPDIR/user_uids.tmp"
+
+# Create email lookup by uid (but this still has the delimiter bug)
+sort -t' ' -k1,1n "$EMAILS_DAT" > "$TMPDIR/emails_sorted.tmp"
+
+# Process each user
+while IFS='|' read -r username uid gid gecos homedir shell; do
+    # Get email for this uid - BUG 1 manifests here: the cut with wrong delimiter
+    # causes the whole "uid<TAB>email" to be treated as field 1
+    email=$(grep "^${uid}" "$TMPDIR/emails_sorted.tmp" | cut -d' ' -f2)
+
+    # If email is empty (because cut -d' ' failed), fall back to the broken paste method
+    if [ -z "$email" ]; then
+        # This creates even more chaos - just use a placeholder
+        email=$(awk -v u="$uid" '$1 == u {print $2}' "$EMAILS_DAT")
+    fi
+
+    # Resolve primary group name - BUG 3: awk uses wrong field separator
+    # groups.dat is colon-delimited but awk defaults to space/tab
+    # so the whole "gid:groupname:description" becomes $1
+    primary_group=$(awk -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT")
+
+    # If group resolution failed, just use the gid
+    if [ -z "$primary_group" ]; then
+        primary_group="$gid"
+    fi
+
+    # Get supplementary groups for this uid
+    supp_gids=$(grep "^${uid} " "$MEMBERSHIPS_DAT" | cut -d' ' -f2-)
+
+    # Resolve supplementary group names - BUG 3 again: wrong FS in awk
+    supp_names=""
+    for sgid in $supp_gids; do
+        gname=$(awk -v g="$sgid" '$1 == g {print $2}' "$GROUPS_DAT")
+        if [ -z "$gname" ]; then
+            gname="$sgid"
+        fi
+        if [ -z "$supp_names" ]; then
+            supp_names="$gname"
+        else
+            supp_names="$supp_names;$gname"
+        fi
+    done
+
+    # Output CSV line
+    echo "$username,$uid,$primary_group,$email,$shell,$supp_names"
+
+done < "$TMPDIR/users_sorted.tmp" >> "$OUTPUT_FILE"
+
+exit 0
+[?2004hroot@a17ca4a7ea85:/home/user/admin# ls -la data/
+[?2004ltotal 100
+drwxrwxrwx 1 root root  4096 Apr 29 07:47 [0m[34;42m.[0m
+drwxrwxrwx 1 root root  4096 Apr 29 07:47 [34;42m..[0m
+-rwxrwxrwx 1 root root 20905 Apr 29 07:47 [01;32memails.dat[0m
+-rwxrwxrwx 1 root root  1584 Apr 29 07:47 [01;32mgroups.dat[0m
+-rwxrwxrwx 1 root root 16090 Apr 29 07:47 [01;32mmemberships.dat[0m
+-rwxrwxrwx 1 root root 47959 Apr 29 07:47 [01;32musers.dat[0m
+[?2004hroot@a17ca4a7ea85:/home/user/admin# head -5 data/users.dat
+[?2004laadams|1482|1001|Sharon Davis|/home/aadams|/bin/sh
+aconner|1042|1001|Evelyn Sullivan|/home/aconner|/bin/bash
+adiaz|1781|1005|Anthony Brooks|/home/adiaz|/bin/bash
+agonzales|1329|1004|Larry Cruz|/home/agonzales|/bin/sh
+ajackson|1210|1001|John Sanchez|/home/ajackson|/bin/bash
+[?2004hroot@a17ca4a7ea85:/home/user/admin# head -5 data/emails.dat
+[?2004l1001	rgomez@corp.local
+1002	sharon45@corp.local
+1003	larryp@corp.local
+1004	wardl@corp.local
+1005	mfisher@corp.local
+[?2004hroot@a17ca4a7ea85:/home/user/admin# head -5 data/groups.dat
+[?2004l1001:engineering:Engineering Department
+1002:sales:Sales Department
+1003:research:Research Department
+1004:hr:Human Resources
+1005:devops:DevOps Team
+[?2004hroot@a17ca4a7ea85:/home/user/admin# head -5 data/memberships.dat
+[?2004l1001 1006 1007 1025 1044
+1002 1010 1028
+1003 1002
+1004 1009 1020 1043 1050
+1005 1008
+[?2004hroot@a17ca4a7ea85:/home/user/admin# cp export_users.sh export_users.sh.backup
+[?2004l[?2004hroot@a17ca4a7ea85:/home/user/admin# cat > export_users.sh << 'EOF'
+[?2004lid" '$1 == u {print $2}' "$TMPDIR/emails_sorted.tmp")
+
+    # If email is empty, use placeholder
+    if [ -z "$email" ]; then
+        email="no-email@corp.local"
+    fi
+
+    # FIX BUG 3: Resolve primary group name using colon delimiter
+    primary_group=$(awk -F: -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT")
+
+    # If group resolution failed, just use the gid
+    if [ -z "$primary_group" ]; then
+        primary_group="$gid"
+    fi
+
+    # Get supplementary groups for this uid
+    supp_gids=$(grep "^${uid} " "$MEMBERSHIPS_DAT" | cut -d' ' -f2-)
+
+    # FIX BUG 3: Resolve supplementary group names using colon delimiter
+    supp_names=""
+    for sgid in $supp_gids; do
+        gname=$(awk -F: -v g="$sgid" '$1 == g {print $2}' "$GROUPS_DAT")
+        if [ -z "$gname" ]; then
+            gname="$sgid"
+        fi
+        if [ -z "$supp_names" ]; then
+            supp_names="$gname"
+        else
+            supp_names="$supp_names;$gname"
+        fi
+    done
+
+    # Output CSV line
+    echo "$username,$uid,$primary_group,$email,$shell,$supp_names"
+
+done < "$TMPDIR/users_sorted.tmp" >> "$OUTPUT_FILE"
+
+exit 0
+EOF
+[?2004h> #!/bin/bash
+[?2004l[?2004h> # export_users.sh - Export user data to CSV format
+[?2004l[?2004h> # Combines data from multiple source files
+[?2004l[?2004h> 
+[?2004l[?2004h> DATA_DIR="/home/user/admin/data"
+[?2004l[?2004h> OUTPUT_FILE="/home/user/admin/export.csv"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Source files
+[?2004l[?2004h> USERS_DAT="$DATA_DIR/users.dat"
+[?2004l[?2004h> EMAILS_DAT="$DATA_DIR/emails.dat"
+[?2004l[?2004h> GROUPS_DAT="$DATA_DIR/groups.dat"
+[?2004l[?2004h> MEMBERSHIPS_DAT="$DATA_DIR/memberships.dat"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Create temporary directory
+[?2004l[?2004h> TMPDIR=$(mktemp -d)
+[?2004l[?2004h> trap "rm -rf $TMPDIR" EXIT
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write header
+[?2004l[?2004h> echo "username,uid,primary_group,email,shell,supplementary_groups" > "$OUTPUT_FILE"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Extract and sort user data (sorted alphabetically by username)
+[?2004l[?2004h> sort -t'|' -k1,1 "$USERS_DAT" > "$TMPDIR/users_sorted.tmp"
+[?2004l[?2004h> 
+[?2004l[?2004h> # FIX BUG 1: Use tab delimiter for emails.dat
+[?2004l[?2004h> # Sort emails by UID to create a lookup
+[?2004l[?2004h> sort -t$'\t' -k1,1n "$EMAILS_DAT" > "$TMPDIR/emails_sorted.tmp"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process each user
+[?2004l[?2004h> while IFS='|' read -r username uid gid gecos homedir shell; do
+[?2004l[?2004h>     # FIX BUG 1 & 2: Get email for this uid using tab delimiter and proper lookup
+[?2004l[?2004h>     email=$(awk -F$'\t' -v u="$uid" '$1 == u {print $2}' "$TMPDIR/emails_sorted.tmp")
+[?2004l[?2004h> 
+[?2004l[?2004h>     # If email is empty, use placeholder
+[?2004l[?2004h>     if [ -z "$email" ]; then
+[?2004l[?2004h>         email="no-email@corp.local"
+[?2004l[?2004h>     fi
+[?2004l[?2004h> 
+[?2004l[?2004h>     # FIX BUG 3: Resolve primary group name using colon delimiter
+[?2004l[?2004h>     primary_group=$(awk -F: -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT")
+[?2004l[?2004h> 
+[?2004l[?2004h>     # If group resolution failed, just use the gid
+[?2004l[?2004h>     if [ -z "$primary_group" ]; then
+[?2004l[?2004h>         primary_group="$gid"
+[?2004l[?2004h>     fi
+[?2004l[?2004h> 
+[?2004l[?2004h>     # Get supplementary groups for this uid
+[?2004l[?2004h>     supp_gids=$(grep "^${uid} " "$MEMBERSHIPS_DAT" | cut -d' ' -f2-)
+[?2004l[?2004h> 
+[?2004l[?2004h>     # FIX BUG 3: Resolve supplementary group names using colon delimiter
+[?2004l[?2004h>     supp_names=""
+[?2004l[?2004h>     for sgid in $supp_gids; do
+[?2004l[?2004h>         gname=$(awk -F: -v g="$sgid" '$1 == g {print $2}' "$GROUPS_DAT")
+[?2004l[?2004h>         if [ -z "$gname" ]; then
+[?2004l[?2004h>             gname="$sgid"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>         if [ -z "$supp_names" ]; then
+[?2004l[?2004h>             supp_names="$gname"
+[?2004l[?2004h>         else
+[?2004l[?2004h>             supp_names="$supp_names;$gname"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     done
+[?2004l[?2004h> 
+[?2004l[?2004h>     # Output CSV line
+[?2004l[?2004h>     echo "$username,$uid,$primary_group,$email,$shell,$supp_names"
+[?2004l[?2004h> 
+[?2004l[?2004h> done < "$TMPDIR/users_sorted.tmp" >> "$OUTPUT_FILE"
+[?2004l[?2004h> 
+[?2004l[?2004h> exit 0
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@a17ca4a7ea85:/home/user/admin# chmod +x export_users.sh
+[?2004l[?2004hroot@a17ca4a7ea85:/home/user/admin# ./export_users.sh
+[?2004lhead -20 export.csv
+head -20 export.csv
+ls -lh export.csv
+head -20 export.csv
+[?2004hroot@a17ca4a7ea85:/home/user/admin# head -20 export.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,engineering,aadams@corp.local,/bin/sh,engineering;analytics;database
+aconner,1042,engineering,aconner@corp.local,/bin/bash,engineering;devops;contractors
+adiaz,1781,devops,adiaz@corp.local,/bin/bash,devops;support;partnerships;automation;localization
+agonzales,1329,hr,agonzales@corp.local,/bin/sh,hr;database;accessibility;api
+ajackson,1210,engineering,ajackson@corp.local,/bin/bash,engineering;executives;backend;localization
+aking,1381,engineering,aking@corp.local,/usr/bin/fish,engineering;integrations
+alex31,1322,marketing,alex31@corp.local,/bin/bash,engineering;marketing;facilities
+alex_castillo,1425,security,alex_castillo@corp.local,/bin/sh,security
+alexr,1048,devops,alexr@corp.local,/bin/bash,devops
+amanda.cooper,1578,security,amanda.cooper@corp.local,/bin/sh,interns;security;accessibility;sdk
+amanda21,1228,marketing,amanda21@corp.local,/bin/bash,marketing;localization
+amanda_taylor,1761,marketing,amanda_taylor@corp.local,/bin/bash,research;marketing;product;customer_success
+amanda_torres,1151,marketing,amanda_torres@corp.local,/bin/bash,marketing;cloud;accessibility
+amanda_williams,1017,sales,amanda_williams@corp.local,/bin/sh,engineering;sales
+amandae,1269,security,amandae@corp.local,/bin/bash,security;platform
+amandaj,1568,security,amandaj@corp.local,/bin/bash,devops;security;analytics
+amelia.allen,1600,support,amelia.allen@corp.local,/bin/bash,support;procurement;frontend
+amelia.miller,1595,research,amelia.miller@corp.local,/bin/bash,engineering;research;security;operations;architecture
+amelia.ortiz,1739,devops,amelia.ortiz@corp.local,/usr/bin/fish,devops;product;innovation
+[?2004hroot@a17ca4a7ea85:/home/user/admin# head -20 export.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,engineering,aadams@corp.local,/bin/sh,engineering;analytics;database
+aconner,1042,engineering,aconner@corp.local,/bin/bash,engineering;devops;contractors
+adiaz,1781,devops,adiaz@corp.local,/bin/bash,devops;support;partnerships;automation;localization
+agonzales,1329,hr,agonzales@corp.local,/bin/sh,hr;database;accessibility;api
+ajackson,1210,engineering,ajackson@corp.local,/bin/bash,engineering;executives;backend;localization
+aking,1381,engineering,aking@corp.local,/usr/bin/fish,engineering;integrations
+alex31,1322,marketing,alex31@corp.local,/bin/bash,engineering;marketing;facilities
+alex_castillo,1425,security,alex_castillo@corp.local,/bin/sh,security
+alexr,1048,devops,alexr@corp.local,/bin/bash,devops
+amanda.cooper,1578,security,amanda.cooper@corp.local,/bin/sh,interns;security;accessibility;sdk
+amanda21,1228,marketing,amanda21@corp.local,/bin/bash,marketing;localization
+amanda_taylor,1761,marketing,amanda_taylor@corp.local,/bin/bash,research;marketing;product;customer_success
+amanda_torres,1151,marketing,amanda_torres@corp.local,/bin/bash,marketing;cloud;accessibility
+amanda_williams,1017,sales,amanda_williams@corp.local,/bin/sh,engineering;sales
+amandae,1269,security,amandae@corp.local,/bin/bash,security;platform
+amandaj,1568,security,amandaj@corp.local,/bin/bash,devops;security;analytics
+amelia.allen,1600,support,amelia.allen@corp.local,/bin/bash,support;procurement;frontend
+amelia.miller,1595,research,amelia.miller@corp.local,/bin/bash,engineering;research;security;operations;architecture
+amelia.ortiz,1739,devops,amelia.ortiz@corp.local,/usr/bin/fish,devops;product;innovation
+[?2004hroot@a17ca4a7ea85:/home/user/admin# ls -lh export.csv
+[?2004l-rw-r--r-- 1 root root 64K Apr 29 07:49 export.csv
+[?2004hroot@a17ca4a7ea85:/home/user/admin# head -20 export.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,engineering,aadams@corp.local,/bin/sh,engineering;analytics;database
+aconner,1042,engineering,aconner@corp.local,/bin/bash,engineering;devops;contractors
+adiaz,1781,devops,adiaz@corp.local,/bin/bash,devops;support;partnerships;automation;localization
+agonzales,1329,hr,agonzales@corp.local,/bin/sh,hr;database;accessibility;api
+ajackson,1210,engineering,ajackson@corp.local,/bin/bash,engineering;executives;backend;localization
+aking,1381,engineering,aking@corp.local,/usr/bin/fish,engineering;integrations
+alex31,1322,marketing,alex31@corp.local,/bin/bash,engineering;marketing;facilities
+alex_castillo,1425,security,alex_castillo@corp.local,/bin/sh,security
+alexr,1048,devops,alexr@corp.local,/bin/bash,devops
+amanda.cooper,1578,security,amanda.cooper@corp.local,/bin/sh,interns;security;accessibility;sdk
+amanda21,1228,marketing,amanda21@corp.local,/bin/bash,marketing;localization
+amanda_taylor,1761,marketing,amanda_taylor@corp.local,/bin/bash,research;marketing;product;customer_success
+amanda_torres,1151,marketing,amanda_torres@corp.local,/bin/bash,marketing;cloud;accessibility
+amanda_williams,1017,sales,amanda_williams@corp.local,/bin/sh,engineering;sales
+amandae,1269,security,amandae@corp.local,/bin/bash,security;platform
+amandaj,1568,security,amandaj@corp.local,/bin/bash,devops;security;analytics
+amelia.allen,1600,support,amelia.allen@corp.local,/bin/bash,support;procurement;frontend
+amelia.miller,1595,research,amelia.miller@corp.local,/bin/bash,engineering;research;security;operations;architecture
+amelia.ortiz,1739,devops,amelia.ortiz@corp.local,/usr/bin/fish,devops;product;innovation
+[?2004hroot@a17ca4a7ea85:/home/user/admin# pwd
+[?2004l/home/user/admin
+[?2004hroot@a17ca4a7ea85:/home/user/admin# wc -l export.csv
+[?2004l801 export.csv
+[?2004hroot@a17ca4a7ea85:/home/user/admin# tail -20 export.csv
+[?2004lwhited,1545,sales,whited@corp.local,/bin/bash,sales;documentation;architecture
+william.collins,1372,interns,william.collins@corp.local,/bin/zsh,interns;partnerships
+william20,1637,research,william20@corp.local,/bin/zsh,research
+william77,1691,devops,william77@corp.local,/bin/bash,devops;facilities;frontend
+william_conner,1680,security,william_conner@corp.local,/usr/bin/fish,security;strategy;infrastructure;web
+william_russell,1166,research,william_russell@corp.local,/bin/bash,research;automation;documentation
+williamb,1179,finance,williamb@corp.local,/bin/bash,finance;marketing;data_science;tools
+williamsr,1720,sales,williamsr@corp.local,/bin/bash,sales;executives;localization
+williamss,1613,hr,williamss@corp.local,/usr/bin/fish,hr;marketing;data_science;accessibility
+wilsonc,1534,finance,wilsonc@corp.local,/bin/bash,finance
+wilsond,1172,hr,wilsond@corp.local,/bin/bash,hr;qa;product;mobile;architecture
+wkelly,1046,devops,wkelly@corp.local,/bin/bash,devops;backend
+wnguyen,1116,marketing,wnguyen@corp.local,/bin/bash,finance;marketing;database;accessibility;performance
+woodb,1556,finance,woodb@corp.local,/bin/bash,finance;data_science;mobile
+woods,1623,finance,woods@corp.local,/bin/bash,finance
+woodt,1589,devops,woodt@corp.local,/bin/tcsh,devops;support;legal;procurement
+yangg,1352,support,yangg@corp.local,/bin/zsh,support;design;database
+yangm,1043,devops,yangm@corp.local,/bin/bash,hr;devops;training;automation
+youngm,1246,interns,youngm@corp.local,/bin/zsh,research;devops;marketing;interns;frontend
+zyang,1799,research,zyang@corp.local,/bin/zsh,research;interns
+[?2004hroot@a17ca4a7ea85:/home/user/admin# cat > FIXES_APPLIED.txt << 'EOF'
+[?2004l[?2004h> EXPORT SCRIPT FIXES - Applied on $(date)
+[?2004l[?2004h> 
+[?2004l[?2004h> Problem: export_users.sh was producing garbled CSV output with:
+[?2004l[?2004h> - Emails appearing in wrong columns
+[?2004l[?2004h> - Group memberships showing as UIDs instead of names
+[?2004l[?2004h> - Data misalignment across fields
+[?2004l[?2004h> 
+[?2004l[?2004h> Root Causes Identified:
+[?2004l[?2004h> 1. BUG 1: emails.dat is tab-delimited but script used space delimiter
+[?2004l[?2004h> 2. BUG 2: Users sorted alphabetically but emails sorted by UID numerically, causing line misalignment
+[?2004l[?2004h> 3. BUG 3: groups.dat is colon-delimited but awk used default space/tab separator
+[?2004l[?2004h> 
+[?2004l[?2004h> Fixes Applied:
+[?2004l[?2004h> 1. Changed email parsing to use tab delimiter: awk -F$'\t'
+[?2004l[?2004h> 2. Changed email lookup to use UID-based matching instead of line-based paste
+[?2004l[?2004h> 3. Added -F: flag to all awk commands parsing groups.dat
+[?2004l[?2004h> 
+[?2004l[?2004h> Results:
+[?2004l[?2004h> - Clean CSV output with 800 users (801 lines including header)
+[?2004l[?2004h> - All fields in correct columns
+[?2004l[?2004h> - Group names properly resolved from GIDs
+[?2004l[?2004h> - Emails correctly matched to users by UID
+[?2004l[?2004h> 
+[?2004l[?2004h> Backup: Original script saved as export_users.sh.backup
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@a17ca4a7ea85:/home/user/admin# cat FIXES_APPLIED.txt
+[?2004lEXPORT SCRIPT FIXES - Applied on $(date)
+
+Problem: export_users.sh was producing garbled CSV output with:
+- Emails appearing in wrong columns
+- Group memberships showing as UIDs instead of names
+- Data misalignment across fields
+
+Root Causes Identified:
+1. BUG 1: emails.dat is tab-delimited but script used space delimiter
+2. BUG 2: Users sorted alphabetically but emails sorted by UID numerically, causing line misalignment
+3. BUG 3: groups.dat is colon-delimited but awk used default space/tab separator
+
+Fixes Applied:
+1. Changed email parsing to use tab delimiter: awk -F$'\t'
+2. Changed email lookup to use UID-based matching instead of line-based paste
+3. Added -F: flag to all awk commands parsing groups.dat
+
+Results:
+- Clean CSV output with 800 users (801 lines including header)
+- All fields in correct columns
+- Group names properly resolved from GIDs
+- Emails correctly matched to users by UID
+
+Backup: Original script saved as export_users.sh.backup
+[?2004hroot@a17ca4a7ea85:/home/user/admin# sed -n '400,410p' export.csv
+[?2004lkatherine49,1180,research,katherine49@corp.local,/bin/bash,research;partnerships
+katherine53,1161,research,katherine53@corp.local,/bin/bash,research;contractors;mobile
+katherine86,1673,engineering,katherine86@corp.local,/bin/bash,engineering;contractors;training;networking;integrations
+katherine_davis,1617,support,katherine_davis@corp.local,/usr/bin/fish,support;executives
+katherine_wood,1690,marketing,katherine_wood@corp.local,/bin/zsh,marketing;contractors
+kathleen36,1268,support,kathleen36@corp.local,/bin/zsh,interns;support
+kathleen_kim,1498,engineering,kathleen_kim@corp.local,/bin/bash,engineering
+kathleenf,1402,research,kathleenf@corp.local,/bin/bash,research;support;automation
+kathleenl,1245,support,kathleenl@corp.local,/bin/bash,support;executives;analytics;communications
+kathleenm,1744,finance,kathleenm@corp.local,/bin/zsh,finance;cloud
+kbarnes,1499,support,kbarnes@corp.local,/bin/bash,support
+[?2004hroot@a17ca4a7ea85:/home/user/admin# echo ''
+[?2004l
+[?2004hroot@a17ca4a7ea85:/home/user/admin# echo '=== VERIFICATION COMPLETE ==='
+[?2004l=== VERIFICATION COMPLETE ===
+[?2004hroot@a17ca4a7ea85:/home/user/admin# echo 'Export script fixed and tested successfully'
+[?2004lExport script fixed and tested successfully
+[?2004hroot@a17ca4a7ea85:/home/user/admin# echo 'Total users exported: 800'
+[?2004lTotal users exported: 800
+[?2004hroot@a17ca4a7ea85:/home/user/admin# echo 'Output file: /home/user/admin/export.csv'
+[?2004lOutput file: /home/user/admin/export.csv
+[?2004hroot@a17ca4a7ea85:/home/user/admin# echo 'Backup of original: /home/user/admin/export_users.sh.backup'
+[?2004lBackup of original: /home/user/admin/export_users.sh.backup
+[?2004hroot@a17ca4a7ea85:/home/user/admin# echo ''
+[?2004l
+[?2004hroot@a17ca4a7ea85:/home/user/admin# 

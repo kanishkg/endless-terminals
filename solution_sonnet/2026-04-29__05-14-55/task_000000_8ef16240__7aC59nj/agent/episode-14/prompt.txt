@@ -1,0 +1,132 @@
+Current terminal state:
+New Terminal Output:
+
+root@dec9d73d5a11:/home/user/pipeline# cat > FIX_SUMMARY.md << 'EOF'
+> # Pipeline Checkpoint Resume Fix - Summary
+>
+> ## Bugs Found
+>
+> ### 1. **Critical: Checkpoint saved batch_num but treated as line number on resume**
+>    - **Problem**: The script saved `batch_num` (number of batches processed) as 'last_line' in checkpoint
+>    - **Impact**: If 5 batches (5,000 records) were processed, only 5 lines were skipped on resume!
+>    - **Example**: Process 10,000 records (10 batches) → checkpoint saves 10 → resume skips only 10 records → reprocesses 9,990 records
+>
+> ### 2. **Critical: INSERT OR REPLACE overwrote data instead of accumulating**
+>    - **Problem**: Used `INSERT OR REPLACE` which completely replaces existing rows
+>    - **Impact**: On resume, previously aggregated totals were overwritten instead of accumulated
+>    - **Result**: Final totals were incorrect, only reflecting the last run's data
+>
+> ### 3. **Minor: Checkpoint file not properly flushed**
+>    - **Problem**: Checkpoint file opened without context manager, no explicit flush/fsync
+>    - **Impact**: Could lose checkpoint data if process killed before OS flushes buffer
+>
+> ## Fixes Applied
+>
+> ### Fix 1: Track and save actual line number (records_processed)
+> ```python
+> # BEFORE:
+> def save_checkpoint(batch_num):
+>     json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))
+>
+> # AFTER:
+> def save_checkpoint(records_processed):
+>     with open('.checkpoint', 'w') as f:
+>         json.dump({'records_processed': records_processed}, f)
+>         f.flush()
+>         os.fsync(f.fileno())
+> ```
+>
+> ### Fix 2: Use INSERT ... ON CONFLICT DO UPDATE to accumulate values
+> ```python
+> # BEFORE:
+> conn.execute('INSERT OR REPLACE INTO summary VALUES (?, ?, ?)',
+>              (cat, data['total'], data['count']))
+>
+> # AFTER:
+> conn.execute('''
+>     INSERT INTO summary (category, total_value, count)
+>     VALUES (?, ?, ?)
+>     ON CONFLICT(category) DO UPDATE SET
+>         total_value = total_value + excluded.total_value,
+>         count = count + excluded.count
+> ''', (cat, data['total'], data['count']))
+> ```
+>
+> ### Fix 3: Track records_processed correctly in the loop
+> ```python
+> # BEFORE:
+> batch_num = 0
+> for i, line in enumerate(f):
+>     if i < start_from:
+>         continue
+>     # ... process ...
+>     if len(batch) >= BATCH_SIZE:
+>         process_batch(conn, batch)
+>         batch_num += 1
+>         save_checkpoint(batch_num)  # Wrong: saves batch count!
+>
+> # AFTER:
+> records_processed = 0
+> for i, line in enumerate(f):
+>     if i < start_from:
+>         continue
+>     batch.append(json.loads(line))
+>     records_processed = i + 1  # Track actual line number
+>     if len(batch) >= BATCH_SIZE:
+>         process_batch(conn, batch)
+>         conn.commit()
+>         save_checkpoint(records_processed)  # Correct: saves line number!
+> ```
+>
+> ## Test Results
+>
+> ### Test 1: Full run baseline
+> - Processed all 50,000 records
+> - 10 categories with complete aggregations
+> - Established baseline totals
+>
+> ### Test 2: Interrupted + Resume
+> - Processed first 10,000 records
+> - Saved checkpoint at record 10,000
+> - Resumed and processed remaining 40,000 records
+> - **Result**: ✓ Final totals match baseline exactly
+> - **Result**: ✓ No data loss or duplication
+> - **Result**: ✓ All 50,000 records processed exactly once
+>
+> ## Verification
+>
+> All categories matched perfectly:
+> - analytics: 248959.21 total, 4927 count ✓
+> - api: 251488.65 total, 5035 count ✓
+> - auth: 251326.43 total, 5135 count ✓
+> - batch: 242631.82 total, 4917 count ✓
+> - mobile: 248945.74 total, 5052 count ✓
+> - notification: 254350.03 total, 5018 count ✓
+> - payment: 253254.75 total, 5040 count ✓
+> - storage: 250770.39 total, 5006 count ✓
+> - streaming: 246780.19 total, 4962 count ✓
+> - web: 246301.66 total, 4908 count ✓
+>
+> ## Conclusion
+>
+> The checkpoint resume functionality now works correctly. The script can be interrupted at any point and will resume from exactly where it left off, without re
+processing data or losing any records.
+> EOF
+root@dec9d73d5a11:/home/user/pipeline# echo "\n=== FIX COMPLETE ==="
+\n=== FIX COMPLETE ===
+root@dec9d73d5a11:/home/user/pipeline# echo "The pipeline resume functionality has been fixed!"
+The pipeline resume functionality has been fixed!
+root@dec9d73d5a11:/home/user/pipeline# echo "\nKey changes made to process.py:"
+\nKey changes made to process.py:
+root@dec9d73d5a11:/home/user/pipeline# echo "1. Save actual line number (records_processed) instead of batch number"
+1. Save actual line number (records_processed) instead of batch number
+root@dec9d73d5a11:/home/user/pipeline# echo "2. Use INSERT ON CONFLICT UPDATE to accumulate values on resume"
+2. Use INSERT ON CONFLICT UPDATE to accumulate values on resume
+root@dec9d73d5a11:/home/user/pipeline# echo "3. Properly flush checkpoint file with fsync"
+3. Properly flush checkpoint file with fsync
+root@dec9d73d5a11:/home/user/pipeline# echo "\nSee FIX_SUMMARY.md for detailed explanation."
+\nSee FIX_SUMMARY.md for detailed explanation.
+root@dec9d73d5a11:/home/user/pipeline#
+
+
+Are you sure you want to mark the task as complete? This will trigger your solution to be graded and you won't be able to make any further corrections. If so, include "task_complete": true in your JSON response again.

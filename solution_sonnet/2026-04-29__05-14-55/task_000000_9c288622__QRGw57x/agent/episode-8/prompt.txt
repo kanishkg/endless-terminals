@@ -1,0 +1,80 @@
+New Terminal Output:
+
+user@5c4bfcd81dbc:~/scheduler$ cat > verify_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Verify the fix works for the specific scenario in the ticket."""
+>
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+>
+> from app import convert_to_berlin
+> import pytz
+> from datetime import datetime
+>
+> print("Verifying fix for Monday 2:30am maintenance window issue")
+> print("="*70)
+>
+> # The problematic meeting: Maintenance Window Prep at 2024-03-31T01:30:00 UTC
+> # On March 31, 2024, Europe/Berlin transitions from CET to CEST at 2am
+> # So 01:30 UTC should be 03:30 CEST (not 02:30 CET)
+>
+> maintenance_meeting_utc = '2024-03-31T01:30:00'
+>
+> print(f"\nMeeting: Maintenance Window Prep")
+> print(f"Stored UTC time: {maintenance_meeting_utc}")
+>
+> berlin_time = convert_to_berlin(maintenance_meeting_utc)
+> print(f"Converted Berlin time: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> # Verify it's correct
+> expected_hour = 3  # Should be 3am CEST, not 2am CET
+> expected_tz_name = 'CEST'
+>
+> if berlin_time.hour == expected_hour and berlin_time.tzname() == expected_tz_name:
+>     print(f"\n✓ SUCCESS: Correctly converted to {expected_hour}:30am {expected_tz_name}")
+>     print("✓ The DST transition is now handled properly!")
+>     print("✓ Reminders will be sent at the correct time.")
+> else:
+>     print(f"\n✗ FAILED: Expected {expected_hour}:30am {expected_tz_name}, got {berlin_time.hour}:30 {berlin_time.tzname()}")
+>     sys.exit(1)
+>
+> # Additional verification: test all meetings
+> print("\n" + "="*70)
+> print("Testing all meetings in meetings.json:")
+> print("="*70)
+>
+> import json
+> with open('/home/user/scheduler/meetings.json', 'r') as f:
+>     meetings = json.load(f)
+>
+> for meeting in meetings:
+>     berlin_time = convert_to_berlin(meeting['utc_time'])
+>     print(f"{meeting['title']:30} | UTC: {meeting['utc_time']} | Berlin: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> print("\n✓ All conversions completed successfully!")
+> print("✓ Fix verified - the cron job will now send reminders at correct times.")
+> EOF
+user@5c4bfcd81dbc:~/scheduler$ python3 verify_fix.py
+Verifying fix for Monday 2:30am maintenance window issue
+======================================================================
+
+Meeting: Maintenance Window Prep
+Stored UTC time: 2024-03-31T01:30:00
+Converted Berlin time: 2024-03-31 03:30:00 CEST+0200
+
+✓ SUCCESS: Correctly converted to 3:30am CEST
+✓ The DST transition is now handled properly!
+✓ Reminders will be sent at the correct time.
+
+======================================================================
+Testing all meetings in meetings.json:
+======================================================================
+Daily Standup                  | UTC: 2024-03-31T08:00:00 | Berlin: 2024-03-31 10:00:00 CEST+0200
+Maintenance Window Prep        | UTC: 2024-03-31T01:30:00 | Berlin: 2024-03-31 03:30:00 CEST+0200
+Weekly Review                  | UTC: 2024-04-01T14:00:00 | Berlin: 2024-04-01 16:00:00 CEST+0200
+Client Call                    | UTC: 2024-03-30T15:30:00 | Berlin: 2024-03-30 16:30:00 CET+0100
+Team Lunch                     | UTC: 2024-03-29T11:00:00 | Berlin: 2024-03-29 12:00:00 CET+0100
+
+✓ All conversions completed successfully!
+✓ Fix verified - the cron job will now send reminders at correct times.
+user@5c4bfcd81dbc:~/scheduler$

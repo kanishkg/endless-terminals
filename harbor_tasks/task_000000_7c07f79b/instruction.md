@@ -1,0 +1,1 @@
+Our CPLEX config at /home/user/optim/cplex.prm has the wrong MIP gap tolerance — it's set to 0.01 but we need 0.001 for the quarterly runs. Just update that one param, the key is CPXPARAM_MIP_Tolerances_MIPGap.

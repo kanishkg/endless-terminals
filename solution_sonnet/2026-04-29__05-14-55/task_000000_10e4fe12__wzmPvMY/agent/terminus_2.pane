@@ -1,0 +1,176 @@
+[?2004huser@e3d80ac1843d:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@e3d80ac1843d:~$ clear
+[?2004l[H[J[?2004huser@e3d80ac1843d:~$ ls -la /home/user/
+[?2004ltotal 36
+drwxrwxrwx 1 user user 4096 Apr 29 06:42 [0m[34;42m.[0m
+drwxr-xr-x 1 root root 4096 Apr 29 06:42 [01;34m..[0m
+-rw-r--r-- 1 user user  220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 user user 3771 Jan  6  2022 .bashrc
+drwxr-xr-x 3 user user 4096 Apr 29 06:42 [01;34m.config[0m
+-rw-r--r-- 1 user user  807 Jan  6  2022 .profile
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 [01;34mbackups[0m
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 [01;34mprojects[0m
+[?2004huser@e3d80ac1843d:~$ ls -la /home/user/projects 2>&1 | head -20
+[?2004ltotal 24
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 .
+drwxrwxrwx 1 user user 4096 Apr 29 06:42 ..
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 alpha
+drwx--x--x 1 user user 4096 Apr 29 06:42 beta
+drwx------ 1 root root 4096 Apr 29 06:42 delta
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 gamma
+[?2004huser@e3d80ac1843d:~$ find /home/user/projects -type f 2>&1 | head -20
+[?2004l/home/user/projects/beta/notes.txt
+/home/user/projects/beta/data.csv
+/home/user/projects/alpha/secret.key
+/home/user/projects/alpha/config.json
+/home/user/projects/gamma/subdir/deep.txt
+/home/user/projects/gamma/locked.dat
+/home/user/projects/gamma/readable.md
+find: ‘/home/user/projects/delta’: Permission denied
+[?2004huser@e3d80ac1843d:~$ find /home/user/projects -type f -readable 2>/dev/null
+[?2004l/home/user/projects/beta/notes.txt
+/home/user/projects/beta/data.csv
+/home/user/projects/alpha/config.json
+/home/user/projects/gamma/subdir/deep.txt
+/home/user/projects/gamma/readable.md
+[?2004huser@e3d80ac1843d:~$ stat -c '%U:%G %n' /home/user/projects/alpha/config.json 2>/dev/null
+[?2004luser:user /home/user/projects/alpha/config.json
+[?2004huser@e3d80ac1843d:~$ cat > /home/user/backup.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Backup script that handles permission issues gracefully
+[?2004l[?2004h> 
+[?2004l[?2004h> SOURCE_DIR="/home/user/projects"
+[?2004l[?2004h> BACKUP_DIR="/home/user/backups"
+[?2004l[?2004h> MANIFEST="${BACKUP_DIR}/manifest.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clear/create manifest
+[?2004l[?2004h> > "$MANIFEST"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find all readable files and process them
+[?2004l[?2004h> find "$SOURCE_DIR" -type f -readable 2>/dev/null | while read -r file; do
+[?2004l[?2004h>     # Get the relative path from source directory
+[?2004l[?2004h>     rel_path="${file#$SOURCE_DIR/}"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Get ownership info
+[?2004l[?2004h>     owner_info=$(stat -c '%U:%G' "$file" 2>/dev/null)
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [ -n "$owner_info" ]; then
+[?2004l[?2004h>         # Create destination directory structure
+[?2004l[?2004h>         dest_file="${BACKUP_DIR}/${rel_path}"
+[?2004l[?2004h>         dest_dir=$(dirname "$dest_file")
+[?2004l[?2004h>         
+[?2004l[?2004h>         mkdir -p "$dest_dir" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Copy the file
+[?2004l[?2004h>         if cp "$file" "$dest_file" 2>/dev/null; then
+[?2004l[?2004h>             # Log to manifest
+[?2004l[?2004h>             echo "${rel_path} ${owner_info}" >> "$MANIFEST"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Backup complete. Manifest written to $MANIFEST"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@e3d80ac1843d:~$ chmod +x /home/user/backup.sh
+[?2004l[?2004huser@e3d80ac1843d:~$ cat /home/user/backup.sh
+[?2004l#!/bin/bash
+
+# Backup script that handles permission issues gracefully
+
+SOURCE_DIR="/home/user/projects"
+BACKUP_DIR="/home/user/backups"
+MANIFEST="${BACKUP_DIR}/manifest.txt"
+
+# Clear/create manifest
+> "$MANIFEST"
+
+# Find all readable files and process them
+find "$SOURCE_DIR" -type f -readable 2>/dev/null | while read -r file; do
+    # Get the relative path from source directory
+    rel_path="${file#$SOURCE_DIR/}"
+    
+    # Get ownership info
+    owner_info=$(stat -c '%U:%G' "$file" 2>/dev/null)
+    
+    if [ -n "$owner_info" ]; then
+        # Create destination directory structure
+        dest_file="${BACKUP_DIR}/${rel_path}"
+        dest_dir=$(dirname "$dest_file")
+        
+        mkdir -p "$dest_dir" 2>/dev/null
+        
+        # Copy the file
+        if cp "$file" "$dest_file" 2>/dev/null; then
+            # Log to manifest
+            echo "${rel_path} ${owner_info}" >> "$MANIFEST"
+        fi
+    fi
+done
+
+echo "Backup complete. Manifest written to $MANIFEST"
+[?2004huser@e3d80ac1843d:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest written to /home/user/backups/manifest.txt
+[?2004huser@e3d80ac1843d:~$ ls -la /home/user/backups/
+[?2004ltotal 28
+drwxr-xr-x 1 user user 4096 Apr 29 06:43 [0m[01;34m.[0m
+drwxrwxrwx 1 user user 4096 Apr 29 06:43 [34;42m..[0m
+drwxr-xr-x 2 user user 4096 Apr 29 06:43 [01;34malpha[0m
+drwxr-xr-x 2 user user 4096 Apr 29 06:43 [01;34mbeta[0m
+drwxr-xr-x 3 user user 4096 Apr 29 06:43 [01;34mgamma[0m
+-rw-r--r-- 1 user user  137 Apr 29 06:43 manifest.txt
+[?2004huser@e3d80ac1843d:~$ find /home/user/backups -type f | sort
+[?2004l/home/user/backups/alpha/config.json
+/home/user/backups/beta/data.csv
+/home/user/backups/beta/notes.txt
+/home/user/backups/gamma/readable.md
+/home/user/backups/gamma/subdir/deep.txt
+/home/user/backups/manifest.txt
+[?2004huser@e3d80ac1843d:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@e3d80ac1843d:~$ cat /home/user/backups/alpha/config.json
+[?2004lalpha config[?2004huser@e3d80ac1843d:~$ cat /home/user/projects/alpha/config.json
+[?2004lalpha config[?2004huser@e3d80ac1843d:~$ ls -la /home/user/projects/alpha/
+[?2004ltotal 16
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 [0m[01;34m.[0m
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 [01;34m..[0m
+-rw-r--r-- 1 user user   12 Apr 29 06:42 config.json
+-rw------- 1 root root   12 Apr 29 06:42 secret.key
+[?2004huser@e3d80ac1843d:~$ ls -la /home/user/projects/gamma/
+[?2004ltotal 20
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 [0m[01;34m.[0m
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 [01;34m..[0m
+-rw------- 1 root root   12 Apr 29 06:42 locked.dat
+-rw-r--r-- 1 user user   12 Apr 29 06:42 readable.md
+drwxr-xr-x 1 user user 4096 Apr 29 06:42 [01;34msubdir[0m
+[?2004huser@e3d80ac1843d:~$ test -f /home/user/backups/alpha/secret.key && echo "secret.key was copied" || echo "secret.key was correctly skipped"
+[?2004lsecret.key was correctly skipped
+[?2004huser@e3d80ac1843d:~$ test -d /home/user/backups/delta && echo "delta was copied" || echo "delta was correctly skipped"
+[?2004ldelta was correctly skipped
+[?2004huser@e3d80ac1843d:~$ echo "\nRunning backup script again to test idempotency..."
+[?2004l\nRunning backup script again to test idempotency...
+[?2004huser@e3d80ac1843d:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest written to /home/user/backups/manifest.txt
+[?2004huser@e3d80ac1843d:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@e3d80ac1843d:~$ ls -la /home/user/backup.sh
+[?2004l-rwxr-xr-x 1 user user 981 Apr 29 06:43 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@e3d80ac1843d:~$ echo "=== Summary ==="
+[?2004l=== Summary ===
+[?2004huser@e3d80ac1843d:~$ echo "Backup script: /home/user/backup.sh"
+[?2004lBackup script: /home/user/backup.sh
+[?2004huser@e3d80ac1843d:~$ echo "Files backed up: $(grep -c '' /home/user/backups/manifest.txt)"
+[?2004lFiles backed up: 5
+[?2004huser@e3d80ac1843d:~$ echo "Manifest location: /home/user/backups/manifest.txt"
+[?2004lManifest location: /home/user/backups/manifest.txt
+[?2004huser@e3d80ac1843d:~$ 

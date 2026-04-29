@@ -1,0 +1,3 @@
+Prod deploy for /home/user/mlservice keeps failing with "No module named 'tokenizers'" even though it's definitely in requirements.txt and pip install -r requirements.txt exits 0. Weirdest part is the import works fine if I just do `python -c "import tokenizers"` right after the install, but then running the actual service with `python -m mlservice` blows up on the same import. Been staring at this for an hour, feels like I'm losing my mind. The venv is at /home/user/mlservice/.venv, nothing fancy.
+
+Need it actually importing tokenizers when the service starts. Don't mess with the actual service code if you can help it — it's been reviewed and frozen for this release.

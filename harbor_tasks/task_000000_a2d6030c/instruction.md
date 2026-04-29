@@ -1,0 +1,3 @@
+Changelog generator at /home/user/releaser is refusing to bump past 2.9.x — been stuck there for two weeks. Every time I merge something that should trigger 3.0.0 (breaking changes, `!` in commit messages, the works), it just outputs 2.10.0 instead. Thought maybe it was the commit parser but `parse_commits.py` looks fine, and the version comparison stuff in `semver.py` passes its own unit tests. The weird part is if I manually set current version to 2.99.0 it'll happily go to 2.100.0, so it's not like it can't increment past single digits?
+
+Config's in `releaser.yaml`, commits are in a git repo at `/home/user/releaser/project`. Just need `python release.py` to correctly output 3.0.0 when there's a breaking change after 2.9.x.

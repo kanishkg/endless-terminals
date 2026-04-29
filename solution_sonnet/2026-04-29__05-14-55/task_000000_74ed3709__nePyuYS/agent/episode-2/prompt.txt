@@ -1,0 +1,40 @@
+New Terminal Output:
+
+root@d39faa6aada8:~/scraper# cat scrape.py
+#!/usr/bin/env python3
+import asyncio
+import json
+import os
+from pyppeteer import launch
+
+async def scrape_prices():
+    browser = await launch(
+        headless=False,
+        args=['--no-sandbox']
+    )
+
+    page = await browser.newPage()
+    await page.goto('http://localhost:8080/products')
+
+    await page.waitForSelector('.product', timeout=5000)
+
+    products = await page.evaluate('''() => {
+        const items = document.querySelectorAll('.product');
+        return Array.from(items).map(item => ({
+            name: item.querySelector('.name').textContent,
+            price: item.querySelector('.price').textContent
+        }));
+    }''')
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.join(script_dir, 'prices.json')
+
+    with open(output_path, 'w') as f:
+        json.dump(products, f, indent=2)
+
+    await browser.close()
+    print(f"Scraped {len(products)} products to {output_path}")
+
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(scrape_prices())
+root@d39faa6aada8:~/scraper#

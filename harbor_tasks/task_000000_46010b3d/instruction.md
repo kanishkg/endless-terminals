@@ -1,0 +1,3 @@
+CPLEX is throwing CPXERR_NO_MEMORY on a scheduling MIP at /home/user/solver/dispatch.lp that used to solve fine — same hardware, same CPLEX 22.1.1, model hasn't changed. Started after ops upgraded some packages last week but nobody remembers which. The weird part is free -m shows 28GB available and the model's only like 50k constraints — should fit easily. Log at /home/user/solver/cplex.log just says "out of memory" during presolve, nothing useful before it.
+
+Tried setting workmem to 4096 explicitly, no dice. There's a wrapper script at /home/user/solver/run_cplex.sh that ops uses — maybe something in there? Just need dispatch.lp solving again, don't care about solution quality settings, just make it run to completion.

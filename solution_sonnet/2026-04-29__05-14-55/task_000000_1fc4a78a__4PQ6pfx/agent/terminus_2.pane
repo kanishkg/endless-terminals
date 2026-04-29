@@ -1,0 +1,173 @@
+[?2004hroot@efd2c4312528:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@efd2c4312528:/home/user# clear
+[?2004l[H[J[?2004hroot@efd2c4312528:/home/user# cd /home/user/monitoring
+[?2004l[?2004hroot@efd2c4312528:/home/user/monitoring# ls -la
+[?2004ltotal 20
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [34;42malerts[0m
+-rwxrwxrwx 1 root root  304 Apr 29 06:26 [01;32mcheck_yaml.py[0m
+-rwxrwxrwx 1 root root  125 Apr 29 06:26 [01;32mvalidate_alerts.sh[0m
+[?2004hroot@efd2c4312528:/home/user/monitoring# cat validate_alerts.sh
+[?2004l#!/bin/bash
+find /home/user/monitoring/alerts -maxdepth 1 -name "*.yaml" | xargs python3 /home/user/monitoring/check_yaml.py
+[?2004hroot@efd2c4312528:/home/user/monitoring# ls -la alerts/
+[?2004ltotal 20
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [34;42mapp[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [34;42minfra[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:26 [34;42mplatform[0m
+[?2004hroot@efd2c4312528:/home/user/monitoring# cat check_yaml.py
+[?2004l#!/usr/bin/env python3
+import sys
+import yaml
+
+for path in sys.argv[1:]:
+    try:
+        with open(path) as f:
+            yaml.safe_load(f)
+        print(f"OK: {path}")
+    except yaml.YAMLError as e:
+        print(f"ERROR: {path}: {e}")
+    except Exception as e:
+        print(f"ERROR: {path}: {e}")
+[?2004hroot@efd2c4312528:/home/user/monitoring# find alerts/ -name '*.yaml'
+[?2004lalerts/platform/cpu_high.yaml
+alerts/platform/memory_critical.yaml
+alerts/infra/disk_full.yaml
+alerts/infra/network_down.yaml
+alerts/app/latency_spike.yaml
+alerts/app/queue_depth.yaml
+alerts/app/error_rate.yaml
+[?2004hroot@efd2c4312528:/home/user/monitoring# ./validate_alerts.sh
+[?2004l[?2004hroot@efd2c4312528:/home/user/monitoring# echo "Exit code: $?"
+[?2004lExit code: 0
+[?2004hroot@efd2c4312528:/home/user/monitoring# sed -i 's/-maxdepth 1 //' validate_alerts.sh
+[?2004l[?2004hroot@efd2c4312528:/home/user/monitoring# cat validate_alerts.sh
+[?2004l#!/bin/bash
+find /home/user/monitoring/alerts -name "*.yaml" | xargs python3 /home/user/monitoring/check_yaml.py
+[?2004hroot@efd2c4312528:/home/user/monitoring# ./validate_alerts.sh
+[?2004lOK: /home/user/monitoring/alerts/platform/cpu_high.yaml
+OK: /home/user/monitoring/alerts/platform/memory_critical.yaml
+OK: /home/user/monitoring/alerts/infra/disk_full.yaml
+OK: /home/user/monitoring/alerts/infra/network_down.yaml
+OK: /home/user/monitoring/alerts/app/latency_spike.yaml
+OK: /home/user/monitoring/alerts/app/queue_depth.yaml
+OK: /home/user/monitoring/alerts/app/error_rate.yaml
+[?2004hroot@efd2c4312528:/home/user/monitoring# echo -e 'name: test\nvalue: 1\nname: duplicate' > alerts/test_duplicate.yaml
+[?2004l[?2004hroot@efd2c4312528:/home/user/monitoring# ./validate_alerts.sh
+[?2004lOK: /home/user/monitoring/alerts/platform/cpu_high.yaml
+OK: /home/user/monitoring/alerts/platform/memory_critical.yaml
+OK: /home/user/monitoring/alerts/infra/disk_full.yaml
+OK: /home/user/monitoring/alerts/infra/network_down.yaml
+OK: /home/user/monitoring/alerts/app/latency_spike.yaml
+OK: /home/user/monitoring/alerts/app/queue_depth.yaml
+OK: /home/user/monitoring/alerts/app/error_rate.yaml
+OK: /home/user/monitoring/alerts/test_duplicate.yaml
+[?2004hroot@efd2c4312528:/home/user/monitoring# cat > check_yaml.py << 'EOF'
+[?2004l[?2004h> #!/usr/bin/env python3
+[?2004l[?2004h> import sys
+[?2004l[?2004h> import yaml
+[?2004l[?2004h> 
+[?2004l[?2004h> def check_duplicate_keys(node, seen=None):
+[?2004l[?2004h>     if seen is None:
+[?2004l[?2004h>         seen = set()
+[?2004l[?2004h>     if isinstance(node, yaml.MappingNode):
+[?2004l[?2004h>         for key_node, value_node in node.value:
+[?2004l[?2004h>             key = key_node.value
+[?2004l[?2004h>             if key in seen:
+[?2004l[?2004h>                 raise yaml.constructor.ConstructorError(
+[?2004l[?2004h>                     "while constructing a mapping",
+[?2004l[?2004h>                     node.start_mark,
+[?2004l[?2004h>                     f"found duplicate key: {key}",
+[?2004l[?2004h>                     key_node.start_mark
+[?2004l[?2004h>                 )
+[?2004l[?2004h>             seen.add(key)
+[?2004l[?2004h>             check_duplicate_keys(value_node, set())
+[?2004l[?2004h>     elif isinstance(node, yaml.SequenceNode):
+[?2004l[?2004h>         for item in node.value:
+[?2004l[?2004h>             check_duplicate_keys(item, set())
+[?2004l[?2004h> 
+[?2004l[?2004h> for path in sys.argv[1:]:
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         with open(path) as f:
+[?2004l[?2004h>             content = f.read()
+[?2004l[?2004h>             node = yaml.compose(content)
+[?2004l[?2004h>             if node:
+[?2004l[?2004h>                 check_duplicate_keys(node)
+[?2004l[?2004h>             yaml.safe_load(content)
+[?2004l[?2004h>         print(f"OK: {path}")
+[?2004l[?2004h>     except yaml.YAMLError as e:
+[?2004l[?2004h>         print(f"ERROR: {path}: {e}")
+[?2004l[?2004h>     except Exception as e:
+[?2004l[?2004h>         print(f"ERROR: {path}: {e}")
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@efd2c4312528:/home/user/monitoring# ./validate_alerts.sh
+[?2004lOK: /home/user/monitoring/alerts/platform/cpu_high.yaml
+OK: /home/user/monitoring/alerts/platform/memory_critical.yaml
+ERROR: /home/user/monitoring/alerts/infra/disk_full.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: disk_full
+    ^
+found duplicate key: threshold
+  in "<unicode string>", line 5, column 1:
+    threshold: 90
+    ^
+OK: /home/user/monitoring/alerts/infra/network_down.yaml
+OK: /home/user/monitoring/alerts/app/latency_spike.yaml
+OK: /home/user/monitoring/alerts/app/queue_depth.yaml
+ERROR: /home/user/monitoring/alerts/app/error_rate.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: error_rate
+    ^
+found duplicate key: severity
+  in "<unicode string>", line 4, column 1:
+    severity: critical
+    ^
+ERROR: /home/user/monitoring/alerts/test_duplicate.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: test
+    ^
+found duplicate key: name
+  in "<unicode string>", line 3, column 1:
+    name: duplicate
+    ^
+[?2004hroot@efd2c4312528:/home/user/monitoring# rm alerts/test_duplicate.yaml
+[?2004l[?2004hroot@efd2c4312528:/home/user/monitoring# ./validate_alerts.sh
+[?2004lOK: /home/user/monitoring/alerts/platform/cpu_high.yaml
+OK: /home/user/monitoring/alerts/platform/memory_critical.yaml
+ERROR: /home/user/monitoring/alerts/infra/disk_full.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: disk_full
+    ^
+found duplicate key: threshold
+  in "<unicode string>", line 5, column 1:
+    threshold: 90
+    ^
+OK: /home/user/monitoring/alerts/infra/network_down.yaml
+OK: /home/user/monitoring/alerts/app/latency_spike.yaml
+OK: /home/user/monitoring/alerts/app/queue_depth.yaml
+ERROR: /home/user/monitoring/alerts/app/error_rate.yaml: while constructing a mapping
+  in "<unicode string>", line 1, column 1:
+    name: error_rate
+    ^
+found duplicate key: severity
+  in "<unicode string>", line 4, column 1:
+    severity: critical
+    ^
+[?2004hroot@efd2c4312528:/home/user/monitoring# echo "\n--- Validator is now working! Summary: ---"
+[?2004l\n--- Validator is now working! Summary: ---
+[?2004hroot@efd2c4312528:/home/user/monitoring# echo "- Recursively checks all .yaml files in subdirectories"
+[?2004l- Recursively checks all .yaml files in subdirectories
+[?2004hroot@efd2c4312528:/home/user/monitoring# echo "- Detects duplicate keys in YAML files"
+[?2004l- Detects duplicate keys in YAML files
+[?2004hroot@efd2c4312528:/home/user/monitoring# echo "- Found 2 corrupted files that need fixing:"
+[?2004l- Found 2 corrupted files that need fixing:
+[?2004hroot@efd2c4312528:/home/user/monitoring# echo "  1. alerts/infra/disk_full.yaml (duplicate 'threshold')"
+[?2004l  1. alerts/infra/disk_full.yaml (duplicate 'threshold')
+[?2004hroot@efd2c4312528:/home/user/monitoring# echo "  2. alerts/app/error_rate.yaml (duplicate 'severity')"
+[?2004l  2. alerts/app/error_rate.yaml (duplicate 'severity')
+[?2004hroot@efd2c4312528:/home/user/monitoring# 

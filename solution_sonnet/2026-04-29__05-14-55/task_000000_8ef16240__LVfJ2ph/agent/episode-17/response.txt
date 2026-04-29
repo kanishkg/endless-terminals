@@ -1,0 +1,16 @@
+```json
+{
+  "analysis": "Perfect! The test demonstrates that the fix is working correctly:\n- First run processed 8,000 records before being killed\n- Checkpoint saved at line 8000\n- Resume picked up from line 8000 and completed the remaining 42,000 records\n- Final total is exactly 50,000 with no duplicates\n\nNow I should create a summary document explaining what was fixed.",
+  "plan": "Create a BUGFIX_SUMMARY.md document that explains the bugs found and how they were fixed. This will serve as documentation for the changes made to process.py.",
+  "commands": [
+    {
+      "keystrokes": "cat > BUGFIX_SUMMARY.md << 'EOF'\n# Checkpoint Resume Bug Fix Summary\n\n## Problem\nThe pipeline script would crash partway through processing 50k JSON records, and despite writing a checkpoint file, it would reprocess everything from the beginning on restart instead of resuming from where it left off.\n\n## Root Causes Found\n\n### 1. **Critical: Checkpoint saved batch number, but code compared it to line number**\n- **Bug**: `save_checkpoint(batch_num)` saved the batch count (0-49) but `if i < start_from` compared it to line index\n- **Impact**: If batch_num=1 (1000 records processed), only 1 line was skipped on resume\n- **Fix**: Changed to save and compare actual line numbers (`line_num = i + 1`)\n\n### 2. **Data Loss: INSERT OR REPLACE overwrote aggregates instead of accumulating**\n- **Bug**: `INSERT OR REPLACE` would overwrite existing category totals on resume\n- **Impact**: Resumed runs would lose previously aggregated data\n- **Fix**: Changed to `INSERT ... ON CONFLICT DO UPDATE` to accumulate values:\n  ```sql\n  INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)\n  ON CONFLICT(category) DO UPDATE SET\n      total_value = total_value + excluded.total_value,\n      count = count + excluded.count\n  ```\n\n### 3. **Checkpoint File Not Flushed: Race condition on crash**\n- **Bug**: `json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))` didn't flush buffer\n- **Impact**: Checkpoint might not be written to disk before crash\n- **Fix**: Used context manager with explicit flush and fsync:\n  ```python\n  with open('.checkpoint', 'w') as f:\n      json.dump({'last_line': line_num}, f)\n      f.flush()\n      os.fsync(f.fileno())\n  ```\n\n### 4. **No Intermediate Commits: All work lost on crash**\n- **Bug**: `conn.commit()` only called at end of processing\n- **Impact**: Database changes lost if process killed before completion\n- **Fix**: Added `conn.commit()` after each batch\n\n## Testing\nRan comprehensive test:\n1. Processed 8,000 records, killed process\n2. Verified checkpoint at line 8000\n3. Resumed processing\n4. Verified final total: exactly 50,000 records (no duplicates)\n\n## Files Modified\n- `process.py` - Fixed all four bugs listed above\n- Created `test_checkpoint_resume.sh` - Automated test script\n- Backed up original to `process.py.bak`\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat BUGFIX_SUMMARY.md\n",
+      "duration": 0.1
+    }
+  ]
+}
+```

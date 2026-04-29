@@ -1,0 +1,1 @@
+CI runners are blowing past memory limits during docker image builds — turns out we never set DOCKER_BUILDKIT=1 in the build script and the old builder is way hungrier. Just need that env var exported at the top of /home/user/ci/build.sh before any docker commands run.

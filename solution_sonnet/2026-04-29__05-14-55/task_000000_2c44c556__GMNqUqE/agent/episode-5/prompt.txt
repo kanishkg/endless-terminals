@@ -1,0 +1,25 @@
+New Terminal Output:
+
+root@5ecc47311998:/home/user/firewall# ls -la /home/user/
+total 24
+drwxrwxrwx 1 root root 4096 Apr 29 09:40 .
+drwxr-xr-x 1 root root 4096 Apr 29 09:40 ..
+drwxrwxrwx 1 root root 4096 Apr 29 09:41 firewall
+root@5ecc47311998:/home/user/firewall# diff rules.sh.backup rules.sh
+18,19c18,19
+< # Allow inference subnet to registry (THE USER'S RULE - WRONG CHAIN)
+< iptables -A INPUT -s 10.200.0.0/16 -p tcp --dport 5000 -j ACCEPT
+---
+> # Allow inference subnet to registry on port 5000 (FIXED - moved to FORWARD chain)
+> iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+24,28c24
+< # Block known bad actors
+< iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j LOG --log-prefix "FORWARD_DROP: "
+< iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j DROP
+<
+< # General forwarding (added later, supposedly to fix things)
+---
+> # General forwarding between networks
+29a26
+> iptables -A FORWARD -i eth2 -o eth1 -j ACCEPT
+root@5ecc47311998:/home/user/firewall#

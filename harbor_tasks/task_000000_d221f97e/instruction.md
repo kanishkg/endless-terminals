@@ -1,0 +1,3 @@
+Been profiling our API gateway and the latency reports are garbage — /home/user/perf/filter_logs.py is supposed to pull out slow requests (>500ms) from the access logs but it's catching way too much. Last run flagged like 4000 requests when realistically we have maybe a couple hundred slow ones per hour. The log file is /var/log/gateway/access.log, output goes to /home/user/perf/slow.txt.
+
+    The weird part is the script works fine on my test file with like 10 lines, but goes haywire on the real logs. Might be something with how the timestamps or response times are formatted in prod vs my test data? idk. Need the filter actually working so I can figure out where our p99 is coming from.

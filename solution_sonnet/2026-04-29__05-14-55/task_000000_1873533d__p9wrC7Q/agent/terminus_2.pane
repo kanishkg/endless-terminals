@@ -1,0 +1,148 @@
+[?2004huser@2355069830b8:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@2355069830b8:~$ clear
+[?2004l[H[J[?2004huser@2355069830b8:~$ ls -la /home/user/bin
+[?2004ltotal 8
+drwxrwxrwx 1 user user 4096 Apr 29 07:13 .
+drwxrwxrwx 1 user user 4096 Apr 29 07:14 ..
+[?2004huser@2355069830b8:~$ cat /home/user/project/.env.defaults
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=false
+API_KEY=default-key-123
+[?2004huser@2355069830b8:~$ cat /home/user/project/.env.local
+[?2004lDEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@2355069830b8:~$ cat > /home/user/bin/env-merge.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Check for correct number of arguments
+[?2004l[?2004h> if [ $# -ne 2 ]; then
+[?2004l[?2004h>     echo "Usage: $0 <file1.env> <file2.env>" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Check if both files exist
+[?2004l[?2004h> if [ ! -f "$1" ]; then
+[?2004l[?2004h>     echo "Error: File '$1' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> if [ ! -f "$2" ]; then
+[?2004l[?2004h>     echo "Error: File '$2' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Use associative array to store key-value pairs
+[?2004l[?2004h> declare -A env_vars
+[?2004l[?2004h> declare -a keys_order
+[?2004l[?2004h> 
+[?2004l[?2004h> # Function to parse and store env file
+[?2004l[?2004h> parse_env_file() {
+[?2004l[?2004h>     local file="$1"
+[?2004l[?2004h>     while IFS= read -r line || [ -n "$line" ]; do
+[?2004l[?2004h>         # Skip empty lines and comments
+[?2004l[?2004h>         [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Extract key=value (handle values with = in them)
+[?2004l[?2004h>         if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+[?2004l[?2004h>             key="${BASH_REMATCH[1]}"
+[?2004l[?2004h>             value="${BASH_REMATCH[2]}"
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Only add to keys_order if it's a new key
+[?2004l[?2004h>             if [ -z "${env_vars[$key]+x}" ]; then
+[?2004l[?2004h>                 keys_order+=("$key")
+[?2004l[?2004h>             fi
+[?2004l[?2004h>             
+[?2004l[?2004h>             env_vars["$key"]="$value"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     done < "$file"
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Parse both files (second file overwrites first)
+[?2004l[?2004h> parse_env_file "$1"
+[?2004l[?2004h> parse_env_file "$2"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Output merged result in order
+[?2004l[?2004h> for key in "${keys_order[@]}"; do
+[?2004l[?2004h>     echo "${key}=${env_vars[$key]}"
+[?2004l[?2004h> done
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@2355069830b8:~$ chmod +x /home/user/bin/env-merge.sh
+[?2004l[?2004huser@2355069830b8:~$ cat /home/user/bin/env-merge.sh
+[?2004l#!/bin/bash
+
+# Check for correct number of arguments
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <file1.env> <file2.env>" >&2
+    exit 1
+fi
+
+# Check if both files exist
+if [ ! -f "$1" ]; then
+    echo "Error: File '$1' not found" >&2
+    exit 1
+fi
+
+if [ ! -f "$2" ]; then
+    echo "Error: File '$2' not found" >&2
+    exit 1
+fi
+
+# Use associative array to store key-value pairs
+declare -A env_vars
+declare -a keys_order
+
+# Function to parse and store env file
+parse_env_file() {
+    local file="$1"
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines and comments
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        
+        # Extract key=value (handle values with = in them)
+        if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+            
+            # Only add to keys_order if it's a new key
+            if [ -z "${env_vars[$key]+x}" ]; then
+                keys_order+=("$key")
+            fi
+            
+            env_vars["$key"]="$value"
+        fi
+    done < "$file"
+}
+
+# Parse both files (second file overwrites first)
+parse_env_file "$1"
+parse_env_file "$2"
+
+# Output merged result in order
+for key in "${keys_order[@]}"; do
+    echo "${key}=${env_vars[$key]}"
+done
+[?2004huser@2355069830b8:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /home/user/project/.env.local
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@2355069830b8:~$ /home/user/bin/env-merge.sh /home/user/project/.env.local /home/user/project/.env.defaults
+[?2004lDEBUG=false
+API_KEY=default-key-123
+NEW_FEATURE=enabled
+DATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+[?2004huser@2355069830b8:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults
+[?2004lUsage: /home/user/bin/env-merge.sh <file1.env> <file2.env>
+[?2004huser@2355069830b8:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /nonexistent.env
+[?2004lError: File '/nonexistent.env' not found
+[?2004huser@2355069830b8:~$ ls -lh /home/user/bin/env-merge.sh
+[?2004l-rwxr-xr-x 1 user user 1.3K Apr 29 07:14 /home/user/bin/env-merge.sh
+[?2004huser@2355069830b8:~$ echo "Script successfully created! Test: env-merge.sh .env.defaults .env.local"
+[?2004lScript successfully created! Test: env-merge.sh .env.defaults .env.local
+[?2004huser@2355069830b8:~$ 

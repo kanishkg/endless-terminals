@@ -1,0 +1,113 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@dec9d73d5a11:/home/user/pipeline# cp process.py process.py.backup
+root@dec9d73d5a11:/home/user/pipeline# cat > process.py << 'EOF'
+= total_value + excluded.total_value,
+                count = count + excluded.count
+        ''', (cat, data['total'], data['count']))
+
+def process():
+    conn = sqlite3.connect('output/summary.db')
+    conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+
+    checkpoint = load_checkpoint()
+    start_from = checkpoint['records_processed'] if checkpoint else 0
+
+    with open('data/events.json', 'r') as f:
+        batch = []
+        records_processed = 0
+        for i, line in enumerate(f):
+            if i < start_from:
+                continue
+            batch.append(json.loads(line))
+            records_processed = i + 1
+            if len(batch) >= BATCH_SIZE:
+                process_batch(conn, batch)
+                conn.commit()
+                save_checkpoint(records_processed)
+                batch = []
+        if batch:
+            process_batch(conn, batch)
+            conn.commit()
+            save_checkpoint(records_processed)
+
+    conn.commit()
+    conn.close()
+
+if __name__ == '__main__':
+    process()
+EOF
+> import json
+> import sqlite3
+> import os
+>
+> BATCH_SIZE = 1000
+>
+> def load_checkpoint():
+>     try:
+>         with open('.checkpoint', 'r') as f:
+>             return json.load(f)
+>     except FileNotFoundError:
+>         return None
+>
+> def save_checkpoint(records_processed):
+>     with open('.checkpoint', 'w') as f:
+>         json.dump({'records_processed': records_processed}, f)
+>         f.flush()
+>         os.fsync(f.fileno())
+>
+> def process_batch(conn, batch):
+>     aggregates = {}
+>     for event in batch:
+>         cat = event['category']
+>         if cat not in aggregates:
+>             aggregates[cat] = {'total': 0, 'count': 0}
+>         aggregates[cat]['total'] += event['value']
+>         aggregates[cat]['count'] += 1
+>
+>     for cat, data in aggregates.items():
+>         # Use INSERT with ON CONFLICT to accumulate values on resume
+>         conn.execute('''
+>             INSERT INTO summary (category, total_value, count)
+>             VALUES (?, ?, ?)
+>             ON CONFLICT(category) DO UPDATE SET
+>                 total_value = total_value + excluded.total_value,
+>                 count = count + excluded.count
+>         ''', (cat, data['total'], data['count']))
+>
+> def process():
+>     conn = sqlite3.connect('output/summary.db')
+>     conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+>
+>     checkpoint = load_checkpoint()
+>     start_from = checkpoint['records_processed'] if checkpoint else 0
+>
+>     with open('data/events.json', 'r') as f:
+>         batch = []
+>         records_processed = 0
+>         for i, line in enumerate(f):
+>             if i < start_from:
+>                 continue
+>             batch.append(json.loads(line))
+>             records_processed = i + 1
+>             if len(batch) >= BATCH_SIZE:
+>                 process_batch(conn, batch)
+>                 conn.commit()
+>                 save_checkpoint(records_processed)
+>                 batch = []
+>         if batch:
+>             process_batch(conn, batch)
+>             conn.commit()
+>             save_checkpoint(records_processed)
+>
+>     conn.commit()
+>     conn.close()
+>
+> if __name__ == '__main__':
+>     process()
+> EOF
+root@dec9d73d5a11:/home/user/pipeline#

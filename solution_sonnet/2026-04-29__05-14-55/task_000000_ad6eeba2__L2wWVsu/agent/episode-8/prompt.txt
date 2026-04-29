@@ -1,0 +1,71 @@
+New Terminal Output:
+
+user@56d33505d48c:~/inventory$ python3 << 'EOF'
+> import json
+> import re
+> from datetime import datetime
+>
+> # Load the data
+> with open('assets.json') as f:
+>     data = json.load(f)
+>
+> print(f"Total valid records: {len(data)}")
+> print("\nValidating all records...")
+>
+> errors = []
+> for record in data:
+>     # Check all required fields
+>     required = ['id', 'name', 'serial', 'purchase_date', 'price_cents', 'location']
+>     for field in required:
+>         if field not in record:
+>             errors.append(f"Record {record.get('id', 'unknown')}: missing {field}")
+>
+>     # Validate price_cents is positive integer
+>     if not isinstance(record.get('price_cents'), int):
+>         errors.append(f"Record {record['id']}: price_cents not an integer")
+>     elif record['price_cents'] <= 0:
+>         errors.append(f"Record {record['id']}: price_cents not positive")
+>
+>     # Validate ISO 8601 date format
+>     try:
+>         datetime.fromisoformat(record['purchase_date'])
+>     except (ValueError, KeyError):
+>         errors.append(f"Record {record['id']}: invalid ISO 8601 date")
+>
+> if errors:
+>     print(f"\nFound {len(errors)} validation errors:")
+>     for err in errors[:10]:
+>         print(f"  - {err}")
+> else:
+>     print("\n✓ All records pass validation!")
+>     print("✓ All purchase_date fields are valid ISO 8601")
+>     print("✓ All price_cents fields are positive integers")
+>     print("✓ All required fields present")
+>
+> # Check for duplicate IDs
+> ids = [r['id'] for r in data]
+> if len(ids) != len(set(ids)):
+>     print("\n✗ Found duplicate IDs!")
+> else:
+>     print("✓ No duplicate IDs")
+>
+> print(f"\nSummary:")
+> print(f"  - Valid records: {len(data)}")
+> with open('rejected.json') as f:
+>     rejected = json.load(f)
+> print(f"  - Rejected records: {len(rejected)}")
+> EOF
+Total valid records: 809
+
+Validating all records...
+
+✓ All records pass validation!
+✓ All purchase_date fields are valid ISO 8601
+✓ All price_cents fields are positive integers
+✓ All required fields present
+✓ No duplicate IDs
+
+Summary:
+  - Valid records: 809
+  - Rejected records: 16
+user@56d33505d48c:~/inventory$

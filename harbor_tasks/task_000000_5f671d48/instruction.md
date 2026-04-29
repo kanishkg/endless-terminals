@@ -1,0 +1,3 @@
+Alert pipeline at /home/user/monitoring hasn't fired in 3 days even though I know for a fact the error rate on the ingest service spiked twice this week. The setup is: logs land in /var/log/ingest/, a parser script rolls them into hourly summaries in /home/user/monitoring/summaries/, and then the alerter reads those summaries and writes to /home/user/monitoring/alerts.log when error_rate exceeds threshold. Pretty sure threshold is 0.05 or something.
+
+Ran the alerter manually just now and it completed fine, no exceptions, but alerts.log is still empty. Summaries dir has files in it so the parser is at least producing output. Don't have time to babysit this — need it actually catching threshold breaches and logging alerts.

@@ -1,0 +1,37 @@
+New Terminal Output:
+
+user@1ddb5e1ce8eb:~/scheduler$ echo '=== COMPARISON: Old vs New convert_to_berlin() function ==='
+=== COMPARISON: Old vs New convert_to_berlin() function ===
+user@1ddb5e1ce8eb:~/scheduler$ echo -e '\n--- OLD (BUGGY) VERSION ---'
+
+--- OLD (BUGGY) VERSION ---
+user@1ddb5e1ce8eb:~/scheduler$ grep -A 8 'def convert_to_berlin' app.py.bak
+def convert_to_berlin(utc_time_str):
+    """
+    Convert UTC time string to Berlin timezone.
+    """
+    # Parse the UTC time string
+    utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+
+    # Convert to Berlin time
+    # BUG: This incorrectly localizes the UTC datetime as if it were already Berlin time
+user@1ddb5e1ce8eb:~/scheduler$ echo -e '\n--- NEW (FIXED) VERSION ---'
+
+--- NEW (FIXED) VERSION ---
+user@1ddb5e1ce8eb:~/scheduler$ grep -A 9 'def convert_to_berlin' app.py
+def convert_to_berlin(utc_time_str):
+    """
+    Convert UTC time string to Berlin timezone.
+    """
+    # Parse the UTC time string
+    utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+
+    # First localize as UTC, then convert to Berlin time
+    utc_dt_aware = UTC_TZ.localize(utc_dt)
+    berlin_dt = utc_dt_aware.astimezone(BERLIN_TZ)
+user@1ddb5e1ce8eb:~/scheduler$ echo -e '\n=== Final verification: Running app.py ==='
+
+=== Final verification: Running app.py ===
+user@1ddb5e1ce8eb:~/scheduler$ python3 app.py
+No upcoming meetings in the next 15-75 minutes.
+user@1ddb5e1ce8eb:~/scheduler$

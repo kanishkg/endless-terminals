@@ -1,0 +1,1 @@
+Got a complaint that /home/user/reports/generate.py hasn't run since the Python 2 box got decommissioned. It's just a simple script that reads some CSVs and spits out a summary to stdout — nothing fancy. Can you make it run on the Python 3 that's on this box? Should just need print syntax fixes, pretty sure that's all that's wrong with it.

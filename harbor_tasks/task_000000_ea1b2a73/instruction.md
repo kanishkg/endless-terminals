@@ -1,0 +1,1 @@
+Need to set up a venv for the backup scripts in /home/user/backup-tools — just `python3 -m venv venv` then activate and `pip install -r requirements.txt`. Pretty sure it's just boto3 and a yaml parser in there. The scripts won't run without the deps obviously.

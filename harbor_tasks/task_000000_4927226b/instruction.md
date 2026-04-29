@@ -1,0 +1,5 @@
+Slow query log parser at /home/user/analyze/slow_log.py — supposed to group queries by normalized fingerprint and spit out timing stats, but the totals are garbage. Running it on a clean 50-line test log at /home/user/analyze/test.log where I *know* the answer (three distinct fingerprints, total exec times should be ~12.4s, ~8.1s, ~2.3s respectively), but the script reports way higher numbers — like 40s+ for the first group alone. Nothing's duplicated in the log, I checked. Feels like some accumulator is getting hit multiple times? idk.
+
+Also annoyingly the script started failing to import yesterday — something about `mysql-connector-python` vs `mysql-connector` packages conflicting, even though I only use the connector for one tiny helper function that isn't even called in this codepath. Had to mess with the venv at /home/user/analyze/venv to get it importable again but might've made it worse.
+
+Anyway need accurate per-fingerprint totals and the import to not explode. Test log is the reference — if those three groups come out right, the production logs will too.

@@ -1,0 +1,57 @@
+New Terminal Output:
+
+root@4f2672db31b0:/home/user/pipeline# echo '=== FINAL DEMONSTRATION: Interrupt and Resume ==='
+=== FINAL DEMONSTRATION: Interrupt and Resume ===
+root@4f2672db31b0:/home/user/pipeline# rm -f .checkpoint output/summary.db
+root@4f2672db31b0:/home/user/pipeline# cat > final_test.py << 'EOF'
+> import subprocess
+> import time
+> import sqlite3
+> import json
+> import os
+>
+> print('Step 1: Starting fresh run and interrupting...')
+> proc = subprocess.Popen(['python3', 'process.py'])
+> time.sleep(0.3)
+> proc.terminate()
+> proc.wait()
+>
+> if os.path.exists('.checkpoint'):
+>     with open('.checkpoint') as f:
+>         cp = json.load(f)
+>     conn = sqlite3.connect('output/summary.db')
+>     result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+>     conn.close()
+>     print(f'  ✓ Interrupted at line {cp["last_line"]}, DB has {result[0]} records')
+> else:
+>     print('  ✗ No checkpoint created')
+>     exit(1)
+>
+> print('\nStep 2: Resuming from checkpoint...')
+> proc = subprocess.Popen(['python3', 'process.py'])
+> proc.wait()
+>
+> with open('.checkpoint') as f:
+>     cp = json.load(f)
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+> conn.close()
+>
+> print(f'  ✓ Completed at line {cp["last_line"]}, DB has {result[0]} records')
+>
+> if result[0] == 50000:
+>     print('\n✓✓✓ SUCCESS! Checkpoint/resume works correctly! ✓✓✓')
+>     print('No data duplication, no data loss.')
+> else:
+>     print(f'\n✗ FAILED: Expected 50000 records, got {result[0]}')
+> EOF
+root@4f2672db31b0:/home/user/pipeline# python3 final_test.py
+Step 1: Starting fresh run and interrupting...
+  ✓ Interrupted at line 25000, DB has 25000 records
+
+Step 2: Resuming from checkpoint...
+  ✓ Completed at line 50000, DB has 50000 records
+
+✓✓✓ SUCCESS! Checkpoint/resume works correctly! ✓✓✓
+No data duplication, no data loss.
+root@4f2672db31b0:/home/user/pipeline#

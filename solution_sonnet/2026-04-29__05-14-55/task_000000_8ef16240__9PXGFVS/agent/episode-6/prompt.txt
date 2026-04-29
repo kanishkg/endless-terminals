@@ -1,0 +1,83 @@
+New Terminal Output:
+
+EOF
+root@4f2672db31b0:/home/user/pipeline# cat > process.py << 'EOF'
+> import json
+> import sqlite3
+> import os
+>
+> BATCH_SIZE = 1000
+>
+> def load_checkpoint():
+>     try:
+>         with open('.checkpoint', 'r') as f:
+>             return json.load(f)
+>     except FileNotFoundError:
+>         return None
+>
+> def save_checkpoint(last_line):
+>     # Fixed: use context manager and explicit flush
+>     with open('.checkpoint', 'w') as f:
+>         json.dump({'last_line': last_line}, f)
+>         f.flush()
+>         os.fsync(f.fileno())  # Ensure it's written to disk
+>
+> def process_batch(conn, batch):
+>     aggregates = {}
+>     for event in batch:
+>         cat = event['category']
+>         if cat not in aggregates:
+>             aggregates[cat] = {'total': 0, 'count': 0}
+>         aggregates[cat]['total'] += event['value']
+>         aggregates[cat]['count'] += 1
+>
+>     for cat, data in aggregates.items():
+>         # Fixed: accumulate instead of replace
+>         conn.execute('''
+>             INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+>             ON CONFLICT(category) DO UPDATE SET
+>                 total_value = total_value + excluded.total_value,
+>                 count = count + excluded.count
+>         ''', (cat, data['total'], data['count']))
+>
+>     # Fixed: commit after each batch so data persists
+>     conn.commit()
+>
+> def process():
+>     conn = sqlite3.connect('output/summary.db')
+>     conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+>
+>     checkpoint = load_checkpoint()
+>     start_from = checkpoint['last_line'] if checkpoint else 0
+>
+>     with open('data/events.json', 'r') as f:
+>         batch = []
+>         line_num = 0
+>         for i, line in enumerate(f):
+>             # Fixed: skip lines we've already processed
+>             if i < start_from:
+>                 continue
+>             batch.append(json.loads(line))
+>             line_num = i + 1  # Track the last line we've read
+>             if len(batch) >= BATCH_SIZE:
+>                 process_batch(conn, batch)
+>                 save_checkpoint(line_num)  # Save actual line number
+>                 batch = []
+>         if batch:
+>             process_batch(conn, batch)
+>             save_checkpoint(line_num)
+>
+>     conn.close()
+>
+> if __name__ == '__main__':
+>     process()
+> EOF
+root@4f2672db31b0:/home/user/pipeline# python3 process.py &
+[1] 541
+root@4f2672db31b0:/home/user/pipeline# PID=$!
+root@4f2672db31b0:/home/user/pipeline# sleep 3
+[1]+  Done                    python3 process.py
+root@4f2672db31b0:/home/user/pipeline# kill $PID
+bash: kill: (541) - No such process
+root@4f2672db31b0:/home/user/pipeline# wait $PID 2>/dev/null || echo "Process killed"
+root@4f2672db31b0:/home/user/pipeline#

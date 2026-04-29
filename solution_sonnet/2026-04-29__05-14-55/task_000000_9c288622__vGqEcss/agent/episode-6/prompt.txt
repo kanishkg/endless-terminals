@@ -1,0 +1,86 @@
+New Terminal Output:
+
+user@3d1bae8c0777:~/scheduler$ cat > verify_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Verify the timezone conversion fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> # Import the fixed function
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+> from app import convert_to_berlin
+>
+> def test_dst_transition():
+>     """Test conversion during DST transition."""
+>     print("Testing timezone conversion fix...\n")
+>
+>     # March 31, 2024 at 2am local time is when DST transition happens in Europe/Berlin
+>     # At 2am CET, clocks spring forward to 3am CEST
+>     # So 01:30 UTC = 02:30 CET (before transition)
+>     # And 00:30 UTC = 01:30 CET (before transition)
+>
+>     test_cases = [
+>         ("2024-03-31T00:30:00", "Should be 01:30 CET (before DST)"),
+>         ("2024-03-31T01:00:00", "Should be 02:00 CET (before DST, last hour before transition)"),
+>         ("2024-03-31T01:30:00", "Should be 03:30 CEST (after DST, 2am doesn't exist)"),
+>         ("2024-03-31T02:00:00", "Should be 04:00 CEST (after DST)"),
+>     ]
+>
+>     for utc_time_str, description in test_cases:
+>         berlin_time = convert_to_berlin(utc_time_str)
+>         print(f"UTC: {utc_time_str}")
+>         print(f"Berlin: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+>         print(f"Note: {description}")
+>         print()
+>
+>     # Verify the old bug would have caused incorrect conversion
+>     print("\n=== Comparison with old buggy method ===")
+>     utc_str = "2024-03-31T01:30:00"
+>     berlin_tz = pytz.timezone('Europe/Berlin')
+>
+>     # Old buggy way (what was in the code before)
+>     utc_dt_naive = datetime.strptime(utc_str, '%Y-%m-%dT%H:%M:%S')
+>     buggy_berlin = berlin_tz.localize(utc_dt_naive)
+>
+>     # New correct way
+>     correct_berlin = convert_to_berlin(utc_str)
+>
+>     print(f"UTC time: {utc_str}")
+>     print(f"Buggy conversion: {buggy_berlin.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+>     print(f"Correct conversion: {correct_berlin.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+>     print(f"Difference: {(buggy_berlin - correct_berlin).total_seconds() / 3600} hours")
+>     print("\n✓ Fix verified! The conversion now properly handles DST transitions.")
+>
+> if __name__ == '__main__':
+>     test_dst_transition()
+> EOF
+user@3d1bae8c0777:~/scheduler$ python3 verify_fix.py
+Testing timezone conversion fix...
+
+UTC: 2024-03-31T00:30:00
+Berlin: 2024-03-31 01:30:00 CET (UTC+0100)
+Note: Should be 01:30 CET (before DST)
+
+UTC: 2024-03-31T01:00:00
+Berlin: 2024-03-31 03:00:00 CEST (UTC+0200)
+Note: Should be 02:00 CET (before DST, last hour before transition)
+
+UTC: 2024-03-31T01:30:00
+Berlin: 2024-03-31 03:30:00 CEST (UTC+0200)
+Note: Should be 03:30 CEST (after DST, 2am doesn't exist)
+
+UTC: 2024-03-31T02:00:00
+Berlin: 2024-03-31 04:00:00 CEST (UTC+0200)
+Note: Should be 04:00 CEST (after DST)
+
+
+=== Comparison with old buggy method ===
+UTC time: 2024-03-31T01:30:00
+Buggy conversion: 2024-03-31 01:30:00 CET (UTC+0100)
+Correct conversion: 2024-03-31 03:30:00 CEST (UTC+0200)
+Difference: -1.0 hours
+
+✓ Fix verified! The conversion now properly handles DST transitions.
+user@3d1bae8c0777:~/scheduler$

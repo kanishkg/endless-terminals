@@ -1,0 +1,58 @@
+New Terminal Output:
+
+root@06c2906a173f:/home/user/admin# cat > FIXES_APPLIED.txt << 'EOF'
+> EXPORT SCRIPT FIXES - Summary
+> ================================
+>
+> Date: $(date)
+> Script: /home/user/admin/export_users.sh
+>
+> PROBLEMS IDENTIFIED:
+> -------------------
+>
+> 1. BUG #1 - Wrong delimiter for emails.dat
+>    - emails.dat is TAB-delimited (uid<TAB>email)
+>    - Script was using space delimiter: cut -d' '
+>    - Result: Email field contained "UID<TAB>email" merged together
+>
+> 2. BUG #2 - Sorting mismatch (not actually exploited in final script)
+>    - Users sorted alphabetically, emails sorted numerically
+>    - Would cause line-by-line misalignment
+>    - Fixed by using proper UID-based lookups instead
+>
+> 3. BUG #3 - Wrong field separator for groups.dat
+>    - groups.dat is colon-delimited (gid:groupname:description)
+>    - Script used default awk separator (space/tab)
+>    - Result: Primary and supplementary groups showed as GIDs instead of names
+>
+> FIXES APPLIED:
+> --------------
+>
+> 1. Changed email extraction to use TAB delimiter:
+>    OLD: cut -d' ' -f2 "$EMAILS_DAT"
+>    NEW: awk -F'\t' -v u="$uid" '$1 == u {print $2}' "$EMAILS_DAT"
+>
+> 2. Used UID-based lookup instead of line-by-line paste:
+>    - Properly joins data by UID for each user record
+>    - No longer depends on sort order matching
+>
+> 3. Added colon field separator for groups.dat parsing:
+>    OLD: awk -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT"
+>    NEW: awk -F':' -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT"
+>
+> RESULTS:
+> --------
+>
+> - Successfully exported 800 user records
+> - All emails properly formatted in email column
+> - Primary groups show names (engineering, devops, hr, etc.) not GIDs
+> - Supplementary groups show names separated by semicolons
+> - All fields properly aligned in CSV format
+>
+> BACKUP:
+> -------
+> - Original script backed up to: export_users.sh.backup
+> - Fixed script is now active: export_users.sh
+> - Output file: export.csv (64KB, 801 lines including header)
+> EOF
+root@06c2906a173f:/home/user/admin#

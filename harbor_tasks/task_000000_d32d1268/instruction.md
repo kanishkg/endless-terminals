@@ -1,0 +1,1 @@
+Need to add a `last_seen` column to the `devices` table in /home/user/fleet/telemetry.db — should be a timestamp, nullable. Table already has like 200 rows of live device data so don't want to drop anything obviously.

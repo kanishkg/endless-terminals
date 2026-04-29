@@ -1,0 +1,22 @@
+{
+  "analysis": "Perfect! I've successfully identified and fixed all the bugs in the checkpoint/resume mechanism. The summary document is created. Now let me do one final comprehensive test to demonstrate the fix works correctly with an actual mid-run interruption and successful resume.",
+  "plan": "I'll do a final demonstration showing: 1) Clean slate start, 2) Interrupt mid-processing, 3) Show partial progress, 4) Resume and complete, 5) Verify final results are correct. I'll use a modified test that ensures we catch it mid-run.",
+  "commands": [
+    {
+      "keystrokes": "echo '=== FINAL DEMONSTRATION: Interrupt and Resume ==='\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "rm -f .checkpoint output/summary.db\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat > final_test.py << 'EOF'\nimport subprocess\nimport time\nimport sqlite3\nimport json\nimport os\n\nprint('Step 1: Starting fresh run and interrupting...')\nproc = subprocess.Popen(['python3', 'process.py'])\ntime.sleep(0.3)\nproc.terminate()\nproc.wait()\n\nif os.path.exists('.checkpoint'):\n    with open('.checkpoint') as f:\n        cp = json.load(f)\n    conn = sqlite3.connect('output/summary.db')\n    result = conn.execute('SELECT SUM(count) FROM summary').fetchone()\n    conn.close()\n    print(f'  ✓ Interrupted at line {cp[\"last_line\"]}, DB has {result[0]} records')\nelse:\n    print('  ✗ No checkpoint created')\n    exit(1)\n\nprint('\\nStep 2: Resuming from checkpoint...')\nproc = subprocess.Popen(['python3', 'process.py'])\nproc.wait()\n\nwith open('.checkpoint') as f:\n    cp = json.load(f)\nconn = sqlite3.connect('output/summary.db')\nresult = conn.execute('SELECT SUM(count) FROM summary').fetchone()\nconn.close()\n\nprint(f'  ✓ Completed at line {cp[\"last_line\"]}, DB has {result[0]} records')\n\nif result[0] == 50000:\n    print('\\n✓✓✓ SUCCESS! Checkpoint/resume works correctly! ✓✓✓')\n    print('No data duplication, no data loss.')\nelse:\n    print(f'\\n✗ FAILED: Expected 50000 records, got {result[0]}')\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "python3 final_test.py\n",
+      "duration": 5.0
+    }
+  ]
+}

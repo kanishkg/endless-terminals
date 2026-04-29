@@ -1,0 +1,36 @@
+New Terminal Output:
+
+root@e6879a171c79:/home/user/pipeline# python3 process_test.py 2>&1 | tail -10
+Processed batch 36, checkpoint at line 42000
+Processed batch 37, checkpoint at line 43000
+Processed batch 38, checkpoint at line 44000
+Processed batch 39, checkpoint at line 45000
+Processed batch 40, checkpoint at line 46000
+Processed batch 41, checkpoint at line 47000
+Processed batch 42, checkpoint at line 48000
+Processed batch 43, checkpoint at line 49000
+Processed batch 44, checkpoint at line 50000
+Processing complete!
+root@e6879a171c79:/home/user/pipeline# python3 << 'PYEOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records, SUM(total_value) as total_value FROM summary').fetchone()
+> print(f"Final result after resume:")
+> print(f"  Categories: {result[0]}")
+> print(f"  Total records: {result[1]}")
+> print(f"  Total value: {result[2]:.2f}")
+> print(f"\nExpected: 50000 records, 2494808.87 total value")
+> if result[1] == 50000 and abs(result[2] - 2494808.87) < 0.01:
+>     print("✓ SUCCESS: Checkpoint/resume working correctly!")
+> else:
+>     print("✗ FAILED: Totals don't match")
+> conn.close()
+> PYEOF
+Final result after resume:
+  Categories: 10
+  Total records: 50000
+  Total value: 2494808.87
+
+Expected: 50000 records, 2494808.87 total value
+✓ SUCCESS: Checkpoint/resume working correctly!
+root@e6879a171c79:/home/user/pipeline#

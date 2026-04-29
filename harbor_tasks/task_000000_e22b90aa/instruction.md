@@ -1,0 +1,3 @@
+Running a preprocessing pipeline on sensor data and one of the intermediate steps is silently corrupting timestamps — final output at /home/user/pipeline/output/merged.parquet has about 40 rows where the `recorded_at` column is `NaT` instead of valid datetimes. Source CSVs in /home/user/pipeline/raw/ look fine when I spot-check them, so something in the pipeline is mangling them.
+
+The pipeline is three python scripts run in sequence: extract.py, transform.py, load.py. I've been running them via the shell script at /home/user/pipeline/run.sh. Need the merged output to have zero NaT values in that column — these are sensor readings and I can't publish with missing timestamps.

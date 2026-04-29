@@ -1,0 +1,54 @@
+New Terminal Output:
+
+root@d0ebb00043d2:/home/user/netmon# cat scripts/check_ping.sh
+#!/bin/bash
+mkdir -p results
+while read -r host; do
+    if ping -c 1 -W 1 "$host" &>/dev/null; then
+        echo "$host: up"
+    else
+        echo "$host: down"
+    fi
+done < hosts.conf > results/ping.txt
+root@d0ebb00043d2:/home/user/netmon# cat scripts/check_ports.sh
+#!/bin/bash
+mkdir -p results
+while read -r host; do
+    for port in 22 80 443; do
+        timeout 1 bash -c "echo >/dev/tcp/$host/$port" 2>/dev/null && status="open" || status="closed"
+        echo "$host:$port $status"
+    done
+done < hosts.conf > results/ports.txt
+root@d0ebb00043d2:/home/user/netmon# cat aggregate.py
+#!/usr/bin/env python3
+import json
+
+def main():
+    results = {"hosts": {}}
+
+    with open("results/ping.txt") as f:
+        for line in f:
+            host, status = line.strip().split(": ")
+            results["hosts"][host] = {"ping": status}
+
+    with open("results/ports.txt") as f:
+        for line in f:
+            parts = line.strip().split()
+            host_port = parts[0].split(":")
+            host = host_port[0]
+            port = host_port[1]
+            status = parts[1]
+            if host not in results["hosts"]:
+                results["hosts"][host] = {}
+            if "ports" not in results["hosts"][host]:
+                results["hosts"][host]["ports"] = {}
+            results["hosts"][host]["ports"][port] = status
+
+    with open("results/status.json", "w") as f
+        json.dump(results, f, indent=2)
+
+    print("Report generated: results/status.json")
+
+if __name__ == "__main__":
+    main()
+root@d0ebb00043d2:/home/user/netmon#

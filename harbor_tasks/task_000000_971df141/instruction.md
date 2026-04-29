@@ -1,0 +1,1 @@
+Need to flatten out /home/user/captures — there's like 40 perf traces scattered across a bunch of nested subdirs (session1/, session2/tuesday/, old/backup/, etc.) and I just want every .perf file moved up into /home/user/captures directly. Don't care about the folder structure anymore, just want them all in one place so I can batch process.

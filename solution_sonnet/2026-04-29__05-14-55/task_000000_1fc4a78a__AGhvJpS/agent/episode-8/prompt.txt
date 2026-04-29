@@ -1,0 +1,35 @@
+New Terminal Output:
+
+root@934f1b2f60d1:/home/user/monitoring# cat > check_yaml.py << 'EOF'
+> #!/usr/bin/env python3
+> import sys
+> import yaml
+>
+> def no_duplicates_constructor(loader, node, deep=False):
+>     mapping = {}
+>     for key_node, value_node in node.value:
+>         key = loader.construct_object(key_node, deep=deep)
+>         if key in mapping:
+>             raise yaml.constructor.ConstructorError(
+>                 "found duplicate key", key_node.start_mark,
+>                 f"duplicate key: {key}", key_node.start_mark)
+>         mapping[key] = loader.construct_object(value_node, deep=deep)
+>     return mapping
+>
+> for path in sys.argv[1:]:
+>     try:
+>         with open(path) as f:
+>             loader = yaml.SafeLoader
+>             loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates_constructor)
+>             yaml.load(f, Loader=loader)
+>         print(f"OK: {path}")
+>     except yaml.YAMLError as e:
+>         print(f"ERROR: {path}: {e}")
+>     except Exception as e:
+>         print(f"ERROR: {path}: {e}")
+> EOF
+root@934f1b2f60d1:/home/user/monitoring# python3 check_yaml.py /tmp/test_duplicate.yaml
+ERROR: /tmp/test_duplicate.yaml: found duplicate key
+duplicate key: name
+  in "/tmp/test_duplicate.yaml", line 3, column 1
+root@934f1b2f60d1:/home/user/monitoring#

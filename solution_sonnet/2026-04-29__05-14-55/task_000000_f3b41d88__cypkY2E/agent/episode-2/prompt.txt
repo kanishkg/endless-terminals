@@ -1,0 +1,82 @@
+New Terminal Output:
+
+user@677a7cc074e7:~/inventory$ cat .env
+API_KEY=inv-7f3a2b9c4d5e6f1a
+DATABASE_URL=sqlite:///data.db
+user@677a7cc074e7:~/inventory$ cat requirements.txt
+flask==3.0.0
+python-dotenv==1.0.0
+user@677a7cc074e7:~/inventory$ cat app.py
+import os
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
+from functools import wraps
+
+load_dotenv()
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///data.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+API_KEY = os.getenv('API_KEY')
+
+class Item(db.Model):
+    __tablename__ = 'items'
+    id = db.Column(db.Integer, primary_key=True)
+    sku = db.Column(db.String(100), unique=True, nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    quantity = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sku': self.sku,
+            'name': self.name,
+            'quantity': self.quantity
+        }
+
+def require_api_key(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get('X-Api-Key')
+        if not api_key or api_key != API_KEY:
+            return jsonify({'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/api/items', methods=['GET'])
+@require_api_key
+def get_items():
+    items = Item.query.all()
+    return jsonify([item.to_dict() for item in items])
+
+@app.route('/api/items', methods=['POST'])
+@require_api_key
+def create_item():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    sku = data.get('sku')
+    name = data.get('name')
+    quantity = data.get('quantity', 0)
+
+    if not sku or not name:
+        return jsonify({'error': 'sku and name are required'}), 400
+
+    existing = Item.query.filter_by(sku=sku).first()
+    if existing:
+        return jsonify({'error': 'Item with this SKU already exists'}), 409
+
+    item = Item(sku=sku, name=name, quantity=quantity)
+    db.session.add(item)
+    db.session.commit()
+
+    return jsonify(item.to_dict()), 201
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
+user@677a7cc074e7:~/inventory$

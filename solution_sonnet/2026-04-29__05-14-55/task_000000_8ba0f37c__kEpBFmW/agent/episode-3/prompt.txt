@@ -1,0 +1,135 @@
+New Terminal Output:
+
+user@8ac4f122bec7:~/pentest$ cat > finding.txt << 'EOF'
+and is silently discarded.
+
+4. The connection hangs (rather than getting "connection refused") because:
+   - The SYN packet from curl reaches the server
+   - Rule 2 (-m state --state ESTABLISHED,RELATED -j ACCEPT) doesn't apply yet
+   - The string matching happens on the packet payload level
+   - The DROP rule silently discards packets, causing curl to timeout waiting
+     for a response
+
+WHAT SHOULD BE CHANGED:
+
+The string matching approach is fundamentally flawed because:
+
+1. It attempts to inspect application-layer data (User-Agent headers) at the
+   network layer, which is unreliable and breaks legitimate tools like curl,
+   wget, APIs, monitoring systems, etc.
+
+2. The string match occurs on raw packet data, not parsed HTTP headers, making
+   it fragile and easy to bypass.
+
+3. It blocks legitimate traffic while providing minimal security benefit (any
+   attacker can trivially add "Mozilla" to their User-Agent).
+
+RECOMMENDATION:
+Remove the string matching rules entirely and use proper application-layer
+filtering (WAF, reverse proxy with UA filtering) if user-agent based blocking
+is truly needed. Alternatively, use connection rate limiting with connlimit
+or recent modules instead of content inspection at the iptables level.
+EOF
+> === IPTABLES HTTP BLOCKING ANALYSIS ===
+>
+> BLOCKING RULE IDENTIFIED:
+> Rules 4-7 in the INPUT chain are causing the HTTP/HTTPS traffic blockage:
+>
+> -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+> -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+> -A INPUT -p tcp --dport 80 -j DROP
+> -A INPUT -p tcp --dport 443 -j DROP
+>
+> WHY HTTP IS BLOCKED BUT SSH IS NOT:
+>
+> 1. SSH (port 22) has a simple unconditional ACCEPT rule:
+>    -A INPUT -p tcp --dport 22 -j ACCEPT
+>    This accepts ALL TCP traffic to port 22 regardless of packet content.
+>
+> 2. HTTP/HTTPS (ports 80/443) use string matching that only accepts packets
+>    containing the string "Mozilla" in the payload. This appears to be an
+>    attempt at user-agent based filtering (likely trying to block bots/scanners).
+>
+> 3. When curl connects without a custom User-Agent, it sends "curl/X.X.X" by
+>    default, which does NOT contain "Mozilla". The packet fails the string match,
+>    falls through to the DROP rule, and is silently discarded.
+>
+> 4. The connection hangs (rather than getting "connection refused") because:
+>    - The SYN packet from curl reaches the server
+>    - Rule 2 (-m state --state ESTABLISHED,RELATED -j ACCEPT) doesn't apply yet
+>    - The string matching happens on the packet payload level
+>    - The DROP rule silently discards packets, causing curl to timeout waiting
+>      for a response
+>
+> WHAT SHOULD BE CHANGED:
+>
+> The string matching approach is fundamentally flawed because:
+>
+> 1. It attempts to inspect application-layer data (User-Agent headers) at the
+>    network layer, which is unreliable and breaks legitimate tools like curl,
+>    wget, APIs, monitoring systems, etc.
+>
+> 2. The string match occurs on raw packet data, not parsed HTTP headers, making
+>    it fragile and easy to bypass.
+>
+> 3. It blocks legitimate traffic while providing minimal security benefit (any
+>    attacker can trivially add "Mozilla" to their User-Agent).
+>
+> RECOMMENDATION:
+> Remove the string matching rules entirely and use proper application-layer
+> filtering (WAF, reverse proxy with UA filtering) if user-agent based blocking
+> is truly needed. Alternatively, use connection rate limiting with connlimit
+> or recent modules instead of content inspection at the iptables level.
+> EOF
+user@8ac4f122bec7:~/pentest$ cat finding.txt
+=== IPTABLES HTTP BLOCKING ANALYSIS ===
+
+BLOCKING RULE IDENTIFIED:
+Rules 4-7 in the INPUT chain are causing the HTTP/HTTPS traffic blockage:
+
+-A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+-A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+-A INPUT -p tcp --dport 80 -j DROP
+-A INPUT -p tcp --dport 443 -j DROP
+
+WHY HTTP IS BLOCKED BUT SSH IS NOT:
+
+1. SSH (port 22) has a simple unconditional ACCEPT rule:
+   -A INPUT -p tcp --dport 22 -j ACCEPT
+   This accepts ALL TCP traffic to port 22 regardless of packet content.
+
+2. HTTP/HTTPS (ports 80/443) use string matching that only accepts packets
+   containing the string "Mozilla" in the payload. This appears to be an
+   attempt at user-agent based filtering (likely trying to block bots/scanners).
+
+3. When curl connects without a custom User-Agent, it sends "curl/X.X.X" by
+   default, which does NOT contain "Mozilla". The packet fails the string match,
+   falls through to the DROP rule, and is silently discarded.
+
+4. The connection hangs (rather than getting "connection refused") because:
+   - The SYN packet from curl reaches the server
+   - Rule 2 (-m state --state ESTABLISHED,RELATED -j ACCEPT) doesn't apply yet
+   - The string matching happens on the packet payload level
+   - The DROP rule silently discards packets, causing curl to timeout waiting
+     for a response
+
+WHAT SHOULD BE CHANGED:
+
+The string matching approach is fundamentally flawed because:
+
+1. It attempts to inspect application-layer data (User-Agent headers) at the
+   network layer, which is unreliable and breaks legitimate tools like curl,
+   wget, APIs, monitoring systems, etc.
+
+2. The string match occurs on raw packet data, not parsed HTTP headers, making
+   it fragile and easy to bypass.
+
+3. It blocks legitimate traffic while providing minimal security benefit (any
+   attacker can trivially add "Mozilla" to their User-Agent).
+
+RECOMMENDATION:
+Remove the string matching rules entirely and use proper application-layer
+filtering (WAF, reverse proxy with UA filtering) if user-agent based blocking
+is truly needed. Alternatively, use connection rate limiting with connlimit
+or recent modules instead of content inspection at the iptables level.
+user@8ac4f122bec7:~/pentest$

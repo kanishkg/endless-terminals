@@ -1,0 +1,64 @@
+New Terminal Output:
+
+user@86320027761d:~/scheduler$ cat > test_fix.py << 'EOF'
+vert_to_berlin_new(test_case)
+print(f"NEW (fixed) conversion: {new_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+
+print("\n" + "="*70)
+print("The old version incorrectly treats '01:30:00' as Berlin time.")
+print("The new version correctly treats it as UTC and converts to Berlin.")
+EOF
+> #!/usr/bin/env python3
+> """Test the fixed timezone conversion."""
+>
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def convert_to_berlin_old(utc_time_str):
+>     """OLD buggy version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)
+>     return berlin_dt
+>
+> def convert_to_berlin_new(utc_time_str):
+>     """NEW fixed version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+>     return berlin_dt
+>
+> print("Testing DST transition period (March 31, 2024 - DST starts at 2am)")
+> print("="*70)
+>
+> test_case = "2024-03-31T01:30:00"
+> print(f"\nUTC Time: {test_case}")
+> print(f"Expected Berlin Time: 2024-03-31 03:30:00 (DST active, UTC+2)")
+> print()
+>
+> old_result = convert_to_berlin_old(test_case)
+> print(f"OLD (buggy) conversion: {old_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> new_result = convert_to_berlin_new(test_case)
+> print(f"NEW (fixed) conversion: {new_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> print("\n" + "="*70)
+> print("The old version incorrectly treats '01:30:00' as Berlin time.")
+> print("The new version correctly treats it as UTC and converts to Berlin.")
+> EOF
+user@86320027761d:~/scheduler$ python3 test_fix.py
+Testing DST transition period (March 31, 2024 - DST starts at 2am)
+======================================================================
+
+UTC Time: 2024-03-31T01:30:00
+Expected Berlin Time: 2024-03-31 03:30:00 (DST active, UTC+2)
+
+OLD (buggy) conversion: 2024-03-31 01:30:00 CET+0100
+NEW (fixed) conversion: 2024-03-31 03:30:00 CEST+0200
+
+======================================================================
+The old version incorrectly treats '01:30:00' as Berlin time.
+The new version correctly treats it as UTC and converts to Berlin.
+user@86320027761d:~/scheduler$

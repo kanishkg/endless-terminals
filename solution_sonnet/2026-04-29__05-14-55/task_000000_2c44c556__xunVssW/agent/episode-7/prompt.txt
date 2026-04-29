@@ -1,0 +1,73 @@
+New Terminal Output:
+
+root@19ca552ebd0b:/home/user/firewall# echo '=== Rule ordering in FORWARD chain ==='
+=== Rule ordering in FORWARD chain ===
+root@19ca552ebd0b:/home/user/firewall# grep -n 'FORWARD' rules.sh | grep -E '(10\.200|10\.100|eth1|eth2)'
+19:iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+25:iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j LOG --log-prefix "FORWARD_DROP: "
+26:iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j DROP
+29:iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+root@19ca552ebd0b:/home/user/firewall# echo ''
+
+root@19ca552ebd0b:/home/user/firewall# cat > SOLUTION.txt << 'EOF'
+> FIREWALL FIX SUMMARY
+> ====================
+>
+> PROBLEM:
+> Traffic from ML inference service (10.200.0.0/16) to model registry (10.100.0.42:5000)
+> was timing out despite having a firewall rule that appeared correct.
+>
+> ROOT CAUSE:
+> 1. The ACCEPT rule was in the INPUT chain instead of FORWARD chain
+>    - INPUT chain: for traffic destined TO the gateway itself
+>    - FORWARD chain: for traffic being ROUTED THROUGH the gateway
+>
+> 2. There was a DROP rule blocking all traffic from 10.200.0.0/16 to 10.100.0.0/16
+>    that was being evaluated before any specific ACCEPT rules
+>
+> SOLUTION:
+> Moved the ACCEPT rule from INPUT to FORWARD chain and positioned it BEFORE
+> the broader DROP rule:
+>
+> Line 19: iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+>
+> This allows traffic to the registry (10.100.0.42:5000) while still blocking
+> other traffic from the inference subnet to the registry subnet.
+>
+> RULE EVALUATION ORDER:
+> 1. ESTABLISHED,RELATED connections (line 13)
+> 2. NEW connection to registry:5000 - ACCEPT (line 19) ✓
+> 3. Other traffic to 10.100.0.0/16 - LOG and DROP (lines 25-26)
+> 4. General forwarding eth1->eth2 - ACCEPT (line 29)
+> EOF
+root@19ca552ebd0b:/home/user/firewall# cat SOLUTION.txt
+FIREWALL FIX SUMMARY
+====================
+
+PROBLEM:
+Traffic from ML inference service (10.200.0.0/16) to model registry (10.100.0.42:5000)
+was timing out despite having a firewall rule that appeared correct.
+
+ROOT CAUSE:
+1. The ACCEPT rule was in the INPUT chain instead of FORWARD chain
+   - INPUT chain: for traffic destined TO the gateway itself
+   - FORWARD chain: for traffic being ROUTED THROUGH the gateway
+
+2. There was a DROP rule blocking all traffic from 10.200.0.0/16 to 10.100.0.0/16
+   that was being evaluated before any specific ACCEPT rules
+
+SOLUTION:
+Moved the ACCEPT rule from INPUT to FORWARD chain and positioned it BEFORE
+the broader DROP rule:
+
+Line 19: iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+
+This allows traffic to the registry (10.100.0.42:5000) while still blocking
+other traffic from the inference subnet to the registry subnet.
+
+RULE EVALUATION ORDER:
+1. ESTABLISHED,RELATED connections (line 13)
+2. NEW connection to registry:5000 - ACCEPT (line 19) ✓
+3. Other traffic to 10.100.0.0/16 - LOG and DROP (lines 25-26)
+4. General forwarding eth1->eth2 - ACCEPT (line 29)
+root@19ca552ebd0b:/home/user/firewall#

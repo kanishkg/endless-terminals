@@ -1,0 +1,3 @@
+Got a weird one — our internal health-checker at /home/user/netcheck/checker.py is supposed to hit three endpoints and dump a json summary to /home/user/netcheck/results.json. It's been running fine for months but now it just hangs forever when I run it. Doesn't error, doesn't timeout, just sits there.
+
+The endpoints are all mocked locally (little flask apps) so there's no external dependency. Pretty sure they're up — I can curl them manually. configs are in /home/user/netcheck/endpoints.yaml. Maybe something got misconfigured when someone reorganized the project last week? I don't really have time to dig through it, just need the checker working again so it writes that results.json with status for all three services.

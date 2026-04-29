@@ -1,0 +1,265 @@
+[?2004huser@130b9ff311bd:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@130b9ff311bd:~$ clear
+[?2004l[H[J[?2004huser@130b9ff311bd:~$ cd /home/user/inventory
+[?2004l[?2004huser@130b9ff311bd:~/inventory$ ls -la
+[?2004ltotal 36
+drwxrwxrwx 1 user user  4096 Apr 29 10:03 .
+drwxrwxrwx 1 root root  4096 Apr 29 10:03 ..
+-rw-rw-rw- 1 user user    60 Apr 29 10:03 .env
+-rw-rw-rw- 1 user user  2009 Apr 29 10:03 app.py
+-rw-rw-rw- 1 user user 16384 Apr 29 10:03 data.db
+-rw-rw-rw- 1 user user    34 Apr 29 10:03 requirements.txt
+[?2004huser@130b9ff311bd:~/inventory$ cat requirements.txt
+[?2004lflask==3.0.0
+python-dotenv==1.0.0
+[?2004huser@130b9ff311bd:~/inventory$ cat .env
+[?2004lAPI_KEY=inv-7f3a2b9c4d5e6f1a
+DATABASE_URL=sqlite:///data.db
+[?2004huser@130b9ff311bd:~/inventory$ cat app.py
+[?2004limport os
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
+from functools import wraps
+
+load_dotenv()
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///data.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+API_KEY = os.getenv('API_KEY')
+
+class Item(db.Model):
+    __tablename__ = 'items'
+    id = db.Column(db.Integer, primary_key=True)
+    sku = db.Column(db.String(100), unique=True, nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    quantity = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sku': self.sku,
+            'name': self.name,
+            'quantity': self.quantity
+        }
+
+def require_api_key(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get('X-Api-Key')
+        if not api_key or api_key != API_KEY:
+            return jsonify({'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/api/items', methods=['GET'])
+@require_api_key
+def get_items():
+    items = Item.query.all()
+    return jsonify([item.to_dict() for item in items])
+
+@app.route('/api/items', methods=['POST'])
+@require_api_key
+def create_item():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    sku = data.get('sku')
+    name = data.get('name')
+    quantity = data.get('quantity', 0)
+
+    if not sku or not name:
+        return jsonify({'error': 'sku and name are required'}), 400
+
+    existing = Item.query.filter_by(sku=sku).first()
+    if existing:
+        return jsonify({'error': 'Item with this SKU already exists'}), 409
+
+    item = Item(sku=sku, name=name, quantity=quantity)
+    db.session.add(item)
+    db.session.commit()
+
+    return jsonify(item.to_dict()), 201
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
+[?2004huser@130b9ff311bd:~/inventory$ python3 app.py
+[?2004lTraceback (most recent call last):
+  File "/home/user/inventory/app.py", line 3, in <module>
+    from flask_sqlalchemy import SQLAlchemy
+ModuleNotFoundError: No module named 'flask_sqlalchemy'
+[?2004huser@130b9ff311bd:~/inventory$ pip3 install flask-sqlalchemy
+[?2004lDefaulting to user installation because normal site-packages is not writeable
+Collecting flask-sqlalchemy
+  Downloading flask_sqlalchemy-3.1.1-py3-none-any.whl (25 kB)
+Requirement already satisfied: flask>=2.2.5 in /usr/local/lib/python3.10/dist-packages (from flask-sqlalchemy) (3.0.0)
+Collecting sqlalchemy>=2.0.16
+  Downloading sqlalchemy-2.0.49-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (3.2 MB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/3.2 MB[0m [31m?[0m eta [36m-:--:--[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m[90m━━━━━━━━━━━[0m [32m2.3/3.2 MB[0m [31m70.0 MB/s[0m eta [36m0:00:01[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m3.2/3.2 MB[0m [31m62.2 MB/s[0m eta [36m0:00:00[0m
+[?25hRequirement already satisfied: Jinja2>=3.1.2 in /usr/local/lib/python3.10/dist-packages (from flask>=2.2.5->flask-sqlalchemy) (3.1.6)
+Requirement already satisfied: click>=8.1.3 in /usr/local/lib/python3.10/dist-packages (from flask>=2.2.5->flask-sqlalchemy) (8.3.3)
+Requirement already satisfied: itsdangerous>=2.1.2 in /usr/local/lib/python3.10/dist-packages (from flask>=2.2.5->flask-sqlalchemy) (2.2.0)
+Requirement already satisfied: Werkzeug>=3.0.0 in /usr/local/lib/python3.10/dist-packages (from flask>=2.2.5->flask-sqlalchemy) (3.1.8)
+Requirement already satisfied: blinker>=1.6.2 in /usr/local/lib/python3.10/dist-packages (from flask>=2.2.5->flask-sqlalchemy) (1.9.0)
+Requirement already satisfied: typing-extensions>=4.6.0 in /usr/local/lib/python3.10/dist-packages (from sqlalchemy>=2.0.16->flask-sqlalchemy) (4.15.0)
+Collecting greenlet>=1
+  Downloading greenlet-3.5.0-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (613 kB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/613.4 KB[0m [31m?[0m eta [36m-:--:--[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m613.4/613.4 KB[0m [31m98.3 MB/s[0m eta [36m0:00:00[0m
+[?25hRequirement already satisfied: MarkupSafe>=2.0 in /usr/local/lib/python3.10/dist-packages (from Jinja2>=3.1.2->flask>=2.2.5->flask-sqlalchemy) (3.0.3)
+Installing collected packages: greenlet, sqlalchemy, flask-sqlalchemy
+Successfully installed flask-sqlalchemy-3.1.1 greenlet-3.5.0 sqlalchemy-2.0.49
+[?2004huser@130b9ff311bd:~/inventory$ python3 app.py &
+[?2004l[1] 522
+[?2004huser@130b9ff311bd:~/inventory$  * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://172.23.0.2:8080
+[33mPress CTRL+C to quit[0m
+curl -H "X-Api-Key: inv-7f3a2b9c4d5e6f1a" http://127.0.0.1:8080/api/items
+[?2004l[2026-04-29 10:04:29,174] ERROR in app: Exception on /api/items [GET]
+Traceback (most recent call last):
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: no such table: items
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python3.10/dist-packages/flask/app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+  File "/home/user/inventory/app.py", line 38, in decorated
+    return f(*args, **kwargs)
+  File "/home/user/inventory/app.py", line 44, in get_items
+    items = Item.query.all()
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/orm/query.py", line 2711, in all
+    return self._iter().all()  # type: ignore
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/orm/query.py", line 2864, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/home/user/.local/lib/python3.10/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: items
+[SQL: SELECT items.id AS items_id, items.sku AS items_sku, items.name AS items_name, items.quantity AS items_quantity 
+FROM items]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+127.0.0.1 - - [29/Apr/2026 10:04:29] "[35m[1mGET /api/items HTTP/1.1[0m" 500 -
+<!doctype html>
+<html lang=en>
+<title>500 Internal Server Error</title>
+<h1>Internal Server Error</h1>
+<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>
+[?2004huser@130b9ff311bd:~/inventory$ sqlite3 data.db ".tables"
+[?2004litems
+[?2004huser@130b9ff311bd:~/inventory$ sqlite3 data.db ".schema"
+[?2004lCREATE TABLE items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    quantity INTEGER DEFAULT 0
+);
+CREATE TABLE sqlite_sequence(name,seq);
+[?2004huser@130b9ff311bd:~/inventory$ sqlite3 data.db "SELECT COUNT(*) FROM items;"
+[?2004l18
+[?2004huser@130b9ff311bd:~/inventory$ ls -la *.db
+[?2004l-rw-rw-rw- 1 user user 16384 Apr 29 10:03 data.db
+[?2004huser@130b9ff311bd:~/inventory$ find . -name "*.db" -type f
+[?2004l./instance/data.db
+./data.db
+[?2004huser@130b9ff311bd:~/inventory$ kill %1
+[?2004l[?2004huser@130b9ff311bd:~/inventory$ sed -i 's|DATABASE_URL=sqlite:///data.db|DATABASE_URL=sqlite:////home/user/inventory/data.db|' .env
+[?2004l[1]+  Terminated              python3 app.py
+[?2004huser@130b9ff311bd:~/inventory$ cat .env
+[?2004lAPI_KEY=inv-7f3a2b9c4d5e6f1a
+DATABASE_URL=sqlite:////home/user/inventory/data.db
+[?2004huser@130b9ff311bd:~/inventory$ python3 app.py &
+[?2004l[1] 652
+[?2004huser@130b9ff311bd:~/inventory$  * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://172.23.0.2:8080
+[33mPress CTRL+C to quit[0m
+curl -H "X-Api-Key: inv-7f3a2b9c4d5e6f1a" http://127.0.0.1:8080/api/items
+[?2004l127.0.0.1 - - [29/Apr/2026 10:05:03] "GET /api/items HTTP/1.1" 200 -
+[{"id":1,"name":"Widget Alpha","quantity":100,"sku":"SKU-001"},{"id":2,"name":"Widget Beta","quantity":250,"sku":"SKU-002"},{"id":3,"name":"Gadget Pro","quantity":75,"sku":"SKU-003"},{"id":4,"name":"Gadget Lite","quantity":180,"sku":"SKU-004"},{"id":5,"name":"Component X1","quantity":500,"sku":"SKU-005"},{"id":6,"name":"Component X2","quantity":320,"sku":"SKU-006"},{"id":7,"name":"Assembly Kit A","quantity":45,"sku":"SKU-007"},{"id":8,"name":"Assembly Kit B","quantity":60,"sku":"SKU-008"},{"id":9,"name":"Connector Type C","quantity":1000,"sku":"SKU-009"},{"id":10,"name":"Connector Type D","quantity":850,"sku":"SKU-010"},{"id":11,"name":"Power Supply 12V","quantity":200,"sku":"SKU-011"},{"id":12,"name":"Power Supply 24V","quantity":150,"sku":"SKU-012"},{"id":13,"name":"Sensor Module","quantity":90,"sku":"SKU-013"},{"id":14,"name":"Display Panel","quantity":35,"sku":"SKU-014"},{"id":15,"name":"Control Board","quantity":120,"sku":"SKU-015"},{"id":16,"name":"Enclosure Small","quantity":200,"sku":"SKU-016"},{"id":17,"name":"Enclosure Large","quantity":80,"sku":"SKU-017"},{"id":18,"name":"Cable Bundle","quantity":400,"sku":"SKU-018"}]
+[?2004huser@130b9ff311bd:~/inventory$ curl -X POST -H "X-Api-Key: inv-7f3a2b9c4d5e6f1a" -H "Content-Type: application/json" -d '{"sku":"TEST-RESTORE-001","name":"Restore Verification","quantity":1}' http://127.0.0.1:8080/api/items -w "\nHTTP Status: %{http_code}\n"
+[?2004l127.0.0.1 - - [29/Apr/2026 10:05:10] "[35m[1mPOST /api/items HTTP/1.1[0m" 201 -
+{"id":19,"name":"Restore Verification","quantity":1,"sku":"TEST-RESTORE-001"}
+
+HTTP Status: 201
+[?2004huser@130b9ff311bd:~/inventory$ curl -H "X-Api-Key: inv-7f3a2b9c4d5e6f1a" http://127.0.0.1:8080/api/items | grep -o '"sku":"TEST-RESTORE-001"'
+[?2004l  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0127.0.0.1 - - [29/Apr/2026 10:05:21] "GET /api/items HTTP/1.1" 200 -
+100  1225  100  1225    0     0   473k      0 --:--:-- --:--:-- --:--:--  598k
+"sku":"TEST-RESTORE-001"
+[?2004huser@130b9ff311bd:~/inventory$ echo ""
+[?2004l
+[?2004huser@130b9ff311bd:~/inventory$ echo "=== RESTORE VERIFICATION COMPLETE ==="
+[?2004l=== RESTORE VERIFICATION COMPLETE ===
+[?2004huser@130b9ff311bd:~/inventory$ echo "Issue Fixed: Updated DATABASE_URL in .env to use absolute path"
+[?2004lIssue Fixed: Updated DATABASE_URL in .env to use absolute path
+[?2004huser@130b9ff311bd:~/inventory$ echo "App Status: Running on port 8080"
+[?2004lApp Status: Running on port 8080
+[?2004huser@130b9ff311bd:~/inventory$ echo "Auth Header: X-Api-Key: inv-7f3a2b9c4d5e6f1a"
+[?2004lAuth Header: X-Api-Key: inv-7f3a2b9c4d5e6f1a
+[?2004huser@130b9ff311bd:~/inventory$ echo "Items in DB: 19 (18 from backup + 1 test item)"
+[?2004lItems in DB: 19 (18 from backup + 1 test item)
+[?2004huser@130b9ff311bd:~/inventory$ echo "GET /api/items: SUCCESS (200 OK)"
+[?2004lGET /api/items: SUCCESS (200 OK)
+[?2004huser@130b9ff311bd:~/inventory$ echo "POST /api/items: SUCCESS (201 Created)"
+[?2004lPOST /api/items: SUCCESS (201 Created)
+[?2004huser@130b9ff311bd:~/inventory$ echo "Test Item Created: TEST-RESTORE-001"
+[?2004lTest Item Created: TEST-RESTORE-001
+[?2004huser@130b9ff311bd:~/inventory$ 127.0.0.1 - - [29/Apr/2026 10:05:33] "[31m[1mGET /api/items HTTP/1.1[0m" 401 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "[31m[1mGET /api/items HTTP/1.1[0m" 401 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "[31m[1mPOST /api/items HTTP/1.1[0m" 409 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "[31m[1mPOST /api/items HTTP/1.1[0m" 409 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "[31m[1mPOST /api/items HTTP/1.1[0m" 409 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -
+127.0.0.1 - - [29/Apr/2026 10:05:33] "GET /api/items HTTP/1.1" 200 -

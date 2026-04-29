@@ -1,0 +1,45 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+
+New Terminal Output:
+
+root@5ecc47311998:/home/user# cd /home/user/firewall
+root@5ecc47311998:/home/user/firewall# ls -la
+total 16
+drwxrwxrwx 1 root root 4096 Apr 29 09:40 .
+drwxrwxrwx 1 root root 4096 Apr 29 09:40 ..
+-rwxrwxrwx 1 root root  907 Apr 29 09:40 rules.sh
+-rwxrwxrwx 1 root root 1220 Apr 29 09:40 test.sh
+root@5ecc47311998:/home/user/firewall# cat rules.sh
+#!/bin/bash
+# Flush existing rules
+iptables -F
+iptables -t nat -F
+
+# Default policies
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# Allow established connections
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow SSH to gateway
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow inference subnet to registry (THE USER'S RULE - WRONG CHAIN)
+iptables -A INPUT -s 10.200.0.0/16 -p tcp --dport 5000 -j ACCEPT
+
+# NAT for outbound
+iptables -t nat -A POSTROUTING -s 10.200.0.0/16 -o eth2 -j MASQUERADE
+
+# Block known bad actors
+iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j LOG --log-prefix "FORWARD_DROP: "
+iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j DROP
+
+# General forwarding (added later, supposedly to fix things)
+iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+root@5ecc47311998:/home/user/firewall#
+
+

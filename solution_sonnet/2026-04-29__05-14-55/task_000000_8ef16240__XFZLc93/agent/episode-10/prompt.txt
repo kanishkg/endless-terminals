@@ -1,0 +1,68 @@
+New Terminal Output:
+
+root@96dd82738e33:/home/user/pipeline# rm output/summary.db .checkpoint
+root@96dd82738e33:/home/user/pipeline# cat > test_multiple_interrupts.py << 'EOF'
+> import subprocess
+> import time
+> import signal
+> import os
+> import sqlite3
+> import json
+>
+> def get_db_count():
+>     if os.path.exists('output/summary.db'):
+>         conn = sqlite3.connect('output/summary.db')
+>         result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+>         conn.close()
+>         return result[0] if result[0] else 0
+>     return 0
+>
+> def get_checkpoint():
+>     if os.path.exists('.checkpoint'):
+>         with open('.checkpoint', 'r') as f:
+>             return json.load(f)['last_line']
+>     return 0
+>
+> print("Testing multiple interruptions...\n")
+>
+> # First run - interrupt early
+> proc = subprocess.Popen(['python3', 'process.py'])
+> time.sleep(0.2)
+> proc.send_signal(signal.SIGTERM)
+> proc.wait()
+> count1 = get_db_count()
+> ckpt1 = get_checkpoint()
+> print(f"After interrupt 1: checkpoint={ckpt1}, events={count1}")
+>
+> # Second run - interrupt again
+> proc = subprocess.Popen(['python3', 'process.py'])
+> time.sleep(0.2)
+> proc.send_signal(signal.SIGTERM)
+> proc.wait()
+> count2 = get_db_count()
+> ckpt2 = get_checkpoint()
+> print(f"After interrupt 2: checkpoint={ckpt2}, events={count2}")
+>
+> # Third run - let it complete
+> proc = subprocess.Popen(['python3', 'process.py'])
+> proc.wait()
+> count3 = get_db_count()
+> ckpt3 = get_checkpoint()
+> print(f"After completion:  checkpoint={ckpt3}, events={count3}")
+>
+> print(f"\nExpected final: 50000 events")
+> if count3 == 50000:
+>     print("✓ SUCCESS: Multiple resume cycles work correctly!")
+> else:
+>     print(f"✗ FAILED: Expected 50000, got {count3}")
+> EOF
+root@96dd82738e33:/home/user/pipeline# python3 test_multiple_interrupts.py
+Testing multiple interruptions...
+
+After interrupt 1: checkpoint=16000, events=16000
+After interrupt 2: checkpoint=33000, events=33000
+After completion:  checkpoint=50000, events=50000
+
+Expected final: 50000 events
+✓ SUCCESS: Multiple resume cycles work correctly!
+root@96dd82738e33:/home/user/pipeline#

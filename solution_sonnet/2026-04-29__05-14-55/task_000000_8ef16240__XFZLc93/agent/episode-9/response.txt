@@ -1,0 +1,18 @@
+{
+  "analysis": "Perfect! The test shows the checkpoint/resume is working correctly:\n1. Process was interrupted after processing 45,000 events\n2. Checkpoint correctly saved line 45000\n3. On resume, it processed the remaining 5,000 events\n4. Final total is exactly 50,000 events (no duplication, no data loss)\n\nThe fixes are working! Now let me test one more scenario - multiple interruptions to ensure the accumulation logic works correctly across multiple resumes.",
+  "plan": "I'll create a comprehensive test that interrupts the process multiple times and verifies data integrity throughout. This will confirm that the ON CONFLICT UPDATE logic properly accumulates data without loss or duplication across multiple resume cycles.",
+  "commands": [
+    {
+      "keystrokes": "rm output/summary.db .checkpoint\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat > test_multiple_interrupts.py << 'EOF'\nimport subprocess\nimport time\nimport signal\nimport os\nimport sqlite3\nimport json\n\ndef get_db_count():\n    if os.path.exists('output/summary.db'):\n        conn = sqlite3.connect('output/summary.db')\n        result = conn.execute('SELECT SUM(count) FROM summary').fetchone()\n        conn.close()\n        return result[0] if result[0] else 0\n    return 0\n\ndef get_checkpoint():\n    if os.path.exists('.checkpoint'):\n        with open('.checkpoint', 'r') as f:\n            return json.load(f)['last_line']\n    return 0\n\nprint(\"Testing multiple interruptions...\\n\")\n\n# First run - interrupt early\nproc = subprocess.Popen(['python3', 'process.py'])\ntime.sleep(0.2)\nproc.send_signal(signal.SIGTERM)\nproc.wait()\ncount1 = get_db_count()\nckpt1 = get_checkpoint()\nprint(f\"After interrupt 1: checkpoint={ckpt1}, events={count1}\")\n\n# Second run - interrupt again\nproc = subprocess.Popen(['python3', 'process.py'])\ntime.sleep(0.2)\nproc.send_signal(signal.SIGTERM)\nproc.wait()\ncount2 = get_db_count()\nckpt2 = get_checkpoint()\nprint(f\"After interrupt 2: checkpoint={ckpt2}, events={count2}\")\n\n# Third run - let it complete\nproc = subprocess.Popen(['python3', 'process.py'])\nproc.wait()\ncount3 = get_db_count()\nckpt3 = get_checkpoint()\nprint(f\"After completion:  checkpoint={ckpt3}, events={count3}\")\n\nprint(f\"\\nExpected final: 50000 events\")\nif count3 == 50000:\n    print(\"✓ SUCCESS: Multiple resume cycles work correctly!\")\nelse:\n    print(f\"✗ FAILED: Expected 50000, got {count3}\")\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "python3 test_multiple_interrupts.py\n",
+      "duration": 3.0
+    }
+  ]
+}

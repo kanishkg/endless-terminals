@@ -1,0 +1,14 @@
+{
+  "analysis": "Perfect! The checkpoint resume functionality is now working correctly. The script successfully processed all 50,000 records across multiple interruptions (2000 → 5000 → 50000) and the final totals are identical to the earlier complete run, proving no data was duplicated or lost. Now I should create a summary document explaining the bugs and fixes.",
+  "plan": "Create a README or summary document explaining the bugs found and the fixes applied to help document the solution for future reference.",
+  "commands": [
+    {
+      "keystrokes": "cat > BUGFIX_SUMMARY.md << 'EOF'\n# Pipeline Checkpoint Resume Bug Fix\n\n## Problem\nThe batch processing script would create checkpoint files but fail to properly resume from them, reprocessing all data from the beginning after each restart.\n\n## Root Causes Identified\n\n### 1. **Critical: Semantic Mismatch in Checkpoint Data**\n- **Bug**: Checkpoint saved `batch_num` (batch counter: 0, 1, 2...) but labeled it as 'last_line'\n- **Impact**: When resuming, the script would skip `i < start_from` lines where `i` is the actual line number\n- **Example**: After processing 5 batches (5000 lines), checkpoint saved `5` but resume logic only skipped 5 lines\n- **Fix**: Save the actual line number (`batch_num * BATCH_SIZE`) instead of batch number\n\n### 2. **Data Loss: Database INSERT Strategy**\n- **Bug**: Used `INSERT OR REPLACE` which overwrites existing aggregated data\n- **Impact**: On resume, previously processed data for each category was lost/replaced\n- **Fix**: Changed to `INSERT ... ON CONFLICT DO UPDATE` to accumulate values:\n  ```sql\n  INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)\n  ON CONFLICT(category) DO UPDATE SET\n      total_value = total_value + excluded.total_value,\n      count = count + excluded.count\n  ```\n\n### 3. **Race Condition: Checkpoint File Buffering**\n- **Bug**: Checkpoint written without proper flush/sync: `json.dump(..., open('.checkpoint', 'w'))`\n- **Impact**: If process crashes immediately after checkpoint write, data might not be persisted\n- **Fix**: Use context manager with explicit flush and fsync:\n  ```python\n  with open('.checkpoint', 'w') as f:\n      json.dump({'last_line': line_num}, f)\n      f.flush()\n      os.fsync(f.fileno())\n  ```\n\n## Verification\nTested with multiple interruption scenarios:\n- Run 1: Processed 2000 records, crashed\n- Run 2: Resumed from 2000, processed to 5000, crashed\n- Run 3: Resumed from 5000, completed all 50000 records\n\nFinal totals match complete single-run totals, confirming no duplicates or data loss.\n\n## Files Modified\n- `process.py` - Fixed checkpoint save/load and database insert logic\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat BUGFIX_SUMMARY.md\n",
+      "duration": 0.1
+    }
+  ]
+}

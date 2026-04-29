@@ -1,0 +1,110 @@
+[?2004huser@d625e057607c:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@d625e057607c:~$ clear
+[?2004l[H[J[?2004huser@d625e057607c:~$ ls -lh /home/user/backup.sh
+[?2004lls: cannot access '/home/user/backup.sh': No such file or directory
+[?2004huser@d625e057607c:~$ test -x /home/user/backup.sh && echo "Script is executable" || echo "Script is NOT executable"
+[?2004lScript is NOT executable
+[?2004huser@d625e057607c:~$ ls -la /home/user/backups/ | head -10
+[?2004ltotal 8
+drwxr-xr-x 1 user user 4096 Apr 29 05:02 .
+drwxrwxrwx 1 user user 4096 Apr 29 05:15 ..
+[?2004huser@d625e057607c:~$ test -f /home/user/backups/manifest.txt && echo "Manifest exists" || echo "Manifest missing"
+[?2004lManifest missing
+[?2004huser@d625e057607c:~$ head -10 /home/user/backups/manifest.txt
+[?2004lhead: cannot open '/home/user/backups/manifest.txt' for reading: No such file or directory
+[?2004huser@d625e057607c:~$ wc -l /home/user/backups/manifest.txt
+[?2004lwc: /home/user/backups/manifest.txt: No such file or directory
+[?2004huser@d625e057607c:~$ cat > /home/user/backup.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Backup script that copies accessible files from /home/user/projects to /home/user/backups
+[?2004l[?2004h> # and creates a manifest with ownership information
+[?2004l[?2004h> 
+[?2004l[?2004h> SOURCE_DIR="/home/user/projects"
+[?2004l[?2004h> BACKUP_DIR="/home/user/backups"
+[?2004l[?2004h> MANIFEST="${BACKUP_DIR}/manifest.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Create backup directory if it doesn't exist
+[?2004l[?2004h> mkdir -p "${BACKUP_DIR}" 2>/dev/null
+[?2004l[?2004h> 
+[?2004l[?2004h> # Initialize manifest file
+[?2004l[?2004h> > "${MANIFEST}"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find all readable files in the source directory
+[?2004l[?2004h> # Suppress all error messages about permission denied
+[?2004l[?2004h> find "${SOURCE_DIR}" -type f -readable 2>/dev/null | while IFS= read -r file; do
+[?2004l[?2004h>     # Get the relative path from source directory
+[?2004l[?2004h>     rel_path="${file#${SOURCE_DIR}/}"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Destination file path
+[?2004l[?2004h>     dest_file="${BACKUP_DIR}/${rel_path}"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Get owner:group information using stat
+[?2004l[?2004h>     owner_info=$(stat -c "%U:%G" "${file}" 2>/dev/null)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Only proceed if we could read the file info
+[?2004l[?2004h>     if [ $? -eq 0 ]; then
+[?2004l[?2004h>         # Create destination directory structure
+[?2004l[?2004h>         dest_dir=$(dirname "${dest_file}")
+[?2004l[?2004h>         mkdir -p "${dest_dir}" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Copy the file (suppress errors)
+[?2004l[?2004h>         if cp "${file}" "${dest_file}" 2>/dev/null; then
+[?2004l[?2004h>             # Add entry to manifest
+[?2004l[?2004h>             echo "${rel_path} ${owner_info}" >> "${MANIFEST}"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Backup completed. Manifest written to ${MANIFEST}"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@d625e057607c:~$ chmod +x /home/user/backup.sh
+[?2004l[?2004huser@d625e057607c:~$ ls -lh /home/user/backup.sh
+[?2004l-rwxr-xr-x 1 user user 1.4K Apr 29 05:16 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@d625e057607c:~$ /home/user/backup.sh
+[?2004lBackup completed. Manifest written to /home/user/backups/manifest.txt
+[?2004huser@d625e057607c:~$ ls -la /home/user/backups/
+[?2004ltotal 28
+drwxr-xr-x 1 user user 4096 Apr 29 05:16 [0m[01;34m.[0m
+drwxrwxrwx 1 user user 4096 Apr 29 05:16 [34;42m..[0m
+drwxr-xr-x 2 user user 4096 Apr 29 05:16 [01;34malpha[0m
+drwxr-xr-x 2 user user 4096 Apr 29 05:16 [01;34mbeta[0m
+drwxr-xr-x 3 user user 4096 Apr 29 05:16 [01;34mgamma[0m
+-rw-r--r-- 1 user user  137 Apr 29 05:16 manifest.txt
+[?2004huser@d625e057607c:~$ test -f /home/user/backups/manifest.txt && echo "Manifest created successfully" || echo "Manifest NOT created"
+[?2004lManifest created successfully
+[?2004huser@d625e057607c:~$ head -15 /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@d625e057607c:~$ wc -l /home/user/backups/manifest.txt
+[?2004l5 /home/user/backups/manifest.txt
+[?2004huser@d625e057607c:~$ find /home/user/backups -type f ! -name 'manifest.txt'
+[?2004l/home/user/backups/beta/notes.txt
+/home/user/backups/beta/data.csv
+/home/user/backups/alpha/config.json
+/home/user/backups/gamma/subdir/deep.txt
+/home/user/backups/gamma/readable.md
+[?2004huser@d625e057607c:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@d625e057607c:~$ echo "All requirements verified:"
+[?2004lAll requirements verified:
+[?2004huser@d625e057607c:~$ echo "✓ Script at /home/user/backup.sh"
+[?2004l✓ Script at /home/user/backup.sh
+[?2004huser@d625e057607c:~$ echo "✓ Copies readable files from /home/user/projects"
+[?2004l✓ Copies readable files from /home/user/projects
+[?2004huser@d625e057607c:~$ echo "✓ Preserves directory structure in /home/user/backups"
+[?2004l✓ Preserves directory structure in /home/user/backups
+[?2004huser@d625e057607c:~$ echo "✓ Creates manifest.txt with owner:group info"
+[?2004l✓ Creates manifest.txt with owner:group info
+[?2004huser@d625e057607c:~$ echo "✓ Silently skips inaccessible files"
+[?2004l✓ Silently skips inaccessible files
+[?2004huser@d625e057607c:~$ 

@@ -1,0 +1,112 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@792be63981fc:/home/user/audit# cat > check.py << 'EOF'
+> #!/usr/bin/env python3
+dest_port} not allowed from {cidr}")
+            else:
+                print(f"BLOCKED: {source_ip}:{dest_port} not allowed from any")
+
+if __name__ == '__main__':
+    main()
+EOF
+> import json
+> import csv
+> import ipaddress
+> import sys
+>
+> def ip_in_cidr(ip_str, cidr_str):
+>     """Check if an IP address is within a CIDR range."""
+>     try:
+>         ip = ipaddress.ip_address(ip_str)
+>         network = ipaddress.ip_network(cidr_str, strict=False)
+>         return ip in network
+>     except ValueError:
+>         return False
+>
+> def port_in_range(port, port_spec):
+>     """Check if a port matches a port specification (single port or range)."""
+>     try:
+>         port = int(port)
+>         port_spec = str(port_spec)
+>         if '-' in port_spec:
+>             start, end = map(int, port_spec.split('-'))
+>             return start <= port <= end
+>         else:
+>             return port == int(port_spec)
+>     except (ValueError, AttributeError):
+>         return False
+>
+> def find_matching_rules(source_ip, dest_port, rules):
+>     """Find all matching rules for a given source IP and destination port.
+>     Returns list of (prefix_length, rule) tuples sorted by specificity."""
+>     matching_rules = []
+>
+>     for rule in rules:
+>         source_cidr = rule.get('source_cidr', '')
+>         rule_port = rule.get('dest_port', '')
+>
+>         if ip_in_cidr(source_ip, source_cidr) and port_in_range(dest_port, rule_port):
+>             try:
+>                 network = ipaddress.ip_network(source_cidr, strict=False)
+>                 prefix_len = network.prefixlen
+>                 matching_rules.append((prefix_len, rule))
+>             except ValueError:
+>                 pass
+>
+>     matching_rules.sort(key=lambda x: x[0], reverse=True)
+>     return matching_rules
+>
+> def is_connection_allowed(source_ip, dest_port, rules):
+>     """Check if a connection is allowed based on firewall rules.
+>     Returns (allowed, most_specific_cidr)"""
+>     matching_rules = find_matching_rules(source_ip, dest_port, rules)
+>
+>     if not matching_rules:
+>         return False, None
+>
+>     most_specific_rule = matching_rules[0][1]
+>     action = most_specific_rule.get('action', 'deny')
+>     cidr = most_specific_rule.get('source_cidr', '')
+>
+>     return action == 'allow', cidr
+>
+> def main():
+>     try:
+>         with open('/home/user/audit/firewall_rules.json', 'r') as f:
+>             data = json.load(f)
+>             rules = data.get('rules', [])
+>     except (FileNotFoundError, json.JSONDecodeError) as e:
+>         print(f"Error loading firewall rules: {e}", file=sys.stderr)
+>         sys.exit(1)
+>
+>     try:
+>         with open('/home/user/audit/connections.csv', 'r') as f:
+>             reader = csv.DictReader(f)
+>             connections = list(reader)
+>     except FileNotFoundError as e:
+>         print(f"Error loading connections: {e}", file=sys.stderr)
+>         sys.exit(1)
+>
+>     for conn in connections:
+>         source_ip = conn.get('src_ip', '').strip()
+>         dest_port = conn.get('dest_port', '').strip()
+>
+>         if not source_ip or not dest_port:
+>             continue
+>
+>         allowed, cidr = is_connection_allowed(source_ip, dest_port, rules)
+>
+>         if not allowed:
+>             if cidr:
+>                 print(f"BLOCKED: {source_ip}:{dest_port} not allowed from {cidr}")
+>             else:
+>                 print(f"BLOCKED: {source_ip}:{dest_port} not allowed from any")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+root@792be63981fc:/home/user/audit#

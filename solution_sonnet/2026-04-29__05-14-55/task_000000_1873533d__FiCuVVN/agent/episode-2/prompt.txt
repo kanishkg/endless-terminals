@@ -1,0 +1,137 @@
+New Terminal Output:
+
+user@ac9f02f6385c:~$ cat > /home/user/bin/env-merge.sh << 'EOF'
+> #!/bin/bash
+>
+> if [ $# -ne 2 ]; then
+>     echo "Usage: $0 <file1.env> <file2.env>" >&2
+>     exit 1
+> fi
+>
+> if [ ! -f "$1" ]; then
+>     echo "Error: File '$1' not found" >&2
+>     exit 1
+> fi
+>
+> if [ ! -f "$2" ]; then
+>     echo "Error: File '$2' not found" >&2
+>     exit 1
+> fi
+>
+> # Use associative array to store key-value pairs
+> declare -A env_vars
+> declare -a all_keys
+>
+> # Read first file
+> while IFS= read -r line || [ -n "$line" ]; do
+>     # Skip empty lines and comments
+>     if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+>         continue
+>     fi
+>
+>     # Extract key (everything before first =)
+>     if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+>         key="${BASH_REMATCH[1]}"
+>         value="${BASH_REMATCH[2]}"
+>
+>         # Store in associative array
+>         if [[ -z "${env_vars[$key]+x}" ]]; then
+>             all_keys+=("$key")
+>         fi
+>         env_vars["$key"]="$value"
+>     fi
+> done < "$1"
+>
+> # Read second file (overwrites conflicts)
+> while IFS= read -r line || [ -n "$line" ]; do
+>     # Skip empty lines and comments
+>     if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+>         continue
+>     fi
+>
+>     # Extract key (everything before first =)
+>     if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+>         key="${BASH_REMATCH[1]}"
+>         value="${BASH_REMATCH[2]}"
+>
+>         # Store in associative array (overwrites if exists)
+>         if [[ -z "${env_vars[$key]+x}" ]]; then
+>             all_keys+=("$key")
+>         fi
+>         env_vars["$key"]="$value"
+>     fi
+> done < "$2"
+>
+> # Output merged result
+> for key in "${all_keys[@]}"; do
+>     echo "${key}=${env_vars[$key]}"
+> done
+> EOF
+user@ac9f02f6385c:~$ chmod +x /home/user/bin/env-merge.sh
+user@ac9f02f6385c:~$ cat /home/user/bin/env-merge.sh
+#!/bin/bash
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <file1.env> <file2.env>" >&2
+    exit 1
+fi
+
+if [ ! -f "$1" ]; then
+    echo "Error: File '$1' not found" >&2
+    exit 1
+fi
+
+if [ ! -f "$2" ]; then
+    echo "Error: File '$2' not found" >&2
+    exit 1
+fi
+
+# Use associative array to store key-value pairs
+declare -A env_vars
+declare -a all_keys
+
+# Read first file
+while IFS= read -r line || [ -n "$line" ]; do
+    # Skip empty lines and comments
+    if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+        continue
+    fi
+
+    # Extract key (everything before first =)
+    if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+        key="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
+
+        # Store in associative array
+        if [[ -z "${env_vars[$key]+x}" ]]; then
+            all_keys+=("$key")
+        fi
+        env_vars["$key"]="$value"
+    fi
+done < "$1"
+
+# Read second file (overwrites conflicts)
+while IFS= read -r line || [ -n "$line" ]; do
+    # Skip empty lines and comments
+    if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+        continue
+    fi
+
+    # Extract key (everything before first =)
+    if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+        key="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
+
+        # Store in associative array (overwrites if exists)
+        if [[ -z "${env_vars[$key]+x}" ]]; then
+            all_keys+=("$key")
+        fi
+        env_vars["$key"]="$value"
+    fi
+done < "$2"
+
+# Output merged result
+for key in "${all_keys[@]}"; do
+    echo "${key}=${env_vars[$key]}"
+done
+user@ac9f02f6385c:~$

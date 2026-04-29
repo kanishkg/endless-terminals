@@ -1,0 +1,27 @@
+New Terminal Output:
+
+root@4f2672db31b0:/home/user/pipeline# echo '=== Testing run.sh with interruption ==='
+=== Testing run.sh with interruption ===
+root@4f2672db31b0:/home/user/pipeline# rm .checkpoint output/summary.db
+root@4f2672db31b0:/home/user/pipeline# ./run.sh &
+[1] 849
+root@4f2672db31b0:/home/user/pipeline# RUNPID=$!
+root@4f2672db31b0:/home/user/pipeline# sleep 0.5
+kill $RUNPID 2>/dev/null
+[1]+  Done                    ./run.sh
+root@4f2672db31b0:/home/user/pipeline# kill $RUNPID 2>/dev/null
+root@4f2672db31b0:/home/user/pipeline# wait $RUNPID 2>/dev/null || echo 'Interrupted run.sh'
+root@4f2672db31b0:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3
+> import json
+> with open('.checkpoint') as f:
+>     cp = json.load(f)
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+> print(f'Checkpoint at line: {cp["last_line"]}')
+> print(f'Records in DB: {result[0]}')
+> conn.close()
+> EOF
+Checkpoint at line: 50000
+Records in DB: 50000
+root@4f2672db31b0:/home/user/pipeline#

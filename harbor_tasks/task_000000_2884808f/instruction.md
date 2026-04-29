@@ -1,0 +1,3 @@
+Our k8s manifest repo at /home/user/manifests uses a symlink structure for environment overlays — base configs in `base/`, then `envs/staging/` and `envs/prod/` symlink to pieces of base and override what they need. Was working fine until someone reorganized the base directory last week.
+
+Now `kubectl apply --dry-run=client -f envs/staging/` chokes — something about invalid YAML or missing files, I forget the exact message. Prod overlay is probably broken too but staging is the one I need fixed first. The apply should succeed without touching the base directory structure (that reorg is intentional and staying).

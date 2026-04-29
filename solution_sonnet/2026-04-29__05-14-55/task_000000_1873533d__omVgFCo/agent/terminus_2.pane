@@ -1,0 +1,96 @@
+[?2004huser@9fd0ebe83c22:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@9fd0ebe83c22:~$ clear
+[?2004l[H[J[?2004huser@9fd0ebe83c22:~$ ls -la /home/user/bin
+[?2004ltotal 8
+drwxrwxrwx 1 user user 4096 Apr 29 10:15 .
+drwxrwxrwx 1 user user 4096 Apr 29 10:15 ..
+[?2004huser@9fd0ebe83c22:~$ cat /home/user/project/.env.defaults
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=false
+API_KEY=default-key-123
+[?2004huser@9fd0ebe83c22:~$ cat /home/user/project/.env.local
+[?2004lDEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@9fd0ebe83c22:~$ cat > /home/user/bin/env-merge.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Check arguments
+[?2004l[?2004h> if [ $# -ne 2 ]; then
+[?2004l[?2004h>     echo "Usage: $0 <file1.env> <file2.env>" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> if [ ! -f "$1" ]; then
+[?2004l[?2004h>     echo "Error: File '$1' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> if [ ! -f "$2" ]; then
+[?2004l[?2004h>     echo "Error: File '$2' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Declare associative array for key-value pairs
+[?2004l[?2004h> declare -A env_vars
+[?2004l[?2004h> declare -a keys_order
+[?2004l[?2004h> 
+[?2004l[?2004h> # Function to parse env file
+[?2004l[?2004h> parse_env_file() {
+[?2004l[?2004h>     local file="$1"
+[?2004l[?2004h>     while IFS= read -r line || [ -n "$line" ]; do
+[?2004l[?2004h>         # Skip empty lines and comments
+[?2004l[?2004h>         if [[ -z "$line" ]] || [[ "$line" =~ ^[[:space:]]*# ]]; then
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         fi
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Extract key=value
+[?2004l[?2004h>         if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+[?2004l[?2004h>             key="${BASH_REMATCH[1]}"
+[?2004l[?2004h>             value="${BASH_REMATCH[2]}"
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Store in array, track order if new key
+[?2004l[?2004h>             if [ -z "${env_vars[$key]+x}" ]; then
+[?2004l[?2004h>                 keys_order+=("$key")
+[?2004l[?2004h>             fi
+[?2004l[?2004h>             env_vars["$key"]="$value"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     done < "$file"
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Parse both files (second file overwrites first)
+[?2004l[?2004h> parse_env_file "$1"
+[?2004l[?2004h> parse_env_file "$2"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Output merged result
+[?2004l[?2004h> for key in "${keys_order[@]}"; do
+[?2004l[?2004h>     echo "${key}=${env_vars[$key]}"
+[?2004l[?2004h> done
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@9fd0ebe83c22:~$ chmod +x /home/user/bin/env-merge.sh
+[?2004l[?2004huser@9fd0ebe83c22:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /home/user/project/.env.local
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@9fd0ebe83c22:~$ ls -la /home/user/bin/env-merge.sh
+[?2004l-rwxr-xr-x 1 user user 1217 Apr 29 10:16 /home/user/bin/env-merge.sh
+[?2004huser@9fd0ebe83c22:~$ /home/user/bin/env-merge.sh
+[?2004lUsage: /home/user/bin/env-merge.sh <file1.env> <file2.env>
+[?2004huser@9fd0ebe83c22:~$ /home/user/bin/env-merge.sh /nonexistent/file.env /home/user/project/.env.local
+[?2004lError: File '/nonexistent/file.env' not found
+[?2004huser@9fd0ebe83c22:~$ echo "Script created successfully at /home/user/bin/env-merge.sh"
+[?2004lScript created successfully at /home/user/bin/env-merge.sh
+[?2004huser@9fd0ebe83c22:~$ echo "Test merge output:"
+[?2004lTest merge output:
+[?2004huser@9fd0ebe83c22:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /home/user/project/.env.local
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@9fd0ebe83c22:~$ 

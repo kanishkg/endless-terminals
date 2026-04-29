@@ -1,0 +1,1 @@
+Need to lock down the python deps for /home/user/webapp before we ship the container — right now there's just a requirements.txt with unpinned versions (flask, requests, etc). Generate a requirements-lock.txt in that same dir with exact versions of everything currently installed, the usual `pkg==x.y.z` format. Don't touch the original requirements.txt.

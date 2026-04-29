@@ -1,0 +1,70 @@
+New Terminal Output:
+
+root@7e48eccb5004:/home/user/admin# cat > FIXES_APPLIED.txt << 'EOF'
+> EXPORT SCRIPT FIXES - Applied on $(date)
+> ================================================
+>
+> Problem: export_users.sh was producing garbled CSV output after migration
+> to multi-file format. Symptoms included:
+> - UIDs appearing in email column
+> - GIDs showing instead of group names
+> - Incorrect data alignment
+>
+> Root Causes Identified:
+>
+> 1. WRONG DELIMITER FOR emails.dat
+>    - File uses TAB delimiter but script used space delimiter
+>    - Caused entire "uid<TAB>email" to be treated as single field
+>    - Fix: Changed cut -d' ' to awk -F$'\t' for proper tab handling
+>
+> 2. SORTING MISMATCH (noted but already handled via awk lookup)
+>    - Users sorted alphabetically, emails sorted numerically
+>    - Fixed by using awk lookup instead of paste/join
+>
+> 3. WRONG FIELD SEPARATOR FOR groups.dat
+>    - File uses colon delimiter (gid:name:description)
+>    - Script used awk default (space/tab) so whole line became $1
+>    - Fix: Added -F':' to all awk commands processing groups.dat
+>
+> Results:
+> - All 800 users exported successfully
+> - Clean CSV with proper field separation
+> - Group names resolved correctly (primary and supplementary)
+> - Emails clean without UID prefixes
+>
+> Backup of original script: export_users.sh.backup
+> EOF
+root@7e48eccb5004:/home/user/admin# cat FIXES_APPLIED.txt
+EXPORT SCRIPT FIXES - Applied on $(date)
+================================================
+
+Problem: export_users.sh was producing garbled CSV output after migration
+to multi-file format. Symptoms included:
+- UIDs appearing in email column
+- GIDs showing instead of group names
+- Incorrect data alignment
+
+Root Causes Identified:
+
+1. WRONG DELIMITER FOR emails.dat
+   - File uses TAB delimiter but script used space delimiter
+   - Caused entire "uid<TAB>email" to be treated as single field
+   - Fix: Changed cut -d' ' to awk -F$'\t' for proper tab handling
+
+2. SORTING MISMATCH (noted but already handled via awk lookup)
+   - Users sorted alphabetically, emails sorted numerically
+   - Fixed by using awk lookup instead of paste/join
+
+3. WRONG FIELD SEPARATOR FOR groups.dat
+   - File uses colon delimiter (gid:name:description)
+   - Script used awk default (space/tab) so whole line became $1
+   - Fix: Added -F':' to all awk commands processing groups.dat
+
+Results:
+- All 800 users exported successfully
+- Clean CSV with proper field separation
+- Group names resolved correctly (primary and supplementary)
+- Emails clean without UID prefixes
+
+Backup of original script: export_users.sh.backup
+root@7e48eccb5004:/home/user/admin#

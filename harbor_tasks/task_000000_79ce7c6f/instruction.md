@@ -1,0 +1,1 @@
+need a fresh venv at /home/user/webapp/venv with flask and gunicorn pinned to flask==2.3.3 and gunicorn==21.2.0 — the old one got corrupted somehow and I deleted it. requirements.txt is already there with those versions, just need the venv recreated and deps installed.

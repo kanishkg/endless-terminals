@@ -1,0 +1,44 @@
+New Terminal Output:
+
+user@d8805f547b3c:~$ cat > process_memory.sh << 'EOF'
+> #!/bin/bash
+>
+> # Temporary file for collecting results
+> tempfile=$(mktemp)
+>
+> # Process each host file
+> for hostfile in /home/user/memstats/host*.txt; do
+>     hostname=$(basename "$hostfile" .txt)
+>
+>     # Extract MemTotal and MemAvailable, handling missing/corrupted data
+>     memtotal=$(grep -E '^MemTotal:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>     memavail=$(grep -E '^MemAvailable:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>
+>     # Skip if either value is missing or empty (corrupted file)
+>     if [[ -z "$memtotal" ]] || [[ -z "$memavail" ]]; then
+>         continue
+>     fi
+>
+>     # Calculate percentage and check if less than 20% using awk
+>     awk -v total="$memtotal" -v avail="$memavail" -v host="$hostname" '
+>     BEGIN {
+>         percent = (avail / total) * 100
+>         if (percent < 20) {
+>             printf "%.2f\t%s\t%.2f\n", percent, host, percent
+>         }
+>     }' >> "$tempfile"
+> done
+>
+> # Sort by percentage (ascending - worst first) and output hostname + percentage
+> sort -n "$tempfile" | awk -F'\t' '{printf "%s\t%.2f\n", $2, $3}' > /home/user/low_memory_report.txt
+>
+> # Clean up
+> rm -f "$tempfile"
+> EOF
+user@d8805f547b3c:~$ ./process_memory.sh
+user@d8805f547b3c:~$ cat /home/user/low_memory_report.txt
+host07  10.00
+host02  15.00
+host04  16.00
+host06  16.00
+user@d8805f547b3c:~$

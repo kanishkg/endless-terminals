@@ -1,0 +1,690 @@
+[?2004hroot@3b83cadd2721:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@3b83cadd2721:/home/user# clear
+[?2004l[H[J[?2004hroot@3b83cadd2721:/home/user# cd /home/user/pipeline
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# ls -la
+[?2004ltotal 24
+drwxrwxrwx 1 root root 4096 Apr 29 06:56 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:56 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:56 [34;42mdata[0m
+drwxrwxrwx 2 root root 4096 Apr 29 06:56 [34;42moutput[0m
+-rwxrwxrwx 1 root root 1926 Apr 29 06:56 [01;32mprocess.py[0m
+-rwxrwxrwx 1 root root   74 Apr 29 06:56 [01;32mrun.sh[0m
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat run.sh
+[?2004l#!/bin/bash
+cd /home/user/pipeline
+python3 /home/user/pipeline/process.py
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat process.py
+[?2004limport json
+import sqlite3
+import os
+
+BATCH_SIZE = 1000
+
+def load_checkpoint():
+    try:
+        with open('.checkpoint', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def save_checkpoint(batch_num):
+    # BUG: not using context manager, buffer may not flush
+    # BUG: saving batch_num but calling it 'last_line'
+    json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))
+
+def process_batch(conn, batch):
+    aggregates = {}
+    for event in batch:
+        cat = event['category']
+        if cat not in aggregates:
+            aggregates[cat] = {'total': 0, 'count': 0}
+        aggregates[cat]['total'] += event['value']
+        aggregates[cat]['count'] += 1
+
+    for cat, data in aggregates.items():
+        # BUG: INSERT OR REPLACE overwrites instead of accumulating on resume
+        conn.execute('INSERT OR REPLACE INTO summary VALUES (?, ?, ?)',
+                     (cat, data['total'], data['count']))
+
+def process():
+    conn = sqlite3.connect('output/summary.db')
+    conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+
+    checkpoint = load_checkpoint()
+    start_from = checkpoint['last_line'] if checkpoint else 0
+
+    with open('data/events.json', 'r') as f:
+        batch = []
+        batch_num = 0
+        for i, line in enumerate(f):
+            if i < start_from:  # This skips based on 'last_line' which is actually batch_num
+                continue
+            batch.append(json.loads(line))
+            if len(batch) >= BATCH_SIZE:
+                process_batch(conn, batch)
+                batch_num += 1
+                save_checkpoint(batch_num)  # Saves batch_num as 'last_line'
+                batch = []
+        if batch:
+            process_batch(conn, batch)
+            save_checkpoint(batch_num + 1)
+
+    conn.commit()
+    conn.close()
+
+if __name__ == '__main__':
+    process()
+[?2004hroot@3b83cadd2721:/home/user/pipeline# ls -la data/
+[?2004ltotal 4312
+drwxrwxrwx 1 root root    4096 Apr 29 06:56 [0m[34;42m.[0m
+drwxrwxrwx 1 root root    4096 Apr 29 06:56 [34;42m..[0m
+-rwxrwxrwx 1 root root 4403678 Apr 29 06:56 [01;32mevents.json[0m
+[?2004hroot@3b83cadd2721:/home/user/pipeline# wc -l data/events.json
+[?2004l50000 data/events.json
+[?2004hroot@3b83cadd2721:/home/user/pipeline# ls -la output/
+[?2004ltotal 8
+drwxrwxrwx 2 root root 4096 Apr 29 06:56 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:56 [34;42m..[0m
+[?2004hroot@3b83cadd2721:/home/user/pipeline# ls -la .checkpoint 2>/dev/null || echo 'No checkpoint file exists'
+[?2004lNo checkpoint file exists
+[?2004hroot@3b83cadd2721:/home/user/pipeline# head -3 data/events.json
+[?2004l{"id": 1, "timestamp": "2024-01-01T00:00:00", "category": "mobile", "value": 2.51}
+{"id": 2, "timestamp": "2024-01-01T00:00:10", "category": "streaming", "value": 24.5}
+{"id": 3, "timestamp": "2024-01-01T00:00:20", "category": "api", "value": 73.65}
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cp process.py process.py.backup
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# cat > process.py << 'EOF'
+[?2004l[?2004h> import json
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> import os
+[?2004l[?2004h> 
+[?2004l[?2004h> BATCH_SIZE = 1000
+[?2004l[?2004h> 
+[?2004l[?2004h> def load_checkpoint():
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         with open('.checkpoint', 'r') as f:
+[?2004l[?2004h>             return json.load(f)
+[?2004l[?2004h>     except FileNotFoundError:
+[?2004l[?2004h>         return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def save_checkpoint(records_processed):
+[?2004l[?2004h>     # FIX: Use context manager and save actual record count
+[?2004l[?2004h>     with open('.checkpoint', 'w') as f:
+[?2004l[?2004h>         json.dump({'records_processed': records_processed}, f)
+[?2004l[?2004h>         f.flush()  # Ensure data is written to disk
+[?2004l[?2004h>         os.fsync(f.fileno())  # Force OS to write to disk
+[?2004l[?2004h> 
+[?2004l[?2004h> def process_batch(conn, batch):
+[?2004l[?2004h>     aggregates = {}
+[?2004l[?2004h>     for event in batch:
+[?2004l[?2004h>         cat = event['category']
+[?2004l[?2004h>         if cat not in aggregates:
+[?2004l[?2004h>             aggregates[cat] = {'total': 0, 'count': 0}
+[?2004l[?2004h>         aggregates[cat]['total'] += event['value']
+[?2004l[?2004h>         aggregates[cat]['count'] += 1
+[?2004l[?2004h> 
+[?2004l[?2004h>     for cat, data in aggregates.items():
+[?2004l[?2004h>         # FIX: Accumulate values instead of replacing
+[?2004l[?2004h>         # First try to update existing row
+[?2004l[?2004h>         cursor = conn.execute(
+[?2004l[?2004h>             'UPDATE summary SET total_value = total_value + ?, count = count + ? WHERE category = ?',
+[?2004l[?2004h>             (data['total'], data['count'], cat)
+[?2004l[?2004h>         )
+[?2004l[?2004h>         # If no row was updated, insert a new one
+[?2004l[?2004h>         if cursor.rowcount == 0:
+[?2004l[?2004h>             conn.execute('INSERT INTO summary VALUES (?, ?, ?)',
+[?2004l[?2004h>                          (cat, data['total'], data['count']))
+[?2004l[?2004h> 
+[?2004l[?2004h> def process():
+[?2004l[?2004h>     conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h>     conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+[?2004l[?2004h> 
+[?2004l[?2004h>     checkpoint = load_checkpoint()
+[?2004l[?2004h>     start_from = checkpoint['records_processed'] if checkpoint else 0
+[?2004l[?2004h> 
+[?2004l[?2004h>     print(f"Starting from record {start_from}")
+[?2004l[?2004h> 
+[?2004l[?2004h>     with open('data/events.json', 'r') as f:
+[?2004l[?2004h>         batch = []
+[?2004l[?2004h>         records_processed = 0
+[?2004l[?2004h>         for i, line in enumerate(f):
+[?2004l[?2004h>             if i < start_from:
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             batch.append(json.loads(line))
+[?2004l[?2004h>             records_processed = i + 1
+[?2004l[?2004h>             if len(batch) >= BATCH_SIZE:
+[?2004l[?2004h>                 process_batch(conn, batch)
+[?2004l[?2004h>                 conn.commit()  # Commit after each batch
+[?2004l[?2004h>                 save_checkpoint(records_processed)
+[?2004l[?2004h>                 print(f"Processed batch, total records: {records_processed}")
+[?2004l[?2004h>                 batch = []
+[?2004l[?2004h>         if batch:
+[?2004l[?2004h>             process_batch(conn, batch)
+[?2004l[?2004h>             conn.commit()
+[?2004l[?2004h>             save_checkpoint(records_processed)
+[?2004l[?2004h>             print(f"Processed final batch, total records: {records_processed}")
+[?2004l[?2004h> 
+[?2004l[?2004h>     conn.close()
+[?2004l[?2004h>     print("Processing complete!")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     process()
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 process.py &
+[?2004l[1] 561
+[?2004hroot@3b83cadd2721:/home/user/pipeline# Starting from record 0
+Processed batch, total records: 1000
+Processed batch, total records: 2000
+Processed batch, total records: 3000
+Processed batch, total records: 4000
+sleep 2
+[?2004lProcessed batch, total records: 5000
+Processed batch, total records: 6000
+Processed batch, total records: 7000
+Processed batch, total records: 8000
+Processed batch, total records: 9000
+Processed batch, total records: 10000
+Processed batch, total records: 11000
+Processed batch, total records: 12000
+Processed batch, total records: 13000
+Processed batch, total records: 14000
+Processed batch, total records: 15000
+Processed batch, total records: 16000
+Processed batch, total records: 17000
+Processed batch, total records: 18000
+Processed batch, total records: 19000
+Processed batch, total records: 20000
+Processed batch, total records: 21000
+Processed batch, total records: 22000
+Processed batch, total records: 23000
+Processed batch, total records: 24000
+Processed batch, total records: 25000
+Processed batch, total records: 26000
+Processed batch, total records: 27000
+Processed batch, total records: 28000
+Processed batch, total records: 29000
+Processed batch, total records: 30000
+Processed batch, total records: 31000
+Processed batch, total records: 32000
+Processed batch, total records: 33000
+Processed batch, total records: 34000
+Processed batch, total records: 35000
+Processed batch, total records: 36000
+Processed batch, total records: 37000
+Processed batch, total records: 38000
+Processed batch, total records: 39000
+Processed batch, total records: 40000
+Processed batch, total records: 41000
+Processed batch, total records: 42000
+Processed batch, total records: 43000
+Processed batch, total records: 44000
+Processed batch, total records: 45000
+Processed batch, total records: 46000
+Processed batch, total records: 47000
+Processed batch, total records: 48000
+Processed batch, total records: 49000
+Processed batch, total records: 50000
+Processing complete!
+[1]+  Done                    python3 process.py
+[?2004hroot@3b83cadd2721:/home/user/pipeline# wait
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# rm -f output/summary.db .checkpoint
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 process.py
+[?2004lStarting from record 0
+Processed batch, total records: 1000
+Processed batch, total records: 2000
+Processed batch, total records: 3000
+Processed batch, total records: 4000
+Processed batch, total records: 5000
+Processed batch, total records: 6000
+Processed batch, total records: 7000
+Processed batch, total records: 8000
+Processed batch, total records: 9000
+Processed batch, total records: 10000
+Processed batch, total records: 11000
+Processed batch, total records: 12000
+Processed batch, total records: 13000
+Processed batch, total records: 14000
+Processed batch, total records: 15000
+Processed batch, total records: 16000
+Processed batch, total records: 17000
+Processed batch, total records: 18000
+Processed batch, total records: 19000
+Processed batch, total records: 20000
+Processed batch, total records: 21000
+Processed batch, total records: 22000
+Processed batch, total records: 23000
+Processed batch, total records: 24000
+Processed batch, total records: 25000
+Processed batch, total records: 26000
+Processed batch, total records: 27000
+Processed batch, total records: 28000
+Processed batch, total records: 29000
+Processed batch, total records: 30000
+Processed batch, total records: 31000
+Processed batch, total records: 32000
+Processed batch, total records: 33000
+Processed batch, total records: 34000
+Processed batch, total records: 35000
+Processed batch, total records: 36000
+Processed batch, total records: 37000
+Processed batch, total records: 38000
+Processed batch, total records: 39000
+Processed batch, total records: 40000
+Processed batch, total records: 41000
+Processed batch, total records: 42000
+Processed batch, total records: 43000
+Processed batch, total records: 44000
+Processed batch, total records: 45000
+Processed batch, total records: 46000
+Processed batch, total records: 47000
+Processed batch, total records: 48000
+Processed batch, total records: 49000
+Processed batch, total records: 50000
+Processing complete!
+[?2004hroot@3b83cadd2721:/home/user/pipeline# rm -f output/summary.db .checkpoint
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# timeout 0.3 python3 process.py || true
+[?2004lStarting from record 0
+Processed batch, total records: 1000
+Processed batch, total records: 2000
+Processed batch, total records: 3000
+Processed batch, total records: 4000
+Processed batch, total records: 5000
+Processed batch, total records: 6000
+Processed batch, total records: 7000
+Processed batch, total records: 8000
+Processed batch, total records: 9000
+Processed batch, total records: 10000
+Processed batch, total records: 11000
+Processed batch, total records: 12000
+Processed batch, total records: 13000
+Processed batch, total records: 14000
+Processed batch, total records: 15000
+Processed batch, total records: 16000
+Processed batch, total records: 17000
+Processed batch, total records: 18000
+Processed batch, total records: 19000
+Processed batch, total records: 20000
+Processed batch, total records: 21000
+Processed batch, total records: 22000
+Processed batch, total records: 23000
+Processed batch, total records: 24000
+Processed batch, total records: 25000
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat .checkpoint
+[?2004l{"records_processed": 25000}[?2004hroot@3b83cadd2721:/home/user/pipeline# sqlite3 output/summary.db 'SELECT category, total_value, count FROM summary ORDER BY category LIMIT 10'
+[?2004lbash: sqlite3: command not found
+[?2004hroot@3b83cadd2721:/home/user/pipeline# sqlite3 output/summary.db 'SELECT COUNT(*) as num_categories, SUM(count) as total_records FROM summary'
+[?2004lbash: sqlite3: command not found
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT COUNT(*) as num_categories, SUM(count) as total_records FROM summary'); print('Categories:', cursor.fetchone()); conn.close()"
+[?2004lCategories: (10, 25000)
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT category, total_value, count FROM summary ORDER BY category LIMIT 5'); print('Sample data:'); [print(row) for row in cursor.fetchall()]; conn.close()"
+[?2004lSample data:
+('analytics', 128001.16999999997, 2533)
+('api', 125736.48999999999, 2544)
+('auth', 131461.25999999998, 2660)
+('batch', 117394.07999999999, 2391)
+('mobile', 123063.22000000003, 2510)
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 process.py
+[?2004lStarting from record 25000
+Processed batch, total records: 26000
+Processed batch, total records: 27000
+Processed batch, total records: 28000
+Processed batch, total records: 29000
+Processed batch, total records: 30000
+Processed batch, total records: 31000
+Processed batch, total records: 32000
+Processed batch, total records: 33000
+Processed batch, total records: 34000
+Processed batch, total records: 35000
+Processed batch, total records: 36000
+Processed batch, total records: 37000
+Processed batch, total records: 38000
+Processed batch, total records: 39000
+Processed batch, total records: 40000
+Processed batch, total records: 41000
+Processed batch, total records: 42000
+Processed batch, total records: 43000
+Processed batch, total records: 44000
+Processed batch, total records: 45000
+Processed batch, total records: 46000
+Processed batch, total records: 47000
+Processed batch, total records: 48000
+Processed batch, total records: 49000
+Processed batch, total records: 50000
+Processing complete!
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat .checkpoint
+[?2004l{"records_processed": 50000}[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT COUNT(*) as num_categories, SUM(count) as total_records FROM summary'); print('Final results -', 'Categories:', cursor.fetchone()[0], 'Total records:', cursor.fetchone()[0] if False else 'checking...'); cursor = conn.execute('SELECT COUNT(*) as num_categories, SUM(count) as total_records FROM summary'); result = cursor.fetchone(); print(f'Categories: {result[0]}, Total records: {result[1]}'); conn.close()"
+[?2004lFinal results - Categories: 10 Total records: checking...
+Categories: 10, Total records: 50000
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT category, total_value, count FROM summary ORDER BY category'); print('All categories:'); [print(f'{row[0]:12} - count: {row[2]:5}, total_value: {row[1]:.2f}') for row in cursor.fetchall()]; conn.close()"
+[?2004lAll categories:
+analytics    - count:  4927, total_value: 248959.21
+api          - count:  5035, total_value: 251488.65
+auth         - count:  5135, total_value: 251326.43
+batch        - count:  4917, total_value: 242631.82
+mobile       - count:  5052, total_value: 248945.74
+notification - count:  5018, total_value: 254350.03
+payment      - count:  5040, total_value: 253254.75
+storage      - count:  5006, total_value: 250770.39
+streaming    - count:  4962, total_value: 246780.19
+web          - count:  4908, total_value: 246301.66
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT category, total_value, count FROM summary ORDER BY category'); results = cursor.fetchall(); conn.close(); import json; open('results_with_resume.json', 'w').write(json.dumps(results, indent=2))"
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# rm -f output/summary.db .checkpoint
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 process.py
+[?2004lStarting from record 0
+Processed batch, total records: 1000
+Processed batch, total records: 2000
+Processed batch, total records: 3000
+Processed batch, total records: 4000
+Processed batch, total records: 5000
+Processed batch, total records: 6000
+Processed batch, total records: 7000
+Processed batch, total records: 8000
+Processed batch, total records: 9000
+Processed batch, total records: 10000
+Processed batch, total records: 11000
+Processed batch, total records: 12000
+Processed batch, total records: 13000
+Processed batch, total records: 14000
+Processed batch, total records: 15000
+Processed batch, total records: 16000
+Processed batch, total records: 17000
+Processed batch, total records: 18000
+Processed batch, total records: 19000
+Processed batch, total records: 20000
+Processed batch, total records: 21000
+Processed batch, total records: 22000
+Processed batch, total records: 23000
+Processed batch, total records: 24000
+Processed batch, total records: 25000
+Processed batch, total records: 26000
+Processed batch, total records: 27000
+Processed batch, total records: 28000
+Processed batch, total records: 29000
+Processed batch, total records: 30000
+Processed batch, total records: 31000
+Processed batch, total records: 32000
+Processed batch, total records: 33000
+Processed batch, total records: 34000
+Processed batch, total records: 35000
+Processed batch, total records: 36000
+Processed batch, total records: 37000
+Processed batch, total records: 38000
+Processed batch, total records: 39000
+Processed batch, total records: 40000
+Processed batch, total records: 41000
+Processed batch, total records: 42000
+Processed batch, total records: 43000
+Processed batch, total records: 44000
+Processed batch, total records: 45000
+Processed batch, total records: 46000
+Processed batch, total records: 47000
+Processed batch, total records: 48000
+Processed batch, total records: 49000
+Processed batch, total records: 50000
+Processing complete!
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT category, total_value, count FROM summary ORDER BY category'); results = cursor.fetchall(); conn.close(); import json; open('results_full_run.json', 'w').write(json.dumps(results, indent=2))"
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# diff results_with_resume.json results_full_run.json && echo 'SUCCESS: Results are identical!' || echo 'ERROR: Results differ!'
+[?2004lSUCCESS: Results are identical!
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat results_full_run.json
+[?2004l[
+  [
+    "analytics",
+    248959.2099999999,
+    4927
+  ],
+  [
+    "api",
+    251488.65000000002,
+    5035
+  ],
+  [
+    "auth",
+    251326.43,
+    5135
+  ],
+  [
+    "batch",
+    242631.82000000007,
+    4917
+  ],
+  [
+    "mobile",
+    248945.74000000005,
+    5052
+  ],
+  [
+    "notification",
+    254350.03000000006,
+    5018
+  ],
+  [
+    "payment",
+    253254.75000000003,
+    5040
+  ],
+  [
+    "storage",
+    250770.38999999996,
+    5006
+  ],
+  [
+    "streaming",
+    246780.18999999997,
+    4962
+  ],
+  [
+    "web",
+    246301.65999999995,
+    4908
+  ]
+][?2004hroot@3b83cadd2721:/home/user/pipeline# cat > BUGFIX_SUMMARY.md << 'EOF'
+[?2004l[?2004h> # Pipeline Checkpoint Resume - Bug Fixes
+[?2004l[?2004h> 
+[?2004l[?2004h> ## Problems Identified
+[?2004l[?2004h> 
+[?2004l[?2004h> The checkpoint/resume functionality had three critical bugs:
+[?2004l[?2004h> 
+[?2004l[?2004h> ### 1. **Semantic Mismatch Bug (CRITICAL)**
+[?2004l[?2004h> - **Problem**: `save_checkpoint(batch_num)` saved the batch number (e.g., 5 for 5000 records) but stored it as 'last_line'
+[?2004l[?2004h> - **Impact**: On resume, the code compared line number `i < start_from`, so if batch_num=5, it only skipped 5 lines instead of 5000
+[?2004l[?2004h> - **Fix**: Changed to save `records_processed` (actual line/record number) instead of batch number
+[?2004l[?2004h> 
+[?2004l[?2004h> ### 2. **Buffer Flush Bug**
+[?2004l[?2004h> - **Problem**: Checkpoint file opened with `open('.checkpoint', 'w')` without context manager or flush
+[?2004l[?2004h> - **Impact**: Data might not be written to disk before a crash, leaving stale or empty checkpoint
+[?2004l[?2004h> - **Fix**: Use context manager with explicit `f.flush()` and `os.fsync()` to ensure data reaches disk
+[?2004l[?2004h> 
+[?2004l[?2004h> ### 3. **Data Overwrite Bug**
+[?2004l[?2004h> - **Problem**: Used `INSERT OR REPLACE` which overwrites existing aggregates instead of accumulating
+[?2004l[?2004h> - **Impact**: On resume, previously aggregated data was replaced instead of added to, causing data loss
+[?2004l[?2004h> - **Fix**: Changed to `UPDATE` with addition (accumulation), falling back to `INSERT` for new categories
+[?2004l[?2004h> 
+[?2004l[?2004h> ## Verification
+[?2004l[?2004h> 
+[?2004l[?2004h> - Tested by processing 50,000 records
+[?2004l[?2004h> - Killed process at 25,000 records
+[?2004l[?2004h> - Resumed from checkpoint
+[?2004l[?2004h> - Verified final results match a full uninterrupted run (identical output)
+[?2004l[?2004h> 
+[?2004l[?2004h> ## Result
+[?2004l[?2004h> 
+[?2004l[?2004h> Checkpoint/resume now works correctly:
+[?2004l[?2004h> - Kills midway preserve progress
+[?2004l[?2004h> - Restarts resume from exact position
+[?2004l[?2004h> - No data duplication or loss
+[?2004l[?2004h> - Proper accumulation of aggregates
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# cat BUGFIX_SUMMARY.md
+[?2004l# Pipeline Checkpoint Resume - Bug Fixes
+
+## Problems Identified
+
+The checkpoint/resume functionality had three critical bugs:
+
+### 1. **Semantic Mismatch Bug (CRITICAL)**
+- **Problem**: `save_checkpoint(batch_num)` saved the batch number (e.g., 5 for 5000 records) but stored it as 'last_line'
+- **Impact**: On resume, the code compared line number `i < start_from`, so if batch_num=5, it only skipped 5 lines instead of 5000
+- **Fix**: Changed to save `records_processed` (actual line/record number) instead of batch number
+
+### 2. **Buffer Flush Bug**
+- **Problem**: Checkpoint file opened with `open('.checkpoint', 'w')` without context manager or flush
+- **Impact**: Data might not be written to disk before a crash, leaving stale or empty checkpoint
+- **Fix**: Use context manager with explicit `f.flush()` and `os.fsync()` to ensure data reaches disk
+
+### 3. **Data Overwrite Bug**
+- **Problem**: Used `INSERT OR REPLACE` which overwrites existing aggregates instead of accumulating
+- **Impact**: On resume, previously aggregated data was replaced instead of added to, causing data loss
+- **Fix**: Changed to `UPDATE` with addition (accumulation), falling back to `INSERT` for new categories
+
+## Verification
+
+- Tested by processing 50,000 records
+- Killed process at 25,000 records
+- Resumed from checkpoint
+- Verified final results match a full uninterrupted run (identical output)
+
+## Result
+
+Checkpoint/resume now works correctly:
+- Kills midway preserve progress
+- Restarts resume from exact position
+- No data duplication or loss
+- Proper accumulation of aggregates
+[?2004hroot@3b83cadd2721:/home/user/pipeline# rm -f output/summary.db .checkpoint
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# timeout 0.3 ./run.sh || true
+[?2004lStarting from record 0
+Processed batch, total records: 1000
+Processed batch, total records: 2000
+Processed batch, total records: 3000
+Processed batch, total records: 4000
+Processed batch, total records: 5000
+Processed batch, total records: 6000
+Processed batch, total records: 7000
+Processed batch, total records: 8000
+Processed batch, total records: 9000
+Processed batch, total records: 10000
+Processed batch, total records: 11000
+Processed batch, total records: 12000
+Processed batch, total records: 13000
+Processed batch, total records: 14000
+Processed batch, total records: 15000
+Processed batch, total records: 16000
+Processed batch, total records: 17000
+Processed batch, total records: 18000
+Processed batch, total records: 19000
+Processed batch, total records: 20000
+Processed batch, total records: 21000
+Processed batch, total records: 22000
+Processed batch, total records: 23000
+Processed batch, total records: 24000
+Processed batch, total records: 25000
+Processed batch, total records: 26000
+Processed batch, total records: 27000
+Processed batch, total records: 28000
+Processed batch, total records: 29000
+Processed batch, total records: 30000
+Processed batch, total records: 31000
+Processed batch, total records: 32000
+Processed batch, total records: 33000
+Processed batch, total records: 34000
+Processed batch, total records: 35000
+Processed batch, total records: 36000
+Processed batch, total records: 37000
+Processed batch, total records: 38000
+Processed batch, total records: 39000
+Processed batch, total records: 40000
+Processed batch, total records: 41000
+Processed batch, total records: 42000
+Processed batch, total records: 43000
+Processed batch, total records: 44000
+Processed batch, total records: 45000
+Processed batch, total records: 46000
+Processed batch, total records: 47000
+Processed batch, total records: 48000
+Processed batch, total records: 49000
+Processed batch, total records: 50000
+Processing complete!
+[?2004hroot@3b83cadd2721:/home/user/pipeline# echo '--- Checkpoint after first run (killed midway):'
+[?2004l--- Checkpoint after first run (killed midway):
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat .checkpoint
+[?2004l{"records_processed": 50000}[?2004hroot@3b83cadd2721:/home/user/pipeline# echo '\n--- Restarting from checkpoint:'
+[?2004l\n--- Restarting from checkpoint:
+[?2004hroot@3b83cadd2721:/home/user/pipeline# ./run.sh
+[?2004lStarting from record 50000
+Processing complete!
+[?2004hroot@3b83cadd2721:/home/user/pipeline# rm -f output/summary.db .checkpoint
+[?2004l[?2004hroot@3b83cadd2721:/home/user/pipeline# timeout 0.1 ./run.sh || true
+[?2004lStarting from record 0
+Processed batch, total records: 1000
+Processed batch, total records: 2000
+Processed batch, total records: 3000
+Processed batch, total records: 4000
+Processed batch, total records: 5000
+Processed batch, total records: 6000
+Processed batch, total records: 7000
+Processed batch, total records: 8000
+Processed batch, total records: 9000
+Processed batch, total records: 10000
+Processed batch, total records: 11000
+Processed batch, total records: 12000
+Processed batch, total records: 13000
+[?2004hroot@3b83cadd2721:/home/user/pipeline# echo '\n=== First run was killed. Checkpoint shows:'
+[?2004l\n=== First run was killed. Checkpoint shows:
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat .checkpoint
+[?2004l{"records_processed": 13000}[?2004hroot@3b83cadd2721:/home/user/pipeline# echo '\n=== Database shows partial results:'
+[?2004l\n=== Database shows partial results:
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT SUM(count) FROM summary'); print(f'Records processed so far: {cursor.fetchone()[0]}'); conn.close()"
+[?2004lRecords processed so far: 13000
+[?2004hroot@3b83cadd2721:/home/user/pipeline# echo '\n=== Restarting to resume from checkpoint:'
+[?2004l\n=== Restarting to resume from checkpoint:
+[?2004hroot@3b83cadd2721:/home/user/pipeline# ./run.sh
+[?2004lStarting from record 13000
+Processed batch, total records: 14000
+Processed batch, total records: 15000
+Processed batch, total records: 16000
+Processed batch, total records: 17000
+Processed batch, total records: 18000
+Processed batch, total records: 19000
+Processed batch, total records: 20000
+Processed batch, total records: 21000
+Processed batch, total records: 22000
+Processed batch, total records: 23000
+Processed batch, total records: 24000
+Processed batch, total records: 25000
+Processed batch, total records: 26000
+Processed batch, total records: 27000
+Processed batch, total records: 28000
+Processed batch, total records: 29000
+Processed batch, total records: 30000
+Processed batch, total records: 31000
+Processed batch, total records: 32000
+Processed batch, total records: 33000
+Processed batch, total records: 34000
+Processed batch, total records: 35000
+Processed batch, total records: 36000
+Processed batch, total records: 37000
+Processed batch, total records: 38000
+Processed batch, total records: 39000
+Processed batch, total records: 40000
+Processed batch, total records: 41000
+Processed batch, total records: 42000
+Processed batch, total records: 43000
+Processed batch, total records: 44000
+Processed batch, total records: 45000
+Processed batch, total records: 46000
+Processed batch, total records: 47000
+Processed batch, total records: 48000
+Processed batch, total records: 49000
+Processed batch, total records: 50000
+Processing complete!
+[?2004hroot@3b83cadd2721:/home/user/pipeline# echo '\n=== Final verification:'
+[?2004l\n=== Final verification:
+[?2004hroot@3b83cadd2721:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); cursor = conn.execute('SELECT SUM(count) FROM summary'); print(f'Total records in final database: {cursor.fetchone()[0]}'); conn.close()"
+[?2004lTotal records in final database: 50000
+[?2004hroot@3b83cadd2721:/home/user/pipeline# cat .checkpoint
+[?2004l{"records_processed": 50000}[?2004hroot@3b83cadd2721:/home/user/pipeline# echo '\n=== SUCCESS! The pipeline now correctly resumes from checkpoints.'
+[?2004l\n=== SUCCESS! The pipeline now correctly resumes from checkpoints.
+[?2004hroot@3b83cadd2721:/home/user/pipeline# ls -lh output/summary.db
+[?2004l-rw-r--r-- 1 root root 12K Apr 29 06:59 output/summary.db
+[?2004hroot@3b83cadd2721:/home/user/pipeline# 

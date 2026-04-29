@@ -1,0 +1,1 @@
+Need a quick rsync wrapper at /home/user/bin/sync-docs.sh that pulls everything from /home/user/remote-docs/ into /home/user/local-docs/, preserving timestamps and permissions. Should skip any file larger than 50MB though — we've got some video dumps in there that don't need to sync. Make it executable.

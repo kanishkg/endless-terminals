@@ -1,0 +1,1 @@
+Redis container at /home/user/services/redis keeps dying on startup — it's the maxmemory-policy line, I set it to `lru` but pretty sure that's not a valid value. Fix the config at /home/user/services/redis/redis.conf so it actually starts. Should be allkeys-lru or volatile-lru or one of those, just pick whichever makes sense for a cache.

@@ -1,0 +1,66 @@
+New Terminal Output:
+
+root@96dd82738e33:/home/user/pipeline# rm output/summary.db .checkpoint
+root@96dd82738e33:/home/user/pipeline# cat > test_interrupt.py << 'EOF'
+> import subprocess
+> import time
+> import signal
+> import os
+>
+> # Start the process
+> proc = subprocess.Popen(['python3', 'process.py'])
+> print(f"Started process PID: {proc.pid}")
+>
+> # Let it run for 0.5 seconds
+> time.sleep(0.5)
+>
+> # Kill it
+> print("Interrupting process...")
+> proc.send_signal(signal.SIGTERM)
+> proc.wait()
+> print("Process interrupted")
+>
+> # Check checkpoint
+> if os.path.exists('.checkpoint'):
+>     with open('.checkpoint', 'r') as f:
+>         print(f"Checkpoint after interrupt: {f.read()}")
+>
+> # Check database state
+> import sqlite3
+> if os.path.exists('output/summary.db'):
+>     conn = sqlite3.connect('output/summary.db')
+>     result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+>     print(f"Events in DB after interrupt: {result[0]}")
+>     conn.close()
+>
+> # Resume
+> print("\nResuming process...")
+> proc2 = subprocess.Popen(['python3', 'process.py'])
+> proc2.wait()
+> print("Process completed")
+>
+> # Check final state
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+> print(f"\nFinal events in DB: {result[0]}")
+> print(f"Expected: 50000")
+> if result[0] == 50000:
+>     print("✓ SUCCESS: Checkpoint resume working correctly!")
+> else:
+>     print(f"✗ FAILED: Expected 50000, got {result[0]}")
+> conn.close()
+> EOF
+root@96dd82738e33:/home/user/pipeline# python3 test_interrupt.py
+Started process PID: 692
+Interrupting process...
+Process interrupted
+Checkpoint after interrupt: {"last_line": 45000}
+Events in DB after interrupt: 45000
+
+Resuming process...
+Process completed
+
+Final events in DB: 50000
+Expected: 50000
+✓ SUCCESS: Checkpoint resume working correctly!
+root@96dd82738e33:/home/user/pipeline#

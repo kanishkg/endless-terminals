@@ -1,0 +1,158 @@
+New Terminal Output:
+
+user@7a5957a118c9:~/inventory$ cat > normalize_assets.py << 'EOF'
+> import csv
+> import json
+> import re
+> from datetime import datetime
+> from collections import defaultdict
+>
+> def parse_date(date_str):
+>     """Try to parse date in multiple formats and return ISO 8601 string"""
+>     date_str = date_str.strip()
+>
+>     # Try different date formats
+>     formats = [
+>         '%Y-%m-%d',      # 2021-03-22
+>         '%m/%d/%Y',      # 02/12/2017
+>         '%d.%m.%Y',      # 17.07.2016
+>     ]
+>
+>     for fmt in formats:
+>         try:
+>             dt = datetime.strptime(date_str, fmt)
+>             return dt.strftime('%Y-%m-%d')
+>         except ValueError:
+>             continue
+>
+>     return None
+>
+> def parse_price_to_cents(price_str):
+>     """Parse price string to cents (integer)"""
+>     try:
+>         # Remove dollar signs, commas, and whitespace
+>         cleaned = re.sub(r'[$,\s]', '', str(price_str))
+>
+>         # Convert to float then to cents
+>         price_float = float(cleaned)
+>
+>         # Check if positive
+>         if price_float <= 0:
+>             return None
+>
+>         # Convert to cents (round to avoid floating point issues)
+>         price_cents = int(round(price_float * 100))
+>
+>         return price_cents
+>     except (ValueError, TypeError):
+>         return None
+>
+> def is_serial_number(s):
+>     """Check if string looks like a serial number (starts with SN-)"""
+>     return str(s).strip().startswith('SN-')
+>
+> def process_row(row):
+>     """Process a single row and return normalized data or error"""
+>     try:
+>         asset_id = row.get('id', '').strip()
+>         name = row.get('name', '').strip()
+>         serial = row.get('serial', '').strip()
+>         purchase_date_raw = row.get('purchase_date', '').strip()
+>         price_raw = row.get('price', '').strip()
+>         location = row.get('location', '').strip()
+>
+>         # Check if serial and name are swapped
+>         if is_serial_number(name) and not is_serial_number(serial):
+>             name, serial = serial, name
+>
+>         # Validate required fields
+>         if not asset_id:
+>             return None, "Missing asset ID"
+>         if not name:
+>             return None, "Missing name"
+>         if not serial:
+>             return None, "Missing serial number"
+>         if not location:
+>             return None, "Missing location"
+>
+>         # Parse date
+>         purchase_date = parse_date(purchase_date_raw)
+>         if not purchase_date:
+>             return None, f"Invalid date format: {purchase_date_raw}"
+>
+>         # Parse price
+>         price_cents = parse_price_to_cents(price_raw)
+>         if price_cents is None:
+>             return None, f"Invalid price: {price_raw}"
+>
+>         # Create normalized record
+>         normalized = {
+>             'id': asset_id,
+>             'name': name,
+>             'serial': serial,
+>             'purchase_date': purchase_date,
+>             'price_cents': price_cents,
+>             'location': location
+>         }
+>
+>         return normalized, None
+>
+>     except Exception as e:
+>         return None, f"Processing error: {str(e)}"
+>
+> def main():
+>     valid_records = {}
+>     rejected_records = []
+>
+>     # Read CSV file
+>     with open('assets.csv', 'r', encoding='utf-8') as f:
+>         reader = csv.DictReader(f)
+>
+>         for row_num, row in enumerate(reader, start=2):  # start=2 because row 1 is header
+>             normalized, error = process_row(row)
+>
+>             if error:
+>                 # Add to rejected
+>                 rejected_records.append({
+>                     'original_row': dict(row),
+>                     'reason': error,
+>                     'row_number': row_num
+>                 })
+>             else:
+>                 asset_id = normalized['id']
+>
+>                 # Handle duplicates - keep the one with latest purchase date
+>                 if asset_id in valid_records:
+>                     existing_date = valid_records[asset_id]['purchase_date']
+>                     new_date = normalized['purchase_date']
+>
+>                     if new_date > existing_date:
+>                         valid_records[asset_id] = normalized
+>                 else:
+>                     valid_records[asset_id] = normalized
+>
+>     # Convert valid records dict to list
+>     assets_list = list(valid_records.values())
+>
+>     # Write valid records to assets.json
+>     with open('assets.json', 'w', encoding='utf-8') as f:
+>         json.dump(assets_list, f, indent=2)
+>
+>     # Write rejected records to rejected.json
+>     with open('rejected.json', 'w', encoding='utf-8') as f:
+>         json.dump(rejected_records, f, indent=2)
+>
+>     print(f"Processing complete:")
+>     print(f"  Valid assets: {len(assets_list)}")
+>     print(f"  Rejected rows: {len(rejected_records)}")
+>     print(f"  Output: assets.json, rejected.json")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+user@7a5957a118c9:~/inventory$ python3 normalize_assets.py
+Processing complete:
+  Valid assets: 809
+  Rejected rows: 16
+  Output: assets.json, rejected.json
+user@7a5957a118c9:~/inventory$

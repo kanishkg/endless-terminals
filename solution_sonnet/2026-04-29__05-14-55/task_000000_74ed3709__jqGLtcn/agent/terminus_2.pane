@@ -1,0 +1,208 @@
+[?2004hroot@c63941574f44:~# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@c63941574f44:~# clear
+[?2004l[H[J[?2004hroot@c63941574f44:~# cd /home/user/scraper
+[?2004l[?2004hroot@c63941574f44:~/scraper# ls -la
+[?2004ltotal 12
+drwxrwxrwx 1 user user 4096 Apr 29 05:02 .
+drwxrwxrwx 1 user user 4096 Apr 29 05:15 ..
+-rwxr-xr-x 1 user user 1034 Apr 29 05:02 scrape.py
+[?2004hroot@c63941574f44:~/scraper# curl -s localhost:8080 | head -20
+[?2004l<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Directory listing for /</title>
+</head>
+<body>
+<h1>Directory listing for /</h1>
+<hr>
+<ul>
+<li><a href="access.log">access.log</a></li>
+<li><a href="products.html">products.html</a></li>
+<li><a href="server.py">server.py</a></li>
+</ul>
+<hr>
+</body>
+</html>
+[?2004hroot@c63941574f44:~/scraper# cat scrape.py
+[?2004l#!/usr/bin/env python3
+import asyncio
+import json
+import os
+from pyppeteer import launch
+
+async def scrape_prices():
+    browser = await launch(
+        headless=False,
+        args=['--no-sandbox']
+    )
+
+    page = await browser.newPage()
+    await page.goto('http://localhost:8080/products')
+
+    await page.waitForSelector('.product', timeout=5000)
+
+    products = await page.evaluate('''() => {
+        const items = document.querySelectorAll('.product');
+        return Array.from(items).map(item => ({
+            name: item.querySelector('.name').textContent,
+            price: item.querySelector('.price').textContent
+        }));
+    }''')
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.join(script_dir, 'prices.json')
+
+    with open(output_path, 'w') as f:
+        json.dump(products, f, indent=2)
+
+    await browser.close()
+    print(f"Scraped {len(products)} products to {output_path}")
+
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(scrape_prices())
+[?2004hroot@c63941574f44:~/scraper# curl -s localhost:8080/products.html
+[?2004l<!DOCTYPE html>
+<html>
+<head>
+    <title>Product Listing</title>
+</head>
+<body>
+    <h1>Products</h1>
+    <div class="product">
+        <span class="name">Widget A</span>
+        <span class="price">$19.99</span>
+    </div>
+    <div class="product">
+        <span class="name">Widget B</span>
+        <span class="price">$24.99</span>
+    </div>
+    <div class="product">
+        <span class="name">Gadget Pro</span>
+        <span class="price">$149.99</span>
+    </div>
+    <div class="product">
+        <span class="name">Super Gizmo</span>
+        <span class="price">$79.50</span>
+    </div>
+    <div class="product">
+        <span class="name">Mega Device</span>
+        <span class="price">$299.00</span>
+    </div>
+</body>
+</html>
+[?2004hroot@c63941574f44:~/scraper# cat > scrape.py << 'EOF'
+[?2004l[?2004h> #!/usr/bin/env python3
+[?2004l[?2004h> import asyncio
+[?2004l[?2004h> import json
+[?2004l[?2004h> import os
+[?2004l[?2004h> from pyppeteer import launch
+[?2004l[?2004h> 
+[?2004l[?2004h> async def scrape_prices():
+[?2004l[?2004h>     browser = await launch(
+[?2004l[?2004h>         headless=True,
+[?2004l[?2004h>         args=[
+[?2004l[?2004h>             '--no-sandbox',
+[?2004l[?2004h>             '--disable-setuid-sandbox',
+[?2004l[?2004h>             '--disable-dev-shm-usage',
+[?2004l[?2004h>             '--disable-gpu',
+[?2004l[?2004h>             '--single-process',
+[?2004l[?2004h>             '--no-zygote'
+[?2004l[?2004h>         ]
+[?2004l[?2004h>     )
+[?2004l[?2004h> 
+[?2004l[?2004h>     page = await browser.newPage()
+[?2004l[?2004h>     await page.goto('http://localhost:8080/products.html')
+[?2004l[?2004h> 
+[?2004l[?2004h>     await page.waitForSelector('.product', timeout=5000)
+[?2004l[?2004h> 
+[?2004l[?2004h>     products = await page.evaluate('''() => {
+[?2004l[?2004h>         const items = document.querySelectorAll('.product');
+[?2004l[?2004h>         return Array.from(items).map(item => ({
+[?2004l[?2004h>             name: item.querySelector('.name').textContent,
+[?2004l[?2004h>             price: item.querySelector('.price').textContent
+[?2004l[?2004h>         }));
+[?2004l[?2004h>     }''')
+[?2004l[?2004h> 
+[?2004l[?2004h>     script_dir = os.path.dirname(os.path.abspath(__file__))
+[?2004l[?2004h>     output_path = os.path.join(script_dir, 'prices.json')
+[?2004l[?2004h> 
+[?2004l[?2004h>     with open(output_path, 'w') as f:
+[?2004l[?2004h>         json.dump(products, f, indent=2)
+[?2004l[?2004h> 
+[?2004l[?2004h>     await browser.close()
+[?2004l[?2004h>     print(f"Scraped {len(products)} products to {output_path}")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == "__main__":
+[?2004l[?2004h>     asyncio.get_event_loop().run_until_complete(scrape_prices())
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@c63941574f44:~/scraper# chmod +x scrape.py
+[?2004l[?2004hroot@c63941574f44:~/scraper# python3 scrape.py
+[?2004lScraped 5 products to /home/user/scraper/prices.json
+[?2004hroot@c63941574f44:~/scraper# ls -la
+[?2004ltotal 24
+drwxrwxrwx 1 user user 4096 Apr 29 05:16 .
+drwxrwxrwx 1 user user 4096 Apr 29 05:15 ..
+-rw-r--r-- 1 root root  287 Apr 29 05:16 prices.json
+-rwxr-xr-x 1 user user 1227 Apr 29 05:16 scrape.py
+[?2004hroot@c63941574f44:~/scraper# cat prices.json
+[?2004l[
+  {
+    "name": "Widget A",
+    "price": "$19.99"
+  },
+  {
+    "name": "Widget B",
+    "price": "$24.99"
+  },
+  {
+    "name": "Gadget Pro",
+    "price": "$149.99"
+  },
+  {
+    "name": "Super Gizmo",
+    "price": "$79.50"
+  },
+  {
+    "name": "Mega Device",
+    "price": "$299.00"
+  }
+][?2004hroot@c63941574f44:~/scraper# rm prices.json
+[?2004l[?2004hroot@c63941574f44:~/scraper# python3 scrape.py
+[?2004lScraped 5 products to /home/user/scraper/prices.json
+[?2004hroot@c63941574f44:~/scraper# cat prices.json
+[?2004l[
+  {
+    "name": "Widget A",
+    "price": "$19.99"
+  },
+  {
+    "name": "Widget B",
+    "price": "$24.99"
+  },
+  {
+    "name": "Gadget Pro",
+    "price": "$149.99"
+  },
+  {
+    "name": "Super Gizmo",
+    "price": "$79.50"
+  },
+  {
+    "name": "Mega Device",
+    "price": "$299.00"
+  }
+][?2004hroot@c63941574f44:~/scraper# echo '=== SCRAPER FIXED ===' && echo 'Issues found and resolved:' && echo '1. headless=False changed to headless=True (critical for headless environments)' && echo '2. Added --disable-dev-shm-usage (prevents shared memory issues in containers)' && echo '3. Added --disable-gpu (no GPU in minimal images)' && echo '4. Added --single-process (more stable in constrained environments)' && echo '5. Added --no-zygote (reduces process overhead)' && echo '6. Fixed URL from /products to /products.html' && echo '' && echo 'Script now successfully scrapes 5 products and writes to prices.json'
+[?2004l=== SCRAPER FIXED ===
+Issues found and resolved:
+1. headless=False changed to headless=True (critical for headless environments)
+2. Added --disable-dev-shm-usage (prevents shared memory issues in containers)
+3. Added --disable-gpu (no GPU in minimal images)
+4. Added --single-process (more stable in constrained environments)
+5. Added --no-zygote (reduces process overhead)
+6. Fixed URL from /products to /products.html
+
+Script now successfully scrapes 5 products and writes to prices.json
+[?2004hroot@c63941574f44:~/scraper# 

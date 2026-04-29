@@ -1,0 +1,50 @@
+New Terminal Output:
+
+root@bc528a80626a:/home/user/archive-validator# cat src/checksum.c
+#include <stdio.h>
+#include <string.h>
+#include <openssl/evp.h>
+
+int verify_checksum(const char *data, size_t len, const char *expected) {
+    EVP_MD_CTX *ctx;
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len;
+    char hex_hash[EVP_MAX_MD_SIZE * 2 + 1];
+
+    ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        return -1;
+    }
+
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    if (EVP_DigestUpdate(ctx, data, len) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    if (EVP_DigestFinal_ex(ctx, hash, &hash_len) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    EVP_MD_CTX_free(ctx);
+
+    for (unsigned int i = 0; i < hash_len; i++) {
+        sprintf(hex_hash + (i * 2), "%02x", hash[i]);
+    }
+    hex_hash[hash_len * 2] = '\0';
+
+    return strcmp(hex_hash, expected) == 0 ? 0 : 1;
+}
+root@bc528a80626a:/home/user/archive-validator# make build
+gcc -Wall -I/usr/local/include -o bin/validator src/main.c src/checksum.c -L/usr/local/lib -larchive -lcrypto
+src/main.c:4:10: fatal error: archive.h: No such file or directory
+    4 | #include <archive.h>
+      |          ^~~~~~~~~~~
+compilation terminated.
+make: *** [Makefile:6: build] Error 1
+root@bc528a80626a:/home/user/archive-validator#

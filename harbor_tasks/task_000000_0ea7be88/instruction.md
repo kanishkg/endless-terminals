@@ -1,0 +1,1 @@
+Got a bunch of apache logs at /home/user/logs/access.log — need to pull out just the IP addresses and response codes, tab-separated, one per line. Like `192.168.1.1	200` format. Dump it to /home/user/logs/ip_status.txt.

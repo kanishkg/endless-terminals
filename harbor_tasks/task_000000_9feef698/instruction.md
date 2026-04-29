@@ -1,0 +1,1 @@
+Need to pull out all the OOMKilled events from /var/log/pods/kube-system.log — just the timestamp and pod name from each line, space-separated, dumped to /home/user/oom-events.txt. Lines look like `2024-03-15T09:23:41Z kube-system/coredns-5dd5756b68-x7vzq OOMKilled` and similar.

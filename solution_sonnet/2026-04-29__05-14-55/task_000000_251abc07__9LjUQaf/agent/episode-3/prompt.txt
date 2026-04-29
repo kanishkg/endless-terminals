@@ -1,0 +1,29 @@
+New Terminal Output:
+
+user@e2feb63b53b2:~$ awk '
+> /\/api\/v[0-9]+\/internal\// && $1 !~ /^10\./ {
+>   # Parse timestamp [DD/Mon/YYYY:HH:MM:SS +0000]
+>   timestamp = $4
+>   gsub(/\[/, "", timestamp)
+>
+>   # Split timestamp components
+>   split(timestamp, dt, /[:\/]/);
+>   day = dt[1]
+>   month = dt[2]
+>   year = dt[3]
+>   time = dt[4] ":" dt[5] ":" dt[6]
+>
+>   # Convert month name to number
+>   months["Jan"]="01"; months["Feb"]="02"; months["Mar"]="03"; months["Apr"]="04";
+>   months["May"]="05"; months["Jun"]="06"; months["Jul"]="07"; months["Aug"]="08";
+>   months["Sep"]="09"; months["Oct"]="10"; months["Nov"]="11"; months["Dec"]="12";
+>
+>   iso_timestamp = year "-" months[month] "-" day "T" time
+>
+>   # Replace original timestamp with ISO format
+>   $4 = iso_timestamp
+>   $5 = ""  # Remove timezone
+>
+>   print
+> }' /var/log/app/access.log > /home/user/internal_hits.log
+user@e2feb63b53b2:~$

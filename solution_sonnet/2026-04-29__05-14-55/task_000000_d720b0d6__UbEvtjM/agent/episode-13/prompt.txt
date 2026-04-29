@@ -1,0 +1,50 @@
+New Terminal Output:
+
+root@8d9af6ef75ee:/home/user/admin# sed -n '400,405p' export.csv
+katherine49,1180,research,katherine49@corp.local,/bin/bash,research;partnerships
+katherine53,1161,research,katherine53@corp.local,/bin/bash,research;contractors;mobile
+katherine86,1673,engineering,katherine86@corp.local,/bin/bash,engineering;contractors;training;networking;integrations
+katherine_davis,1617,support,katherine_davis@corp.local,/usr/bin/fish,support;executives
+katherine_wood,1690,marketing,katherine_wood@corp.local,/bin/zsh,marketing;contractors
+kathleen36,1268,support,kathleen36@corp.local,/bin/zsh,interns;support
+root@8d9af6ef75ee:/home/user/admin# cat > FIXES_APPLIED.txt << 'EOF'
+> EXPORT SCRIPT FIX SUMMARY
+> =========================
+> Date: $(date)
+> Script: /home/user/admin/export_users.sh
+>
+> PROBLEM:
+> After migration from flat passwd-style format to multi-file system, the export_users.sh
+> script was producing garbled CSV output with:
+> - Email addresses containing UID prefixes (e.g., "1482   aadams@corp.local")
+> - Primary group showing GID numbers instead of group names
+> - Supplementary groups showing GID numbers instead of group names
+>
+> ROOT CAUSES (3 bugs identified):
+>
+> 1. BUG #1 - Wrong delimiter for emails.dat:
+>    - emails.dat is TAB-delimited but script used space delimiter
+>    - This caused the entire "UID<TAB>email" to be extracted as one field
+>    - FIX: Changed from cut -d' ' to awk -F'\t' for proper tab handling
+>
+> 2. BUG #2 - Sorting mismatch (implicit in original design):
+>    - Users sorted alphabetically by username, but emails needed lookup by UID
+>    - Original script tried to paste by line number which mismatched
+>    - FIX: Use awk to lookup email by UID match instead of line-based paste
+>
+> 3. BUG #3 - Wrong delimiter for groups.dat:
+>    - groups.dat is COLON-delimited (gid:groupname:description)
+>    - awk defaulted to space/tab delimiter, treating entire line as $1
+>    - This prevented group name resolution, leaving GIDs in output
+>    - FIX: Added -F':' to all awk commands processing groups.dat
+>
+> RESULTS:
+> - Clean CSV export with all 800 users processed correctly
+> - All fields in proper columns
+> - Group names properly resolved
+> - Email addresses clean without UID prefixes
+>
+> BACKUP:
+> - Original script saved as: export_users.sh.backup
+> EOF
+root@8d9af6ef75ee:/home/user/admin#

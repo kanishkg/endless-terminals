@@ -1,0 +1,3 @@
+Log aggregation is busted on the staging webserver — there's a cron job at /etc/cron.d/logstats that's supposed to run every hour and dump the top 10 most frequent request paths from yesterday's nginx access logs into /var/log/reports/top_paths.txt. Something's wrong though because the report file hasn't updated since last week and when I try to run the script manually it just exits silently with nothing written. The script itself is at /home/user/scripts/aggregate_logs.sh.
+
+Pretty sure the pieces are all there, just need to figure out where it's choking. Want top_paths.txt to actually contain the top 10 paths with their counts, sorted descending.

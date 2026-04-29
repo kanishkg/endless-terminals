@@ -1,0 +1,1 @@
+Need to pull out the updated Spanish strings from /home/user/translations/es_MX.zip — just unzip it into /home/user/translations/es_MX/ so I can review the .properties files before merging. The zip's from the vendor, should have a handful of files in there.

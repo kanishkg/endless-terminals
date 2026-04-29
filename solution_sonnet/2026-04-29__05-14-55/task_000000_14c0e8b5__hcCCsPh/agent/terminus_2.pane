@@ -1,0 +1,164 @@
+[?2004hroot@7876efb04d78:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@7876efb04d78:/home/user# clear
+[?2004l[H[J[?2004hroot@7876efb04d78:/home/user# cd /home/user/audit
+[?2004l[?2004hroot@7876efb04d78:/home/user/audit# ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 29 05:34 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 05:34 [34;42m..[0m
+-rw-r--r-- 1 root root  559 Apr 29 05:34 connections.csv
+-rw-r--r-- 1 root root  559 Apr 29 05:34 firewall_rules.json
+[?2004hroot@7876efb04d78:/home/user/audit# cat firewall_rules.json
+[?2004l{
+  "rules": [
+    {"id": 1, "action": "allow", "source_cidr": "10.0.0.0/8", "dest_port": "443"},
+    {"id": 2, "action": "allow", "source_cidr": "10.1.0.0/16", "dest_port": "8000-9000"},
+    {"id": 3, "action": "deny", "source_cidr": "10.1.5.0/24", "dest_port": "8443"},
+    {"id": 4, "action": "allow", "source_cidr": "192.168.1.0/24", "dest_port": "22"},
+    {"id": 5, "action": "allow", "source_cidr": "0.0.0.0/0", "dest_port": "80"},
+    {"id": 6, "action": "allow", "source_cidr": "172.16.0.0/12", "dest_port": "3306"}
+  ],
+  "default_action": "deny"
+}
+[?2004hroot@7876efb04d78:/home/user/audit# cat connections.csv
+[?2004ltimestamp,src_ip,src_port,dest_ip,dest_port,proto
+2024-01-15T10:00:00Z,10.1.5.17,49152,10.100.1.1,8443,tcp
+2024-01-15T10:00:01Z,10.1.2.33,51000,10.100.1.1,8500,tcp
+2024-01-15T10:00:02Z,192.168.1.50,52000,10.100.1.1,22,tcp
+2024-01-15T10:00:03Z,192.168.2.10,53000,10.100.1.1,22,tcp
+2024-01-15T10:00:04Z,10.0.50.1,54000,10.100.1.1,443,tcp
+2024-01-15T10:00:05Z,10.1.5.200,55000,10.100.1.1,8080,tcp
+2024-01-15T10:00:06Z,172.16.5.5,56000,10.100.1.1,3306,tcp
+2024-01-15T10:00:07Z,8.8.8.8,57000,10.100.1.1,80,tcp
+2024-01-15T10:00:08Z,8.8.8.8,58000,10.100.1.1,443,tcp
+[?2004hroot@7876efb04d78:/home/user/audit# cat > check.py << 'EOF'
+[?2004l[?2004h> #!/usr/bin/env python3
+[?2004l
+            if default_action == 'deny':
+                print(f"BLOCKED: {src_ip}:{dest_port} not allowed from 0.0.0.0/0")
+
+if __name__ == '__main__':
+    main()
+EOF
+[?2004h> import json
+[?2004l[?2004h> import csv
+[?2004l[?2004h> import ipaddress
+[?2004l[?2004h> import sys
+[?2004l[?2004h> 
+[?2004l[?2004h> def parse_port_range(port_str):
+[?2004l[?2004h>     """Parse port string (single port or range) and return set of ports or range tuple."""
+[?2004l[?2004h>     port_str = str(port_str).strip()
+[?2004l[?2004h>     if '-' in port_str:
+[?2004l[?2004h>         start, end = port_str.split('-')
+[?2004l[?2004h>         return ('range', int(start), int(end))
+[?2004l[?2004h>     else:
+[?2004l[?2004h>         return ('single', int(port_str))
+[?2004l[?2004h> 
+[?2004l[?2004h> def port_matches(conn_port, rule_port_str):
+[?2004l[?2004h>     """Check if connection port matches rule port (single or range)."""
+[?2004l[?2004h>     conn_port = int(conn_port)
+[?2004l[?2004h>     port_type, *port_data = parse_port_range(rule_port_str)
+[?2004l[?2004h>     
+[?2004l[?2004h>     if port_type == 'single':
+[?2004l[?2004h>         return conn_port == port_data[0]
+[?2004l[?2004h>     elif port_type == 'range':
+[?2004l[?2004h>         start, end = port_data
+[?2004l[?2004h>         return start <= conn_port <= end
+[?2004l[?2004h>     return False
+[?2004l[?2004h> 
+[?2004l[?2004h> def ip_in_cidr(ip_str, cidr_str):
+[?2004l[?2004h>     """Check if IP address is in CIDR range."""
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         ip = ipaddress.ip_address(ip_str)
+[?2004l[?2004h>         network = ipaddress.ip_network(cidr_str, strict=False)
+[?2004l[?2004h>         return ip in network
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         return False
+[?2004l[?2004h> 
+[?2004l[?2004h> def find_matching_rules(src_ip, dest_port, rules):
+[?2004l[?2004h>     """Find all rules that match the connection."""
+[?2004l[?2004h>     matching = []
+[?2004l[?2004h>     for rule in rules:
+[?2004l[?2004h>         if ip_in_cidr(src_ip, rule['source_cidr']) and port_matches(dest_port, rule['dest_port']):
+[?2004l[?2004h>             # Add prefix length for sorting (more specific = higher prefix)
+[?2004l[?2004h>             network = ipaddress.ip_network(rule['source_cidr'], strict=False)
+[?2004l[?2004h>             rule_with_prefix = rule.copy()
+[?2004l[?2004h>             rule_with_prefix['prefix_len'] = network.prefixlen
+[?2004l[?2004h>             matching.append(rule_with_prefix)
+[?2004l[?2004h>     return matching
+[?2004l[?2004h> 
+[?2004l[?2004h> def get_best_match(matching_rules):
+[?2004l[?2004h>     """Get the most specific matching rule (highest prefix length)."""
+[?2004l[?2004h>     if not matching_rules:
+[?2004l[?2004h>         return None
+[?2004l[?2004h>     # Sort by prefix length (descending) - more specific wins
+[?2004l[?2004h>     return sorted(matching_rules, key=lambda r: r['prefix_len'], reverse=True)[0]
+[?2004l[?2004h> 
+[?2004l[?2004h> def main():
+[?2004l[?2004h>     # Load firewall rules
+[?2004l[?2004h>     with open('/home/user/audit/firewall_rules.json', 'r') as f:
+[?2004l[?2004h>         firewall_data = json.load(f)
+[?2004l[?2004h>     
+[?2004l[?2004h>     rules = firewall_data['rules']
+[?2004l[?2004h>     default_action = firewall_data.get('default_action', 'deny')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Load connections
+[?2004l[?2004h>     with open('/home/user/audit/connections.csv', 'r') as f:
+[?2004l[?2004h>         reader = csv.DictReader(f)
+[?2004l[?2004h>         connections = list(reader)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check each connection
+[?2004l[?2004h>     for conn in connections:
+[?2004l[?2004h>         src_ip = conn['src_ip']
+[?2004l[?2004h>         dest_port = conn['dest_port']
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Find all matching rules
+[?2004l[?2004h>         matching_rules = find_matching_rules(src_ip, dest_port, rules)
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Get the most specific match
+[?2004l[?2004h>         best_match = get_best_match(matching_rules)
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Determine if connection is allowed
+[?2004l[?2004h>         if best_match:
+[?2004l[?2004h>             action = best_match['action']
+[?2004l[?2004h>             source_cidr = best_match['source_cidr']
+[?2004l[?2004h>             if action == 'deny':
+[?2004l[?2004h>                 print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {source_cidr}")
+[?2004l[?2004h>         else:
+[?2004l[?2004h>             # No matching rule, apply default action
+[?2004l[?2004h>             if default_action == 'deny':
+[?2004l[?2004h>                 print(f"BLOCKED: {src_ip}:{dest_port} not allowed from 0.0.0.0/0")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     main()
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@7876efb04d78:/home/user/audit# chmod +x check.py
+[?2004l[?2004hroot@7876efb04d78:/home/user/audit# python3 check.py
+[?2004lBLOCKED: 10.1.5.17:8443 not allowed from 10.1.5.0/24
+BLOCKED: 192.168.2.10:22 not allowed from 0.0.0.0/0
+BLOCKED: 8.8.8.8:443 not allowed from 0.0.0.0/0
+[?2004hroot@7876efb04d78:/home/user/audit# ls -lh check.py
+[?2004l-rwxr-xr-x 1 root root 3.2K Apr 29 05:35 [0m[01;32mcheck.py[0m
+[?2004hroot@7876efb04d78:/home/user/audit# head -20 check.py
+[?2004l#!/usr/bin/env python3
+import json
+import csv
+import ipaddress
+import sys
+
+def parse_port_range(port_str):
+    """Parse port string (single port or range) and return set of ports or range tuple."""
+    port_str = str(port_str).strip()
+    if '-' in port_str:
+        start, end = port_str.split('-')
+        return ('range', int(start), int(end))
+    else:
+        return ('single', int(port_str))
+
+def port_matches(conn_port, rule_port_str):
+    """Check if connection port matches rule port (single or range)."""
+    conn_port = int(conn_port)
+    port_type, *port_data = parse_port_range(rule_port_str)
+    
+[?2004hroot@7876efb04d78:/home/user/audit# 

@@ -1,0 +1,62 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@dec9d73d5a11:/home/user/pipeline# echo "Running process.py to resume from checkpoint..."
+Running process.py to resume from checkpoint...
+root@dec9d73d5a11:/home/user/pipeline# python3 process.py
+root@dec9d73d5a11:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3
+> import json
+>
+> # Load baseline
+> with open('/tmp/baseline.json', 'r') as f:
+>     baseline = json.load(f)
+>
+> # Get resumed results
+> conn = sqlite3.connect('output/summary.db')
+> cursor = conn.execute('SELECT category, total_value, count FROM summary ORDER BY category')
+>
+> print("\nCOMPARISON - Resumed run vs Baseline:")
+> print("Category        | Resumed Total  | Baseline Total | Match | Resumed Count | Baseline Count | Match")
+> print("-" * 100)
+>
+> all_match = True
+> for row in cursor:
+>     cat, total, count = row
+>     base_total, base_count = baseline[cat]
+>     total_match = abs(total - base_total) < 0.01
+>     count_match = count == base_count
+>     match_str = "✓" if (total_match and count_match) else "✗"
+>     if not (total_match and count_match):
+>         all_match = False
+>     print(f"{cat:15} | {total:14.2f} | {base_total:14.2f} | {'✓' if total_match else '✗':5} | {count:13} | {base_count:14} | {'✓' if count_match else '✗'}")
+>
+> conn.close()
+>
+> print("\n" + "=" * 100)
+> if all_match:
+>     print("SUCCESS! All totals and counts match perfectly. Resume functionality works correctly!")
+> else:
+>     print("FAILURE! Some values don't match. There's still a bug.")
+> EOF
+
+COMPARISON - Resumed run vs Baseline:
+Category        | Resumed Total  | Baseline Total | Match | Resumed Count | Baseline Count | Match
+----------------------------------------------------------------------------------------------------
+analytics       |      248959.21 |      248959.21 | ✓     |          4927 |           4927 | ✓
+api             |      251488.65 |      251488.65 | ✓     |          5035 |           5035 | ✓
+auth            |      251326.43 |      251326.43 | ✓     |          5135 |           5135 | ✓
+batch           |      242631.82 |      242631.82 | ✓     |          4917 |           4917 | ✓
+mobile          |      248945.74 |      248945.74 | ✓     |          5052 |           5052 | ✓
+notification    |      254350.03 |      254350.03 | ✓     |          5018 |           5018 | ✓
+payment         |      253254.75 |      253254.75 | ✓     |          5040 |           5040 | ✓
+storage         |      250770.39 |      250770.39 | ✓     |          5006 |           5006 | ✓
+streaming       |      246780.19 |      246780.19 | ✓     |          4962 |           4962 | ✓
+web             |      246301.66 |      246301.66 | ✓     |          4908 |           4908 | ✓
+
+====================================================================================================
+SUCCESS! All totals and counts match perfectly. Resume functionality works correctly!
+root@dec9d73d5a11:/home/user/pipeline#

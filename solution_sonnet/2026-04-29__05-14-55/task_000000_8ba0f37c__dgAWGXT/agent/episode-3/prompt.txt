@@ -1,0 +1,72 @@
+New Terminal Output:
+
+user@400784802b77:~/pentest$ cat > finding.txt << 'EOF'
+> FINDING: HTTP/HTTPS Traffic Blocked by String-Matching iptables Rules
+>
+> BLOCKING RULES:
+> - Rule: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+> - Rule: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+> - Rule: -A INPUT -p tcp --dport 80 -j DROP
+> - Rule: -A INPUT -p tcp --dport 443 -j DROP
+>
+> ROOT CAUSE:
+> The iptables ruleset implements a flawed content filtering mechanism that only allows HTTP/HTTPS traffic containing the string "Mozilla" in the packet payload
+. When these rules don't match, traffic falls through to explicit DROP rules for ports 80 and 443.
+>
+> WHY SSH WORKS BUT HTTP DOESN'T:
+> 1. SSH (port 22): Has an unconditional ACCEPT rule with no content inspection
+>    Rule: -A INPUT -p tcp --dport 22 -j ACCEPT
+>
+> 2. HTTP/HTTPS (ports 80/443): Require packet payloads to contain "Mozilla" string
+>    - Tools like curl use "curl/X.X" as the default User-Agent, not "Mozilla"
+>    - The initial TCP handshake may complete (showing ports as "open" in nmap)
+>    - But actual HTTP request packets without "Mozilla" are dropped
+>    - This causes curl to hang waiting for a response that never comes
+>
+> PROBLEMS WITH CURRENT APPROACH:
+> 1. Blocks legitimate HTTP clients (curl, wget, APIs, monitoring tools, mobile apps)
+> 2. String matching at packet level is unreliable for HTTP header inspection
+> 3. Easily bypassed by adding "Mozilla" to any User-Agent string
+> 4. May cause performance issues due to deep packet inspection
+> 5. Not an effective security control - provides false sense of protection
+>
+> RECOMMENDATION:
+> Remove the string-matching rules and the explicit DROP rules for ports 80/443. If access control is needed, implement proper authentication at the application
+ layer, use source IP whitelisting, or deploy a proper Web Application Firewall (WAF). Content-based filtering should be done at Layer 7 (application layer) not
+ Layer 4 (transport layer).
+> EOF
+user@400784802b77:~/pentest$ cat finding.txt
+FINDING: HTTP/HTTPS Traffic Blocked by String-Matching iptables Rules
+
+BLOCKING RULES:
+- Rule: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Rule: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Rule: -A INPUT -p tcp --dport 80 -j DROP
+- Rule: -A INPUT -p tcp --dport 443 -j DROP
+
+ROOT CAUSE:
+The iptables ruleset implements a flawed content filtering mechanism that only allows HTTP/HTTPS traffic containing the string "Mozilla" in the packet payload.
+When these rules don't match, traffic falls through to explicit DROP rules for ports 80 and 443.
+
+WHY SSH WORKS BUT HTTP DOESN'T:
+1. SSH (port 22): Has an unconditional ACCEPT rule with no content inspection
+   Rule: -A INPUT -p tcp --dport 22 -j ACCEPT
+
+2. HTTP/HTTPS (ports 80/443): Require packet payloads to contain "Mozilla" string
+   - Tools like curl use "curl/X.X" as the default User-Agent, not "Mozilla"
+   - The initial TCP handshake may complete (showing ports as "open" in nmap)
+   - But actual HTTP request packets without "Mozilla" are dropped
+   - This causes curl to hang waiting for a response that never comes
+
+PROBLEMS WITH CURRENT APPROACH:
+1. Blocks legitimate HTTP clients (curl, wget, APIs, monitoring tools, mobile apps)
+2. String matching at packet level is unreliable for HTTP header inspection
+3. Easily bypassed by adding "Mozilla" to any User-Agent string
+4. May cause performance issues due to deep packet inspection
+5. Not an effective security control - provides false sense of protection
+
+RECOMMENDATION:
+Remove the string-matching rules and the explicit DROP rules for ports 80/443. If access control is needed, implement proper authentication at the application l
+ayer, use source IP whitelisting, or deploy a proper Web Application Firewall (WAF). Content-based filtering should be done at Layer 7 (application layer) not L
+ayer 4 (transport layer).
+user@400784802b77:~/pentest$

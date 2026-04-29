@@ -1,0 +1,1 @@
+Need to check when the cert at /home/user/certs/webapp.pem expires — client wants it in their report as "YYYY-MM-DD HH:MM:SS UTC" format exactly. Just dump that one line to /home/user/report/cert_expiry.txt.

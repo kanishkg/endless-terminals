@@ -1,0 +1,1 @@
+Need to pull just the server names and their memory_gb values out of /home/user/inventory/hosts.json into a csv at /home/user/reports/mem.csv — two columns, hostname and memory, nothing fancy. Got a meeting in 20 and someone's gonna ask about capacity.
