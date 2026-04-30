@@ -254,7 +254,7 @@ def _generate_harbor_batch(
     # Stage 4: Dockerfiles + build/test
     print(f"[4/5] Generating {len(descriptions)} Dockerfiles ...")
     dockerfiles = generate_dockerfiles_batch(
-        list(zip(descriptions, truths, init_tests, diffs)),
+        list(zip(descriptions, truths, init_tests, diffs, final_tests)),
         model=cfg.model,
         temperature=cfg.test_temperature,
         max_tokens=cfg.max_tokens,

@@ -1,0 +1,1 @@
+Need a Makefile at /home/user/docs/Makefile that builds our markdown docs into html. Source files are in src/, output goes to build/. Just need a rule so `make html` converts every .md in src/ to a .html in build/ using pandoc. Nothing fancy.

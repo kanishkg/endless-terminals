@@ -1,1 +1,0 @@
-Got a dataset tarball at /home/user/data/imagenet_subset.tar.gz and the sha256 is supposed to be in /home/user/data/imagenet_subset.sha256 — just need to verify it matches before I start training. Can you check it and let me know if it's good or not?

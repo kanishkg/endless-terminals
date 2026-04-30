@@ -1,0 +1,1 @@
+Need a quick count of which backup jobs failed most often last month. Log's at /var/log/backup/march.log, each line has the job name as the third field (space-delimited). Just dump the failed ones sorted by frequency, highest first, to /home/user/failed_counts.txt — only care about lines that say FAILED somewhere in them.

@@ -1,3 +1,0 @@
-Log aggregator at /home/user/logwatch keeps dying — it's supposed to tail everything in /var/log/apps/ and feed into /home/user/logwatch/unified.log, but after running for maybe 30 seconds it exits silently. No error, just gone. The weird part is if I run it pointing at a single file it works fine indefinitely, only breaks when watching the whole directory.
-
-Pretty sure the symlinks in there are legit — they point to the actual app logs under /srv/applogs/. Checked a few manually with readlink and they resolve. Maybe it's hitting some inotify limit? Or choking on the number of files? There's like 200+ links in there. Anyway the script is /home/user/logwatch/tail_all.py, need it actually staying up and aggregating everything.

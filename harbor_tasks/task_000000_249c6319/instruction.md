@@ -1,0 +1,3 @@
+Got a ticket from accounting — their nightly CSV export isn't matching the source anymore. Script's at /home/user/etl/transform.py, pulls from /home/user/etl/input/transactions.json and writes to /home/user/etl/output/transactions.csv. They're saying the totals in the CSV are off by like 15-20% compared to what's in the JSON.
+
+Script ran fine for months, no changes to it afaik. Somebody might've updated the input format or something? I ran it manually and it completes without errors, but yeah the numbers don't add up. Need the CSV output to actually reflect what's in the source JSON — row for row, accurate amounts.

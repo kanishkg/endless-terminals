@@ -133,11 +133,12 @@ def _create_dockerignore(context_dir: Path) -> None:
 def build_and_test_docker(
     dockerfile_text: str,
     test_py: str,
+    final_test_py: Optional[str] = None,
     memory_limit: str = "8g",
     build_timeout: int = 600,
     test_timeout: int = 300,
 ) -> Tuple[bool, str]:
-    """Build a Docker image from a Dockerfile and run initial tests inside it.
+    """Build a Docker image from a Dockerfile, run initial tests, and verify final tests fail.
 
     Returns (success, output_message).
     """
@@ -200,10 +201,41 @@ def build_and_test_docker(
             _cleanup_image(image_tag)
             return False, "Test execution timed out"
 
-        # Clean up Docker image
-        _cleanup_image(image_tag)
+        if test_proc.returncode != 0:
+            _cleanup_image(image_tag)
+            return False, test_proc.stdout + test_proc.stderr
 
-        return test_proc.returncode == 0, test_proc.stdout + test_proc.stderr
+        # Verify final tests FAIL in initial state (task is not trivially solved)
+        if final_test_py:
+            final_test_file = td_path / "test_final_state.py"
+            final_test_file.write_text(final_test_py)
+
+            final_test_cmd = [
+                "docker", "run", "--rm",
+                "--memory", "4g",
+                "--memory-swap", "4g",
+                "-v", f"{td_path}:/mnt:ro",
+                image_tag,
+                "bash", "-c",
+                "cp /mnt/test_final_state.py /home/user/ && cd /home/user && pytest -v test_final_state.py",
+            ]
+            try:
+                final_proc = subprocess.run(
+                    final_test_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=test_timeout,
+                )
+            except subprocess.TimeoutExpired:
+                _cleanup_image(image_tag)
+                return False, "Final test execution timed out"
+
+            if final_proc.returncode == 0:
+                _cleanup_image(image_tag)
+                return False, "Final tests pass in initial state - task is trivially solved"
+
+        _cleanup_image(image_tag)
+        return True, test_proc.stdout + test_proc.stderr
 
 
 def _cleanup_image(image_tag: str) -> None:
@@ -280,12 +312,13 @@ def generate_dockerfiles_batch(
             content = resp_obj.choices[0].message.content
             dockerfile_text = parse_dockerfile(content)
             _task_description, _truth, test_py = item[0], item[1], item[2]
+            final_test_py = item[4] if len(item) > 4 else None
             import logging
             _log = logging.getLogger(__name__)
             _log.warning(
                 "Parsed Dockerfile for task %d (first 500 chars):\n%s", index, dockerfile_text[:500]
             )
-            ok, err_msg = build_and_test_docker(dockerfile_text, test_py)
+            ok, err_msg = build_and_test_docker(dockerfile_text, test_py, final_test_py=final_test_py)
             if not ok:
                 _log.warning(
                     "Docker build/test FAILED for task %d:\n%s", index, err_msg[:2000]

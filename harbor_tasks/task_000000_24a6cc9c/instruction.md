@@ -1,0 +1,1 @@
+need to bump the version in /home/user/libmetrics/package.json from 2.3.1 to 2.4.0 and add a changelog entry at the top of CHANGELOG.md for today's date — just note "Added histogram bucketing for latency metrics" under a new ## [2.4.0] heading

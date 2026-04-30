@@ -1,0 +1,1 @@
+Need to add a `gpu_hours` column (float) to the `runs` table in /home/user/experiments/tracking.db — we're starting to track compute costs and the dashboard expects that column to exist. Table already has data in it so don't blow it away obviously.

@@ -1,0 +1,1 @@
+Got a cronjob health-check script at /home/user/scripts/syscheck.sh that's supposed to log disk usage, memory, and load average to /var/log/syscheck.log every hour. It runs but the log stays empty — pretty sure it's just a permissions thing on the log file, can you make it writable so the script actually works?
