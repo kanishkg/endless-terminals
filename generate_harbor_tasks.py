@@ -149,13 +149,14 @@ def _save_harbor_task(
     dockerfile_text: str,
     cfg: HarborPipelineConfig,
     difficulty: str = "medium",
+    category: str = "programming",
 ) -> Path:
     """Write all files for a single Harbor-format task."""
     # instruction.md
     _safe_write(task_dir / "instruction.md", description + "\n")
 
     # task.toml
-    _safe_write(task_dir / "task.toml", _generate_task_toml(cfg, difficulty=difficulty))
+    _safe_write(task_dir / "task.toml", _generate_task_toml(cfg, difficulty=difficulty, category=category))
 
     # environment/
     env_dir = task_dir / "environment"
@@ -208,6 +209,7 @@ def _generate_harbor_batch(
     descriptions = [t.get("description", "").strip() for t in task_templates]
     truths = [t.get("truth", "").strip() for t in task_templates]
     diffs = [t.get("difficulty", "medium") for t in task_templates]
+    cats = list(categories[:len(task_templates)])
 
     valid = [i for i, (d, tr) in enumerate(zip(descriptions, truths)) if d and tr]
     if not valid:
@@ -216,6 +218,7 @@ def _generate_harbor_batch(
     descriptions = [descriptions[i] for i in valid]
     truths = [truths[i] for i in valid]
     diffs = [diffs[i] for i in valid]
+    cats = [cats[i] for i in valid]
     print(f"  Valid templates: {len(descriptions)}")
 
     # Stage 2: Initial state tests
@@ -231,6 +234,7 @@ def _generate_harbor_batch(
     descriptions = [descriptions[i] for i in valid]
     truths = [truths[i] for i in valid]
     diffs = [diffs[i] for i in valid]
+    cats = [cats[i] for i in valid]
     init_tests = [init_tests[i] for i in valid]
     print(f"  Valid initial tests: {len(init_tests)}")
 
@@ -247,6 +251,7 @@ def _generate_harbor_batch(
     descriptions = [descriptions[i] for i in valid]
     truths = [truths[i] for i in valid]
     diffs = [diffs[i] for i in valid]
+    cats = [cats[i] for i in valid]
     init_tests = [init_tests[i] for i in valid]
     final_tests = [final_tests[i] for i in valid]
     print(f"  Valid final tests: {len(final_tests)}")
@@ -265,6 +270,7 @@ def _generate_harbor_batch(
     descriptions = [descriptions[i] for i in valid]
     truths = [truths[i] for i in valid]
     diffs = [diffs[i] for i in valid]
+    cats = [cats[i] for i in valid]
     init_tests = [init_tests[i] for i in valid]
     final_tests = [final_tests[i] for i in valid]
     dockerfiles = [dockerfiles[i] for i in valid]
@@ -288,6 +294,7 @@ def _generate_harbor_batch(
             dockerfiles[i],
             cfg,
             difficulty=diffs[i],
+            category=cats[i],
         )
         saved.append(task_dir)
 
