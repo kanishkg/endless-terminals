@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Tasks · Endless Terminals{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <p class="text-xs uppercase tracking-widest text-accent-500/80">Tasks</p>
+    <h1 class="text-2xl font-semibold tracking-tight">Harbor task catalog</h1>
+    <p class="text-ink-400 text-sm mt-1">{{ rows|length }} task{{ rows|length != 1 and 's' or '' }} matching filters.</p>
+</div>
+
+<form method="get" class="card p-4 mb-6 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+    <div class="md:col-span-4">
+        <label class="block text-[11px] uppercase tracking-wider text-ink-400 mb-1">Search</label>
+        <input type="text" name="q" value="{{ current.q }}" placeholder="task id or instruction text…"
+               class="w-full bg-ink-950 border border-ink-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent-500" />
+    </div>
+    <div class="md:col-span-2">
+        <label class="block text-[11px] uppercase tracking-wider text-ink-400 mb-1">Category</label>
+        <select name="category" class="w-full bg-ink-950 border border-ink-700 rounded-md px-3 py-2 text-sm">
+            <option value="">all</option>
+            {% for c in categories %}
+                <option value="{{ c }}" {% if current.category == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="md:col-span-2">
+        <label class="block text-[11px] uppercase tracking-wider text-ink-400 mb-1">Difficulty</label>
+        <select name="difficulty" class="w-full bg-ink-950 border border-ink-700 rounded-md px-3 py-2 text-sm">
+            <option value="">all</option>
+            {% for d in difficulties %}
+                <option value="{{ d }}" {% if current.difficulty == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="md:col-span-2">
+        <label class="block text-[11px] uppercase tracking-wider text-ink-400 mb-1">Tag</label>
+        <select name="tag" class="w-full bg-ink-950 border border-ink-700 rounded-md px-3 py-2 text-sm">
+            <option value="">all</option>
+            {% for t, n in all_tags %}
+                <option value="{{ t }}" {% if current.tag == t %}selected{% endif %}>{{ t }} ({{ n }})</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="md:col-span-1">
+        <label class="block text-[11px] uppercase tracking-wider text-ink-400 mb-1">Sort</label>
+        <select name="sort" class="w-full bg-ink-950 border border-ink-700 rounded-md px-3 py-2 text-sm">
+            <option value="id" {% if current.sort == 'id' %}selected{% endif %}>task id</option>
+            <option value="pass_desc" {% if current.sort == 'pass_desc' %}selected{% endif %}>pass rate (high → low)</option>
+            <option value="pass_asc" {% if current.sort == 'pass_asc' %}selected{% endif %}>pass rate (low → high)</option>
+            <option value="trials" {% if current.sort == 'trials' %}selected{% endif %}>trial count</option>
+        </select>
+    </div>
+    <div class="md:col-span-1 flex gap-2">
+        <button class="w-full bg-accent-600 hover:bg-accent-500 text-ink-950 font-medium rounded-md px-3 py-2 text-sm">Apply</button>
+    </div>
+</form>
+
+<div class="card overflow-hidden">
+    {# Build a base url that preserves all current filters except `sort`,
+       so that clicking column headers only toggles ordering. #}
+    {% set base_args = {} %}
+    {% if current.q %}{% set _ = base_args.update({'q': current.q}) %}{% endif %}
+    {% if current.category %}{% set _ = base_args.update({'category': current.category}) %}{% endif %}
+    {% if current.difficulty %}{% set _ = base_args.update({'difficulty': current.difficulty}) %}{% endif %}
+    {% if current.tag %}{% set _ = base_args.update({'tag': current.tag}) %}{% endif %}
+    {% set next_pass = 'pass_asc' if current.sort == 'pass_desc' else 'pass_desc' %}
+    {% set next_id = 'id' %}
+    {% set next_trials = 'trials' %}
+    <table class="w-full text-sm">
+        <thead class="bg-ink-900/60 text-ink-400 text-xs uppercase tracking-wider">
+            <tr>
+                <th class="text-left font-medium px-4 py-3">
+                    <a class="hover:text-accent-500 inline-flex items-center gap-1" href="{{ url_for('tasks_index', sort=next_id, **base_args) }}">
+                        Task
+                        {% if current.sort == 'id' %}<span class="text-accent-500">↓</span>{% endif %}
+                    </a>
+                </th>
+                <th class="text-left font-medium px-4 py-3">Difficulty</th>
+                <th class="text-left font-medium px-4 py-3">Tags</th>
+                <th class="text-left font-medium px-4 py-3">Resources</th>
+                <th class="text-left font-medium px-4 py-3">
+                    <a class="hover:text-accent-500 inline-flex items-center gap-1" href="{{ url_for('tasks_index', sort=next_pass, **base_args) }}">
+                        Pass rate
+                        {% if current.sort == 'pass_desc' %}<span class="text-accent-500">↓</span>{% elif current.sort == 'pass_asc' %}<span class="text-accent-500">↑</span>{% else %}<span class="text-ink-600">↕</span>{% endif %}
+                    </a>
+                </th>
+                <th class="text-right font-medium px-4 py-3">
+                    <a class="hover:text-accent-500 inline-flex items-center gap-1" href="{{ url_for('tasks_index', sort=next_trials, **base_args) }}">
+                        Trials
+                        {% if current.sort == 'trials' %}<span class="text-accent-500">↓</span>{% endif %}
+                    </a>
+                </th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-ink-800">
+            {% for row in rows %}
+                {% set m = row.meta %}
+                {% set r = row.rollup %}
+                <tr class="hover:bg-ink-900/60">
+                    <td class="px-4 py-3 align-top max-w-md">
+                        <a href="{{ url_for('task_detail', task_id=m.task_id) }}" class="mono text-sm hover:text-accent-500">{{ m.task_id | short_task }}</a>
+                        <div class="text-[11px] text-ink-500 mt-0.5 line-clamp-2">{{ m.instruction[:200] }}{% if m.instruction|length > 200 %}…{% endif %}</div>
+                    </td>
+                    <td class="px-4 py-3 align-top text-xs">
+                        {% if m.difficulty %}<span class="pill-neutral">{{ m.difficulty }}</span>{% endif %}
+                        {% if m.category %}<span class="pill-neutral ml-1">{{ m.category }}</span>{% endif %}
+                    </td>
+                    <td class="px-4 py-3 align-top text-xs">
+                        <div class="flex flex-wrap gap-1">
+                            {% for t in m.tags %}<span class="pill-neutral">{{ t }}</span>{% endfor %}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 align-top text-[11px] text-ink-400 mono">
+                        {% if m.cpus %}{{ m.cpus }} cpu{% endif %}{% if m.memory_mb %} · {{ m.memory_mb }}MB{% endif %}
+                        <div>tmo {{ m.agent_timeout_sec | int }}s / {{ m.verifier_timeout_sec | int }}s</div>
+                    </td>
+                    <td class="px-4 py-3 align-top">
+                        {% if r and r.n_trials %}
+                            <div class="flex items-center gap-2 w-44">
+                                <div class="bar flex-1">
+                                    <div class="bar-fill" style="width: {{ ((r.pass_rate or 0) * 100) }}%;"></div>
+                                </div>
+                                <div class="w-12 text-right tabular-nums text-xs {% if (r.pass_rate or 0) >= 0.5 %}text-accent-500{% elif (r.pass_rate or 0) >= 0.3 %}text-warn-500{% else %}text-danger-500{% endif %}">{{ r.pass_rate | pct }}</div>
+                            </div>
+                        {% else %}
+                            <span class="text-ink-500 text-xs">no trials</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 align-top text-right tabular-nums text-xs">{{ r.n_trials if r else 0 }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="px-4 py-12 text-center text-ink-500">No tasks match.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

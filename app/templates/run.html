@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ run.run_id }} · Run{% endblock %}
+
+{% block content %}
+<nav class="text-xs text-ink-400 mb-4">
+    <a href="{{ url_for('runs_index') }}" class="hover:text-accent-500">Runs</a>
+    <span class="mx-2">/</span>
+    <span class="text-ink-200 mono">{{ run.run_id }}</span>
+</nav>
+
+<div class="flex items-start justify-between gap-6 mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold tracking-tight mono">{{ run.run_id }}</h1>
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <span class="pill-neutral mono">{{ run.pretty_model }}</span>
+            <span class="pill-neutral">agent: <span class="mono ml-1">{{ run.agent_import_path }}</span></span>
+            <span class="pill-neutral">{{ run.n_attempts }} attempts/task</span>
+            {% for d in run.dataset_paths %}<span class="pill-neutral">dataset: <span class="mono ml-1">{{ d }}</span></span>{% endfor %}
+        </div>
+    </div>
+    <div class="text-right text-xs text-ink-400 mono">
+        <div>start {{ run.started_at | ts }}</div>
+        <div>end &nbsp;&nbsp;{{ run.finished_at | ts }}</div>
+    </div>
+</div>
+
+<section class="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+    <div class="card p-4">
+        <div class="text-xs uppercase tracking-wider text-ink-400">Pass rate</div>
+        <div class="mt-1 text-2xl font-semibold {% if run.mean_reward and run.mean_reward >= 0.5 %}text-accent-500{% elif run.mean_reward and run.mean_reward >= 0.3 %}text-warn-500{% else %}text-danger-500{% endif %}">{{ run.mean_reward | pct }}</div>
+        <div class="mt-2 bar"><div class="bar-fill" style="width: {{ ((run.mean_reward or 0) * 100) }}%"></div></div>
+    </div>
+    <div class="card p-4">
+        <div class="text-xs uppercase tracking-wider text-ink-400">Trials</div>
+        <div class="mt-1 text-2xl font-semibold">{{ run.n_total_trials }}</div>
+        <div class="text-xs text-ink-400 mt-1">{{ run.n_pass }} pass · {{ run.n_fail }} fail · {{ run.n_error_trials }} err</div>
+    </div>
+    <div class="card p-4">
+        <div class="text-xs uppercase tracking-wider text-ink-400">Avg duration</div>
+        <div class="mt-1 text-2xl font-semibold tabular-nums">{{ avg_duration | dur }}</div>
+    </div>
+    <div class="card p-4">
+        <div class="text-xs uppercase tracking-wider text-ink-400">Total in / out tokens</div>
+        <div class="mt-1 text-base tabular-nums">
+            <span class="text-ink-100 font-semibold">{{ run.total_input_tokens | intcomma }}</span>
+            <span class="text-ink-500"> in</span>
+            <span class="block text-ink-100 font-semibold">{{ run.total_output_tokens | intcomma }}</span>
+            <span class="text-ink-500"> out</span>
+        </div>
+    </div>
+    <div class="card p-4">
+        <div class="text-xs uppercase tracking-wider text-ink-400">Exceptions</div>
+        {% if run.exception_breakdown %}
+            <ul class="mt-1 space-y-1">
+                {% for name, n in run.exception_breakdown.items() %}
+                    <li class="flex items-center justify-between text-sm">
+                        <span class="mono text-amber-200">{{ name }}</span>
+                        <span class="tabular-nums text-ink-400">{{ n }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="mt-2 text-sm text-ink-500">none</div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="card p-6 mb-8">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Per-task results</h2>
+        <div class="flex items-center gap-2 text-[11px] text-ink-400">
+            <span class="cell cell-pass"></span> pass
+            <span class="cell cell-fail ml-2"></span> fail
+            <span class="cell cell-err ml-2"></span> error
+        </div>
+    </div>
+    <div class="overflow-x-auto scrollbar-thin">
+        <table class="w-full text-sm">
+            <thead class="text-ink-400 text-xs uppercase tracking-wider">
+                <tr>
+                    <th class="text-left font-medium pb-2">Task</th>
+                    <th class="text-left font-medium pb-2">Difficulty</th>
+                    <th class="text-left font-medium pb-2">Trials</th>
+                    <th class="text-left font-medium pb-2">Pass rate</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-ink-800">
+                {% for row in task_rows %}
+                    <tr class="hover:bg-ink-900/60">
+                        <td class="py-3 pr-3">
+                            <a href="{{ url_for('task_detail', task_id=row.task_id) }}" class="mono text-sm hover:text-accent-500">{{ row.task_id | short_task }}</a>
+                            {% if row.meta and row.meta.instruction %}
+                                <div class="text-[11px] text-ink-500 mt-0.5 truncate max-w-xl">
+                                    {{ row.meta.instruction[:120] }}{% if row.meta.instruction|length > 120 %}…{% endif %}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 pr-3 text-xs">
+                            {% if row.meta and row.meta.difficulty %}
+                                <span class="pill-neutral">{{ row.meta.difficulty }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 pr-3">
+                            <div class="flex flex-wrap items-center gap-0.5">
+                                {% for t in row.trials %}
+                                    {% if t.exception %}
+                                        {% set cls = "cell-err" %}
+                                        {% set tip = t.exception ~ " · " ~ (t.trial_id | short_id) %}
+                                    {% elif (t.reward or 0) >= 1.0 %}
+                                        {% set cls = "cell-pass" %}
+                                        {% set tip = "pass · " ~ (t.trial_id | short_id) %}
+                                    {% else %}
+                                        {% set cls = "cell-fail" %}
+                                        {% set tip = "fail · " ~ (t.trial_id | short_id) %}
+                                    {% endif %}
+                                    <a class="cell {{ cls }}" data-tip="{{ tip }}" href="{{ url_for('trial_detail', run_id=run.run_id, trial_id=t.trial_id) }}"></a>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="py-3 pr-3 w-56">
+                            <div class="flex items-center gap-2">
+                                <div class="bar flex-1">
+                                    <div class="bar-fill" style="width: {{ ((row.pass_rate or 0) * 100) }}%;"></div>
+                                </div>
+                                <div class="w-14 text-right tabular-nums text-xs">{{ row.pass_rate | pct }}</div>
+                                <div class="w-14 text-right text-[11px] text-ink-500">{{ row.n_pass }}/{{ row.n_total }}</div>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="4" class="py-6 text-center text-ink-500">No trials found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

@@ -146,6 +146,27 @@ For each task, this:
 
 Tasks that already have a `solution/solution.json` are skipped automatically. Use `--workers` to process multiple tasks in parallel and `--max-actions` to cap the number of commands per attempt.
 
+## Explorer UI
+
+A small Flask app for browsing tasks, agent trajectories, and per-model
+performance lives in `app/`:
+
+```bash
+uv run python -m app.server --port 5050
+# then open http://127.0.0.1:5050
+```
+
+It reads `harbor_tasks/` and `solution_sonnet/` directly from disk and exposes:
+
+- **Dashboard** — leaderboard across models, hardest/easiest tasks, recent runs
+- **Runs** — per-task pass/fail heatmap, exception breakdown, token totals
+- **Tasks** — searchable catalog with filters (difficulty / category / tag) and
+  per-task detail (instruction, ground truth, Dockerfile, final-state test, and
+  every trial across runs)
+- **Trial viewer** — full agent trajectory (messages + tool calls + terminal
+  observations), reward, tokens, durations, and an embedded asciinema player
+  for the recorded session
+
 ## License
 
 Apache License 2.0 - see [LICENSE](LICENSE).
