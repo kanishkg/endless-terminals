@@ -1,0 +1,3 @@
+Running nightly backup verification and the restore-test script at /home/user/backup/verify_restore.sh is failing with permission denied somewhere — but the weird part is it runs fine under my account interactively. It's only when the backup service user (`backupd`) runs it that something chokes. The script needs to read from /srv/backup-staging, write test restores to /tmp/restore-verify, and log to /var/log/backup/verify.log.
+
+Pretty sure I set up the backupd user correctly last month but maybe I missed something? Or maybe someone changed group memberships. Anyway need backupd to be able to run that script end-to-end without permission errors. Don't just chmod 777 everything — we have compliance requirements, needs to stay reasonably locked down.

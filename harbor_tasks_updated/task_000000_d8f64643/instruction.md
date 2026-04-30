@@ -1,0 +1,3 @@
+Mobile CI pipeline started choking on the app store submission step last night — the upload script at /home/user/pipeline/submit.py hits our internal signing service and it's getting back 401s now. Thing is, the service is definitely up (I can see it responding on localhost:8443), and the creds in /home/user/pipeline/config/auth.json haven't changed afaict. Worked fine Tuesday.
+
+There's a test endpoint on the service at /health that doesn't need auth, and the actual signing endpoint is POST /api/v2/sign. Logs for the service are somewhere under /var/log/signing/ I think. Need the submission script actually working again — should exit clean and print the signed artifact path when it does.

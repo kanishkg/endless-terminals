@@ -1,0 +1,3 @@
+User cleanup script at /home/user/admin/cleanup.sh ran last night and was supposed to archive inactive accounts — anyone whose last-login file in /var/userdata/{username}/ is older than 90 days gets their homedir tarred up and moved to /backup/archived/. Instead I'm getting complaints that active users got archived too. Spot-checked a few and their last-login timestamps look recent to me, so idk what's going on.
+
+Need you to figure out why it's grabbing the wrong accounts and fix it. The archived tarballs that shouldn't have been created need to be restored too — put the homedirs back where they were and remove the bogus tarballs. Don't touch the ones that were legitimately old.
