@@ -1,0 +1,244 @@
+New Terminal Output:
+
+user@c5abc68f0ae4:~/inventory$ python3 << 'EOF'
+format(s):
+    """Check if string looks like a serial number"""
+    return bool(re.match(r'^SN-[A-Z]{3}-\d{5}$', s.strip()))
+
+print("Starting CSV processing...")
+
+# Read and process CSV
+records = []
+rejected = []
+
+with open('/home/user/inventory/assets.csv', 'r') as f:
+    reader = csv.DictReader(f)
+
+    for row_num, row in enumerate(reader, start=2):
+        original_row = dict(row)
+        rejection_reason = []
+
+        # Check if serial and name are swapped
+        if is_serial_format(row['name']) and not is_serial_format(row['serial']):
+            row['name'], row['serial'] = row['serial'], row['name']
+
+        # Parse date
+        iso_date, date_obj = parse_date(row['purchase_date'])
+        if iso_date is None:
+            rejection_reason.append(f"Invalid date format: {row['purchase_date']}")
+
+        # Parse price
+        price_cents = parse_price(row['price'])
+        if price_cents is None:
+            rejection_reason.append(f"Invalid price format: {row['price']}")
+        elif price_cents <= 0:
+            rejection_reason.append(f"Non-positive price: {price_cents} cents")
+
+        # Validate required fields
+        if not row['id'].strip():
+            rejection_reason.append("Missing ID")
+        if not row['serial'].strip() or not is_serial_format(row['serial']):
+            rejection_reason.append(f"Invalid serial format: {row['serial']}")
+
+        if rejection_reason:
+            rejected.append({
+                'original_row': original_row,
+                'reason': '; '.join(rejection_reason)
+            })
+        else:
+            records.append({
+                'id': row['id'].strip(),
+                'name': row['name'].strip(),
+                'serial': row['serial'].strip(),
+                'purchase_date': iso_date,
+                'price_cents': price_cents,
+                'location': row['location'].strip(),
+                '_date_obj': date_obj  # For deduplication
+            })
+
+print(f"Parsed {len(records)} valid records, {len(rejected)} rejected")
+
+# Deduplicate by ID, keeping the one with latest purchase date
+print("Deduplicating by ID...")
+id_to_records = defaultdict(list)
+for record in records:
+    id_to_records[record['id']].append(record)
+
+deduped_records = []
+for asset_id, recs in id_to_records.items():
+    if len(recs) > 1:
+        # Sort by date and keep the latest
+        recs.sort(key=lambda x: x['_date_obj'], reverse=True)
+        print(f"  Duplicate ID {asset_id}: keeping latest of {len(recs)} records")
+    # Remove temporary date object
+    latest = recs[0]
+    del latest['_date_obj']
+    deduped_records.append(latest)
+
+print(f"After deduplication: {len(deduped_records)} unique records")
+
+# Sort by ID for consistency
+deduped_records.sort(key=lambda x: x['id'])
+
+# Write output files
+with open('/home/user/inventory/assets.json', 'w') as f:
+    json.dump(deduped_records, f, indent=2)
+
+with open('/home/user/inventory/rejected.json', 'w') as f:
+    json.dump(rejected, f, indent=2)
+
+print(f"\nComplete!")
+print(f"  Valid assets: {len(deduped_recor> import csv
+> import json
+> import re
+> from datetime import datetime
+> from collections import defaultdict
+>
+> def parse_date(date_str):
+>     """Try to parse date in multiple formats and return ISO 8601 string"""
+>     date_str = date_str.strip()
+>     formats = [
+>         '%Y-%m-%d',      # YYYY-MM-DD
+>         '%m/%d/%Y',      # MM/DD/YYYY
+>         '%d.%m.%Y',      # DD.MM.YYYY
+>     ]
+>
+>     for fmt in formats:
+>         try:
+>             dt = datetime.strptime(date_str, fmt)
+>             return dt.strftime('%Y-%m-%d'), dt
+>         except ValueError:
+>             continue
+>     return None, None
+>
+> def parse_price(price_str):
+>     """Parse price and convert to cents (integer)"""
+>     try:
+>         # Remove dollar signs, commas, and whitespace
+>         cleaned = re.sub(r'[$,\s]', '', str(price_str))
+>         # Convert to float then to cents
+>         price_float = float(cleaned)
+>         price_cents = int(round(price_float * 100))
+>         return price_cents
+>     except (ValueError, TypeError):
+>         return None
+>
+> def is_serial_format(s):
+>     """Check if string looks like a serial number"""
+>     return bool(re.match(r'^SN-[A-Z]{3}-\d{5}$', s.strip()))
+>
+> print("Starting CSV processing...")
+>
+> # Read and process CSV
+> records = []
+> rejected = []
+>
+> with open('/home/user/inventory/assets.csv', 'r') as f:
+>     reader = csv.DictReader(f)
+>
+>     for row_num, row in enumerate(reader, start=2):
+>         original_row = dict(row)
+>         rejection_reason = []
+>
+>         # Check if serial and name are swapped
+>         if is_serial_format(row['name']) and not is_serial_format(row['serial']):
+>             row['name'], row['serial'] = row['serial'], row['name']
+>
+>         # Parse date
+>         iso_date, date_obj = parse_date(row['purchase_date'])
+>         if iso_date is None:
+>             rejection_reason.append(f"Invalid date format: {row['purchase_date']}")
+>
+>         # Parse price
+>         price_cents = parse_price(row['price'])
+>         if price_cents is None:
+>             rejection_reason.append(f"Invalid price format: {row['price']}")
+>         elif price_cents <= 0:
+>             rejection_reason.append(f"Non-positive price: {price_cents} cents")
+>
+>         # Validate required fields
+>         if not row['id'].strip():
+>             rejection_reason.append("Missing ID")
+>         if not row['serial'].strip() or not is_serial_format(row['serial']):
+>             rejection_reason.append(f"Invalid serial format: {row['serial']}")
+>
+>         if rejection_reason:
+>             rejected.append({
+>                 'original_row': original_row,
+>                 'reason': '; '.join(rejection_reason)
+>             })
+>         else:
+>             records.append({
+>                 'id': row['id'].strip(),
+>                 'name': row['name'].strip(),
+>                 'serial': row['serial'].strip(),
+>                 'purchase_date': iso_date,
+>                 'price_cents': price_cents,
+>                 'location': row['location'].strip(),
+>                 '_date_obj': date_obj  # For deduplication
+>             })
+>
+> print(f"Parsed {len(records)} valid records, {len(rejected)} rejected")
+>
+> # Deduplicate by ID, keeping the one with latest purchase date
+> print("Deduplicating by ID...")
+> id_to_records = defaultdict(list)
+> for record in records:
+>     id_to_records[record['id']].append(record)
+>
+> deduped_records = []
+> for asset_id, recs in id_to_records.items():
+>     if len(recs) > 1:
+>         # Sort by date and keep the latest
+>         recs.sort(key=lambda x: x['_date_obj'], reverse=True)
+>         print(f"  Duplicate ID {asset_id}: keeping latest of {len(recs)} records")
+>     # Remove temporary date object
+>     latest = recs[0]
+>     del latest['_date_obj']
+>     deduped_records.append(latest)
+>
+> print(f"After deduplication: {len(deduped_records)} unique records")
+>
+> # Sort by ID for consistency
+> deduped_records.sort(key=lambda x: x['id'])
+>
+> # Write output files
+> with open('/home/user/inventory/assets.json', 'w') as f:
+>     json.dump(deduped_records, f, indent=2)
+>
+> with open('/home/user/inventory/rejected.json', 'w') as f:
+>     json.dump(rejected, f, indent=2)
+>
+> print(f"\nComplete!")
+> print(f"  Valid assets: {len(deduped_records)} -> assets.json")
+> print(f"  Rejected: {len(rejected)} -> rejected.json")
+> EOF
+Starting CSV processing...
+Parsed 830 valid records, 16 rejected
+Deduplicating by ID...
+  Duplicate ID AST-00312: keeping latest of 2 records
+  Duplicate ID AST-00306: keeping latest of 2 records
+  Duplicate ID AST-00300: keeping latest of 2 records
+  Duplicate ID AST-00317: keeping latest of 2 records
+  Duplicate ID AST-00305: keeping latest of 2 records
+  Duplicate ID AST-00316: keeping latest of 2 records
+  Duplicate ID AST-00318: keeping latest of 2 records
+  Duplicate ID AST-00313: keeping latest of 2 records
+  Duplicate ID AST-00307: keeping latest of 2 records
+  Duplicate ID AST-00315: keeping latest of 2 records
+  Duplicate ID AST-00333: keeping latest of 3 records
+  Duplicate ID AST-00308: keeping latest of 2 records
+  Duplicate ID AST-00303: keeping latest of 2 records
+  Duplicate ID AST-00314: keeping latest of 2 records
+  Duplicate ID AST-00301: keeping latest of 2 records
+  Duplicate ID AST-00311: keeping latest of 2 records
+  Duplicate ID AST-00310: keeping latest of 2 records
+  Duplicate ID AST-00304: keeping latest of 2 records
+  Duplicate ID AST-00309: keeping latest of 2 records
+  Duplicate ID AST-00302: keeping latest of 2 records
+After deduplication: 809 unique records
+
+Complete!
+  Valid assets: 809 -> assets.json
+  Rejected: 16 -> rejected.json
+user@c5abc68f0ae4:~/inventory$

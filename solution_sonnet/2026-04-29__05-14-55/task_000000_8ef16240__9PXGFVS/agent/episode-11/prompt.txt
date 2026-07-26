@@ -1,0 +1,40 @@
+New Terminal Output:
+
+root@4f2672db31b0:/home/user/pipeline# echo '=== Testing multiple interruptions ==='
+=== Testing multiple interruptions ===
+root@4f2672db31b0:/home/user/pipeline# rm .checkpoint output/summary.db
+root@4f2672db31b0:/home/user/pipeline# python3 test_interrupt.py
+Process interrupted
+root@4f2672db31b0:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+> print(f'After 1st interruption: {result[0]} records')
+> conn.close()
+> EOF
+After 1st interruption: 46000 records
+root@4f2672db31b0:/home/user/pipeline# python3 test_interrupt.py
+Process interrupted
+root@4f2672db31b0:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+> print(f'After 2nd interruption: {result[0]} records')
+> conn.close()
+> EOF
+After 2nd interruption: 50000 records
+root@4f2672db31b0:/home/user/pipeline# python3 process.py
+root@4f2672db31b0:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+> print(f'After completion: {result[0]} records')
+> if result[0] == 50000:
+>     print('✓ Multiple interruption test PASSED!')
+> else:
+>     print(f'✗ FAILED: Expected 50000, got {result[0]}')
+> conn.close()
+> EOF
+After completion: 50000 records
+✓ Multiple interruption test PASSED!
+root@4f2672db31b0:/home/user/pipeline#

@@ -1,0 +1,61 @@
+New Terminal Output:
+
+user@76393adfa0c6:~/scheduler$ cat > verify_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Comprehensive verification of the timezone fix."""
+>
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+> from app import convert_to_berlin
+>
+> def test_conversions():
+>     """Test various UTC to Berlin conversions."""
+>
+>     test_cases = [
+>         # (UTC time, expected Berlin hour, description)
+>         ('2024-03-31T01:30:00', 3, 'DST spring forward (2am->3am) - the problematic case'),
+>         ('2024-03-31T00:30:00', 1, 'Before DST transition (still CET)'),
+>         ('2024-03-31T02:30:00', 4, 'After DST transition (CEST)'),
+>         ('2024-10-27T01:30:00', 3, 'DST fall back transition'),
+>         ('2024-06-15T10:00:00', 12, 'Summer time (CEST)'),
+>         ('2024-12-15T10:00:00', 11, 'Winter time (CET)'),
+>     ]
+>
+>     print("=" * 70)
+>     print("TIMEZONE CONVERSION VERIFICATION")
+>     print("=" * 70)
+>
+>     all_passed = True
+>
+>     for utc_time, expected_hour, description in test_cases:
+>         berlin_time = convert_to_berlin(utc_time)
+>         passed = berlin_time.hour == expected_hour
+>         status = "✓ PASS" if passed else "✗ FAIL"
+>
+>         print(f"\n{status}: {description}")
+>         print(f"  UTC:    {utc_time}")
+>         print(f"  Berlin: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>         print(f"  Expected hour: {expected_hour}, Got: {berlin_time.hour}")
+>
+>         if not passed:
+>             all_passed = False
+>
+>     print("\n" + "=" * 70)
+>     if all_passed:
+>         print("✓ ALL TESTS PASSED - Fix is working correctly!")
+>         print("\nSummary of the fix:")
+>         print("  - Changed convert_to_berlin() to properly localize UTC time first")
+>         print("  - Old: BERLIN_TZ.localize(utc_dt) - treated naive datetime as Berlin time")
+>         print("  - New: UTC_TZ.localize(utc_dt).astimezone(BERLIN_TZ) - proper conversion")
+>         print("  - This correctly handles DST transitions in Europe/Berlin timezone")
+>     else:
+>         print("✗ SOME TESTS FAILED - Please review")
+>     print("=" * 70)
+>
+>     return all_passed
+>
+> if __name__ == '__main__':
+>     success = test_conversions()
+>     sys.exit(0 if success else 1)
+> EOF
+user@76393adfa0c6:~/scheduler$

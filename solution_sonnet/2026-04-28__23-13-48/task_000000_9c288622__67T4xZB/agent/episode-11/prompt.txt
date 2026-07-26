@@ -1,0 +1,87 @@
+New Terminal Output:
+
+user@e252a997ef07:~/scheduler$ cat > verify_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Comprehensive verification of the timezone fix."""
+>
+> import json
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> print("=" * 60)
+> print("VERIFICATION: Timezone Conversion Fix")
+> print("=" * 60)
+> print()
+>
+> # Load the actual meetings from the JSON file
+> with open('/home/user/scheduler/meetings.json', 'r') as f:
+>     meetings = json.load(f)
+>
+> print("Analyzing all meetings with FIXED conversion logic:")
+> print()
+>
+> for meeting in meetings:
+>     utc_time_str = meeting['utc_time']
+>     title = meeting['title']
+>
+>     # FIXED conversion logic
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+>
+>     print(f"Meeting: {title}")
+>     print(f"  UTC:    {utc_dt.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+>     print(f"  Berlin: {berlin_dt.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+>
+>     # Check if this falls in the 2am-3am window
+>     if 2 <= berlin_dt.hour < 3:
+>         print(f"  *** This meeting falls in the 2am-3am window! ***")
+>
+>     print()
+>
+> print("=" * 60)
+> print("Key finding for 'Maintenance Window Prep':")
+> print("  UTC time: 2024-03-31T01:30:00")
+> print("  This is during DST transition (2am CET -> 3am CEST)")
+> print("  Correct Berlin time: 2024-03-31 03:30:00 CEST")
+> print("  (The 2am hour is skipped due to DST transition)")
+> print("=" * 60)
+> EOF
+user@e252a997ef07:~/scheduler$ python3 verify_fix.py
+============================================================
+VERIFICATION: Timezone Conversion Fix
+============================================================
+
+Analyzing all meetings with FIXED conversion logic:
+
+Meeting: Daily Standup
+  UTC:    2024-03-31 08:00:00 UTC
+  Berlin: 2024-03-31 10:00:00 CEST (UTC+0200)
+
+Meeting: Maintenance Window Prep
+  UTC:    2024-03-31 01:30:00 UTC
+  Berlin: 2024-03-31 03:30:00 CEST (UTC+0200)
+
+Meeting: Weekly Review
+  UTC:    2024-04-01 14:00:00 UTC
+  Berlin: 2024-04-01 16:00:00 CEST (UTC+0200)
+
+Meeting: Client Call
+  UTC:    2024-03-30 15:30:00 UTC
+  Berlin: 2024-03-30 16:30:00 CET (UTC+0100)
+
+Meeting: Team Lunch
+  UTC:    2024-03-29 11:00:00 UTC
+  Berlin: 2024-03-29 12:00:00 CET (UTC+0100)
+
+============================================================
+Key finding for 'Maintenance Window Prep':
+  UTC time: 2024-03-31T01:30:00
+  This is during DST transition (2am CET -> 3am CEST)
+  Correct Berlin time: 2024-03-31 03:30:00 CEST
+  (The 2am hour is skipped due to DST transition)
+============================================================
+user@e252a997ef07:~/scheduler$

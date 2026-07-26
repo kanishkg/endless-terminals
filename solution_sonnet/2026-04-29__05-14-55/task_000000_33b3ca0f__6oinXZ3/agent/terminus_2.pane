@@ -1,0 +1,157 @@
+[?2004hroot@605669aba391:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@605669aba391:/home/user# clear
+[?2004l[H[J[?2004hroot@605669aba391:/home/user# cd /home/user/etl
+[?2004l[?2004hroot@605669aba391:/home/user/etl# ls -la
+[?2004ltotal 32
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [0m[34;42m.[0m
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [34;42m..[0m
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [34;42mdata[0m
+-rwxrwxrwx 1 1000 1000  423 Apr 29 08:38 [01;32mingest.py[0m
+-rwxrwxrwx 1 1000 1000   44 Apr 29 08:38 [01;32mrequirements.txt[0m
+-rwxrwxrwx 1 1000 1000   73 Apr 29 08:38 [01;32mrun.sh[0m
+-rwxrwxrwx 1 1000 1000  476 Apr 29 08:38 [01;32mtransforms.py[0m
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [34;42mvenv[0m
+[?2004hroot@605669aba391:/home/user/etl# cat run.sh
+[?2004l#!/bin/bash
+cd /home/user/etl
+source venv/bin/activate
+python3 ingest.py
+[?2004hroot@605669aba391:/home/user/etl# cat requirements.txt
+[?2004lpandas==2.1.0
+pyarrow==14.0.1
+numpy==1.26.0
+[?2004hroot@605669aba391:/home/user/etl# cat ingest.py
+[?2004limport pandas as pd
+import pyarrow
+import pyarrow.parquet as pq
+from transforms import clean_records
+
+def main():
+    # Read raw data
+    df = pd.read_csv('data/raw/records.csv')
+
+    # Transform
+    df_clean = clean_records(df)
+
+    # Write to parquet
+    df_clean.to_parquet('data/processed/output.parquet', index=False)
+    print(f"Successfully processed {len(df_clean)} records")
+
+if __name__ == "__main__":
+    main()
+[?2004hroot@605669aba391:/home/user/etl# cat transforms.py
+[?2004limport pandas as pd
+import numpy as np
+
+def clean_records(df):
+    """Clean records by removing invalid status entries."""
+    # Filter out rows where status is 'invalid'
+    df_clean = df[df['status'] != 'invalid'].copy()
+
+    # Convert value column to numeric, coercing errors
+    df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
+
+    # Fill any NaN values in value column with 0
+    df_clean['value'] = df_clean['value'].fillna(0)
+
+    return df_clean
+[?2004hroot@605669aba391:/home/user/etl# ls -la data/
+[?2004ltotal 16
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [0m[34;42m.[0m
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [34;42m..[0m
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [34;42mprocessed[0m
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [34;42mraw[0m
+[?2004hroot@605669aba391:/home/user/etl# ls -la data/raw/
+[?2004ltotal 28
+drwxrwxrwx 1 1000 1000  4096 Apr 29 08:38 [0m[34;42m.[0m
+drwxrwxrwx 1 1000 1000  4096 Apr 29 08:38 [34;42m..[0m
+-rwxrwxrwx 1 1000 1000 19040 Apr 29 08:38 [01;32mrecords.csv[0m
+[?2004hroot@605669aba391:/home/user/etl# ls -la data/processed/ 2>&1 || echo 'processed directory does not exist'
+[?2004ltotal 8
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [0m[34;42m.[0m
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:38 [34;42m..[0m
+[?2004hroot@605669aba391:/home/user/etl# source venv/bin/activate
+[?2004l[?2004h(venv) root@605669aba391:/home/user/etl# pip list
+[?2004lPackage           Version
+----------------- -------
+asciinema         2.1.0
+exceptiongroup    1.3.1
+iniconfig         2.3.0
+packaging         26.2
+pip               22.0.2
+pluggy            1.6.0
+Pygments          2.20.0
+pytest            9.0.3
+setuptools        59.6.0
+tomli             2.4.1
+typing_extensions 4.15.0
+wheel             0.37.1
+[?2004h(venv) root@605669aba391:/home/user/etl# pip install -r requirements.txt
+[?2004lCollecting pandas==2.1.0
+  Downloading pandas-2.1.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.7 MB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/12.7 MB[0m [31m?[0m eta [36m-:--:--[0m[2K     [91m╸[0m[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.2/12.7 MB[0m [31m5.9 MB/s[0m eta [36m0:00:03[0m[2K     [91m━━━━━━━━━━━━━━━━━[0m[90m╺[0m[90m━━━━━━━━━━━━━━━━━━━━━━[0m [32m5.4/12.7 MB[0m [31m79.3 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[90m╺[0m[90m━[0m [32m12.2/12.7 MB[0m [31m182.0 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m [32m12.7/12.7 MB[0m [31m178.3 MB/s[0m eta [36m0:00:01[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m12.7/12.7 MB[0m [31m103.6 MB/s[0m eta [36m0:00:00[0m
+[?25hCollecting pyarrow==14.0.1
+  Downloading pyarrow-14.0.1-cp310-cp310-manylinux_2_28_x86_64.whl (38.0 MB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/38.0 MB[0m [31m?[0m eta [36m-:--:--[0m[2K     [91m━[0m[90m╺[0m[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m1.0/38.0 MB[0m [31m30.7 MB/s[0m eta [36m0:00:02[0m[2K     [91m━━━━[0m[91m╸[0m[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m4.3/38.0 MB[0m [31m65.6 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━[0m[91m╸[0m[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m6.3/38.0 MB[0m [31m61.2 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━[0m[90m╺[0m[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m11.4/38.0 MB[0m [31m101.9 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━[0m[91m╸[0m[90m━━━━━━━━━━━━━━━━━━━━━━[0m [32m16.8/38.0 MB[0m [31m155.8 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m[90m━━━━━━━━━━━━━━━━[0m [32m22.7/38.0 MB[0m [31m165.5 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m[90m━━━━━━━━━━━━━[0m [32m25.3/38.0 MB[0m [31m135.2 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m[90m━━━━━━━━━━━━━[0m [32m25.6/38.0 MB[0m [31m89.1 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[90m╺[0m[90m━━━━━━━━━━[0m [32m28.0/38.0 MB[0m [31m76.3 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[90m╺[0m[90m━━[0m [32m35.3/38.0 MB[0m [31m79.3 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m [32m38.0/38.0 MB[0m [31m218.8 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m [32m38.0/38.0 MB[0m [31m218.8 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m [32m38.0/38.0 MB[0m [31m218.8 MB/s[0m eta [36m0:00:01[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m38.0/38.0 MB[0m [31m58.2 MB/s[0m eta [36m0:00:00[0m
+[?25hCollecting numpy==1.26.0
+  Downloading numpy-1.26.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (18.2 MB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/18.2 MB[0m [31m?[0m eta [36m-:--:--[0m[2K     [91m━━━━━━━━━[0m[90m╺[0m[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m4.3/18.2 MB[0m [31m132.1 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m[90m━━━━━━━━━━[0m [32m13.5/18.2 MB[0m [31m181.2 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m [32m18.2/18.2 MB[0m [31m187.0 MB/s[0m eta [36m0:00:01[0m[2K     [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m [32m18.2/18.2 MB[0m [31m187.0 MB/s[0m eta [36m0:00:01[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m18.2/18.2 MB[0m [31m81.8 MB/s[0m eta [36m0:00:00[0m
+[?25hCollecting tzdata>=2022.1
+  Downloading tzdata-2026.2-py2.py3-none-any.whl (349 kB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/349.3 KB[0m [31m?[0m eta [36m-:--:--[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m349.3/349.3 KB[0m [31m65.9 MB/s[0m eta [36m0:00:00[0m
+[?25hCollecting python-dateutil>=2.8.2
+  Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/229.9 KB[0m [31m?[0m eta [36m-:--:--[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m229.9/229.9 KB[0m [31m60.8 MB/s[0m eta [36m0:00:00[0m
+[?25hCollecting pytz>=2020.1
+  Downloading pytz-2026.1.post1-py2.py3-none-any.whl (510 kB)
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/510.5 KB[0m [31m?[0m eta [36m-:--:--[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m510.5/510.5 KB[0m [31m96.7 MB/s[0m eta [36m0:00:00[0m
+[?25hCollecting six>=1.5
+  Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Installing collected packages: pytz, tzdata, six, numpy, python-dateutil, pyarrow, pandas
+Successfully installed numpy-1.26.0 pandas-2.1.0 pyarrow-14.0.1 python-dateutil-2.9.0.post0 pytz-2026.1.post1 six-1.17.0 tzdata-2026.2
+[33mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv[0m[33m
+[0m[?2004h(venv) root@605669aba391:/home/user/etl# python3 ingest.py
+[?2004lError: Python installation not found at /usr/local/python3.11-old
+The Python interpreter for this virtual environment was not found.
+[?2004h(venv) root@605669aba391:/home/user/etl# deactivate
+[?2004l[?2004hroot@605669aba391:/home/user/etl# which python3
+[?2004l/usr/bin/python3
+[?2004hroot@605669aba391:/home/user/etl# python3 --version
+[?2004lPython 3.10.12
+[?2004hroot@605669aba391:/home/user/etl# rm -rf venv
+[?2004l[?2004hroot@605669aba391:/home/user/etl# python3 -m venv venv
+[?2004lsource venv/bin/activate
+pip install -r requirements.txt
+[?2004hroot@605669aba391:/home/user/etl# source venv/bin/activate
+[?2004l[?2004h(venv) root@605669aba391:/home/user/etl# pip install -r requirements.txt
+[?2004lCollecting pandas==2.1.0
+  Using cached pandas-2.1.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.7 MB)
+Collecting pyarrow==14.0.1
+  Using cached pyarrow-14.0.1-cp310-cp310-manylinux_2_28_x86_64.whl (38.0 MB)
+Collecting numpy==1.26.0
+  Using cached numpy-1.26.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (18.2 MB)
+Collecting pytz>=2020.1
+  Using cached pytz-2026.1.post1-py2.py3-none-any.whl (510 kB)
+Collecting python-dateutil>=2.8.2
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Collecting tzdata>=2022.1
+  Using cached tzdata-2026.2-py2.py3-none-any.whl (349 kB)
+Collecting six>=1.5
+  Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Installing collected packages: pytz, tzdata, six, numpy, python-dateutil, pyarrow, pandas
+Successfully installed numpy-1.26.0 pandas-2.1.0 pyarrow-14.0.1 python-dateutil-2.9.0.post0 pytz-2026.1.post1 six-1.17.0 tzdata-2026.2
+[?2004h(venv) root@605669aba391:/home/user/etl# python3 ingest.py
+[?2004lSuccessfully processed 398 records
+[?2004h(venv) root@605669aba391:/home/user/etl# ls -lh data/processed/
+[?2004ltotal 12K
+-rw-r--r-- 1 root root 9.7K Apr 29 08:40 output.parquet
+[?2004h(venv) root@605669aba391:/home/user/etl# deactivate
+[?2004l[?2004hroot@605669aba391:/home/user/etl# ./run.sh
+[?2004lSuccessfully processed 398 records
+[?2004hroot@605669aba391:/home/user/etl# file data/processed/output.parquet
+[?2004lbash: file: command not found
+[?2004hroot@605669aba391:/home/user/etl# ls -lh data/processed/output.parquet
+[?2004l-rw-r--r-- 1 root root 9.7K Apr 29 08:40 data/processed/output.parquet
+[?2004hroot@605669aba391:/home/user/etl# 

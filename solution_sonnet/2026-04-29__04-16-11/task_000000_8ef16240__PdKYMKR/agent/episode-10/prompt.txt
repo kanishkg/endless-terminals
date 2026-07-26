@@ -1,0 +1,23 @@
+New Terminal Output:
+
+root@9ee7a2f4e93f:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); print('Final - Categories:', conn.execute('SELEC
+T COUNT(*) FROM summary').fetchone()[0]); print('Final - Total records:', conn.execute('SELECT SUM(count) FROM summary').fetchone()[0])"
+Final - Categories: 10
+Final - Total records: 50000
+root@9ee7a2f4e93f:/home/user/pipeline# echo 'Creating test to simulate mid-run crash...'
+Creating test to simulate mid-run crash...
+root@9ee7a2f4e93f:/home/user/pipeline# rm output/summary.db .checkpoint
+root@9ee7a2f4e93f:/home/user/pipeline# cat > test_interrupt.py << 'EOF'
+> import subprocess
+> import time
+> import signal
+>
+> proc = subprocess.Popen(['python3', 'process.py'])
+> time.sleep(0.3)  # Let it process some batches
+> proc.send_signal(signal.SIGTERM)
+> proc.wait()
+> print('Process interrupted')
+> EOF
+root@9ee7a2f4e93f:/home/user/pipeline# python3 test_interrupt.py
+Process interrupted
+root@9ee7a2f4e93f:/home/user/pipeline#

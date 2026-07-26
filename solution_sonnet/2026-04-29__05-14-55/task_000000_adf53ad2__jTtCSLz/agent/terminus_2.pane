@@ -1,0 +1,80 @@
+[?2004huser@85e090c9b4e1:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@85e090c9b4e1:~$ clear
+[?2004l[H[J[?2004huser@85e090c9b4e1:~$ cd /home/user/project
+[?2004l[?2004huser@85e090c9b4e1:~/project$ pwd
+[?2004l/home/user/project
+[?2004huser@85e090c9b4e1:~/project$ ls -la
+[?2004ltotal 52
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 .
+drwxrwxrwx 1 root root 4096 Apr 29 05:23 ..
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 .git
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file1.txt
+-rw-r--r-- 1 user user   22 Apr 29 05:22 file10.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file2.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file3.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file4.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file5.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file6.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file7.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file8.txt
+-rw-r--r-- 1 user user   21 Apr 29 05:22 file9.txt
+[?2004huser@85e090c9b4e1:~/project$ ls -la .git/
+[?2004ltotal 48
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 .
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 ..
+-rw-r--r-- 1 user user   17 Apr 29 05:22 COMMIT_EDITMSG
+-rw-r--r-- 1 user user   21 Apr 29 05:22 HEAD
+-rw-r--r-- 1 user user  185 Apr 29 05:22 config
+-rw-r--r-- 1 user user   73 Apr 29 05:22 description
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 hooks
+-rw-r--r-- 1 user user  794 Apr 29 05:22 index
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 info
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 logs
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 objects
+drwxr-xr-x 1 user user 4096 Apr 29 05:22 refs
+[?2004huser@85e090c9b4e1:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+cd /srv/repos/project
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@85e090c9b4e1:~/project$ ls -ld /srv/repos/project 2>&1 || echo 'Old path does not exist'
+[?2004lls: cannot access '/srv/repos/project': No such file or directory
+Old path does not exist
+[?2004huser@85e090c9b4e1:~/project$ cat > .git/hooks/pre-push << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> HASH=$(git rev-parse --verify HEAD)
+[?2004l[?2004h> echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+[?2004l[?2004h> exit 0
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@85e090c9b4e1:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@85e090c9b4e1:~/project$ chmod +x .git/hooks/pre-push
+[?2004l[?2004huser@85e090c9b4e1:~/project$ ls -l .git/hooks/pre-push
+[?2004l-rwxr-xr-x 1 user user 123 Apr 29 05:23 .git/hooks/pre-push
+[?2004huser@85e090c9b4e1:~/project$ bash .git/hooks/pre-push
+[?2004l[?2004huser@85e090c9b4e1:~/project$ echo "Test result: $?"
+[?2004lTest result: 0
+[?2004huser@85e090c9b4e1:~/project$ ls -l /var/log/git-hooks.log 2>&1
+[?2004l-rw-rw-rw- 1 root root 91 Apr 29 05:23 /var/log/git-hooks.log
+[?2004huser@85e090c9b4e1:~/project$ tail -5 /var/log/git-hooks.log 2>&1 || echo 'Log file not accessible or does not exist'
+[?2004lWed Apr 29 05:23:48 UTC 2026: push verified, HEAD=19090b8867d093cb4a4cff0d57fbaf279b0cb5ea
+[?2004huser@85e090c9b4e1:~/project$ git status
+[?2004lOn branch main
+nothing to commit, working tree clean
+[?2004huser@85e090c9b4e1:~/project$ echo '=== ISSUE RESOLVED ==='
+[?2004l=== ISSUE RESOLVED ===
+[?2004huser@85e090c9b4e1:~/project$ echo 'The pre-push hook contained: cd /srv/repos/project (old path)'
+[?2004lThe pre-push hook contained: cd /srv/repos/project (old path)
+[?2004huser@85e090c9b4e1:~/project$ echo 'This caused hooks to fail during push operations.'
+[?2004lThis caused hooks to fail during push operations.
+[?2004huser@85e090c9b4e1:~/project$ echo 'Fixed by removing the hardcoded cd command from the hook.'
+[?2004lFixed by removing the hardcoded cd command from the hook.
+[?2004huser@85e090c9b4e1:~/project$ echo 'Hook now executes in the correct repository directory.'
+[?2004lHook now executes in the correct repository directory.
+[?2004huser@85e090c9b4e1:~/project$ 

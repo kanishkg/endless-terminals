@@ -1,0 +1,80 @@
+New Terminal Output:
+
+user@5c4bfcd81dbc:~/scheduler$ cat > test_dst_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test DST transition handling."""
+>
+> import pytz
+> from datetime import datetime
+>
+> # Test the old (buggy) way vs new (correct) way
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def old_convert_to_berlin(utc_time_str):
+>     """Old buggy conversion."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)
+>     return berlin_dt
+>
+> def new_convert_to_berlin(utc_time_str):
+>     """New correct conversion."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt_aware = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt_aware.astimezone(BERLIN_TZ)
+>     return berlin_dt
+>
+> print("Testing DST transition on March 31, 2024")
+> print("Europe/Berlin springs forward at 2am -> 3am\n")
+>
+> # Test the problematic meeting time
+> test_time = '2024-03-31T01:30:00'
+> print(f"UTC time: {test_time}")
+> print(f"Expected Berlin time: 2024-03-31 03:30:00 CEST+0200 (after DST)\n")
+>
+> old_result = old_convert_to_berlin(test_time)
+> print(f"OLD (buggy) conversion: {old_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> new_result = new_convert_to_berlin(test_time)
+> print(f"NEW (fixed) conversion: {new_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> print(f"\nDifference: {(new_result - old_result).total_seconds() / 3600} hours")
+>
+> # Test other meeting times to ensure they still work
+> print("\n" + "="*60)
+> print("Testing other meeting times:")
+> print("="*60)
+>
+> test_times = [
+>     '2024-03-31T08:00:00',  # Daily Standup
+>     '2024-04-01T14:00:00',  # Weekly Review
+>     '2024-03-30T15:30:00',  # Client Call
+> ]
+>
+> for test_time in test_times:
+>     result = new_convert_to_berlin(test_time)
+>     print(f"UTC: {test_time} -> Berlin: {result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> print("\nAll conversions completed successfully!")
+> EOF
+user@5c4bfcd81dbc:~/scheduler$ python3 test_dst_fix.py
+Testing DST transition on March 31, 2024
+Europe/Berlin springs forward at 2am -> 3am
+
+UTC time: 2024-03-31T01:30:00
+Expected Berlin time: 2024-03-31 03:30:00 CEST+0200 (after DST)
+
+OLD (buggy) conversion: 2024-03-31 01:30:00 CET+0100
+NEW (fixed) conversion: 2024-03-31 03:30:00 CEST+0200
+
+Difference: 1.0 hours
+
+============================================================
+Testing other meeting times:
+============================================================
+UTC: 2024-03-31T08:00:00 -> Berlin: 2024-03-31 10:00:00 CEST+0200
+UTC: 2024-04-01T14:00:00 -> Berlin: 2024-04-01 16:00:00 CEST+0200
+UTC: 2024-03-30T15:30:00 -> Berlin: 2024-03-30 16:30:00 CET+0100
+
+All conversions completed successfully!
+user@5c4bfcd81dbc:~/scheduler$

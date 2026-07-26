@@ -1,0 +1,51 @@
+New Terminal Output:
+
+root@2213dce70a41:/home/user/audit# python3 << 'PYTEST'
+{port_matches}")
+        if port_matches:
+            print(f"    -> This rule applies: {rule['action'].upper()}")
+            break
+PYTEST
+> import json
+> import ipaddress
+>
+> # Load rules
+> with open('firewall_rules.json') as f:
+>     data = json.load(f)
+>
+> rules = data['rules']
+>
+> # Test case: 10.1.5.200:8080
+> test_ip = '10.1.5.200'
+> test_port = 8080
+>
+> print(f"Testing {test_ip}:{test_port}")
+> print("\nRules sorted by prefix length (most specific first):")
+> sorted_rules = sorted(rules, key=lambda r: ipaddress.ip_network(r['source_cidr']).prefixlen, reverse=True)
+>
+> for rule in sorted_rules:
+>     net = ipaddress.ip_network(rule['source_cidr'])
+>     ip_obj = ipaddress.ip_address(test_ip)
+>     if ip_obj in net:
+>         print(f"  Rule {rule['id']}: {rule['source_cidr']} (/{net.prefixlen}) - {rule['action']} port {rule['dest_port']}")
+>         # Check if port matches
+>         port_str = rule['dest_port']
+>         if '-' in port_str:
+>             start, end = port_str.split('-')
+>             port_matches = int(start) <= test_port <= int(end)
+>         else:
+>             port_matches = int(port_str) == test_port
+>         print(f"    IP matches: True, Port matches: {port_matches}")
+>         if port_matches:
+>             print(f"    -> This rule applies: {rule['action'].upper()}")
+>             break
+> PYTEST
+Testing 10.1.5.200:8080
+
+Rules sorted by prefix length (most specific first):
+  Rule 3: 10.1.5.0/24 (/24) - deny port 8443
+    IP matches: True, Port matches: False
+  Rule 2: 10.1.0.0/16 (/16) - allow port 8000-9000
+    IP matches: True, Port matches: True
+    -> This rule applies: ALLOW
+root@2213dce70a41:/home/user/audit#

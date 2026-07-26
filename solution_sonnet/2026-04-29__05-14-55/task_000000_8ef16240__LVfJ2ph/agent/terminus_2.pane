@@ -1,0 +1,690 @@
+[?2004hroot@6131d4766dab:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@6131d4766dab:/home/user# clear
+[?2004l[H[J[?2004hroot@6131d4766dab:/home/user# cd /home/user/pipeline
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# ls -la
+[?2004ltotal 24
+drwxrwxrwx 1 root root 4096 Apr 29 09:12 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:12 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:12 [34;42mdata[0m
+drwxrwxrwx 2 root root 4096 Apr 29 09:12 [34;42moutput[0m
+-rwxrwxrwx 1 root root 1926 Apr 29 09:12 [01;32mprocess.py[0m
+-rwxrwxrwx 1 root root   74 Apr 29 09:12 [01;32mrun.sh[0m
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat run.sh
+[?2004l#!/bin/bash
+cd /home/user/pipeline
+python3 /home/user/pipeline/process.py
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat process.py
+[?2004limport json
+import sqlite3
+import os
+
+BATCH_SIZE = 1000
+
+def load_checkpoint():
+    try:
+        with open('.checkpoint', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def save_checkpoint(batch_num):
+    # BUG: not using context manager, buffer may not flush
+    # BUG: saving batch_num but calling it 'last_line'
+    json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))
+
+def process_batch(conn, batch):
+    aggregates = {}
+    for event in batch:
+        cat = event['category']
+        if cat not in aggregates:
+            aggregates[cat] = {'total': 0, 'count': 0}
+        aggregates[cat]['total'] += event['value']
+        aggregates[cat]['count'] += 1
+
+    for cat, data in aggregates.items():
+        # BUG: INSERT OR REPLACE overwrites instead of accumulating on resume
+        conn.execute('INSERT OR REPLACE INTO summary VALUES (?, ?, ?)',
+                     (cat, data['total'], data['count']))
+
+def process():
+    conn = sqlite3.connect('output/summary.db')
+    conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+
+    checkpoint = load_checkpoint()
+    start_from = checkpoint['last_line'] if checkpoint else 0
+
+    with open('data/events.json', 'r') as f:
+        batch = []
+        batch_num = 0
+        for i, line in enumerate(f):
+            if i < start_from:  # This skips based on 'last_line' which is actually batch_num
+                continue
+            batch.append(json.loads(line))
+            if len(batch) >= BATCH_SIZE:
+                process_batch(conn, batch)
+                batch_num += 1
+                save_checkpoint(batch_num)  # Saves batch_num as 'last_line'
+                batch = []
+        if batch:
+            process_batch(conn, batch)
+            save_checkpoint(batch_num + 1)
+
+    conn.commit()
+    conn.close()
+
+if __name__ == '__main__':
+    process()
+[?2004hroot@6131d4766dab:/home/user/pipeline# ls -la .checkpoint 2>/dev/null || echo 'No checkpoint file found'
+[?2004lNo checkpoint file found
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint 2>/dev/null || echo 'No checkpoint to read'
+[?2004lNo checkpoint to read
+[?2004hroot@6131d4766dab:/home/user/pipeline# ls -la output/
+[?2004ltotal 8
+drwxrwxrwx 2 root root 4096 Apr 29 09:12 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:12 [34;42m..[0m
+[?2004hroot@6131d4766dab:/home/user/pipeline# wc -l data/events.json
+[?2004l50000 data/events.json
+[?2004hroot@6131d4766dab:/home/user/pipeline# cp process.py process.py.bak
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# cat > process.py << 'EOF'
+[?2004l  if batch:
+            process_batch(conn, batch)
+            conn.commit()
+            save_checkpoint(line_num)
+
+    conn.close()
+
+if __name__ == '__main__':
+    process()
+EOF
+[?2004h> import json
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> import os
+[?2004l[?2004h> 
+[?2004l[?2004h> BATCH_SIZE = 1000
+[?2004l[?2004h> 
+[?2004l[?2004h> def load_checkpoint():
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         with open('.checkpoint', 'r') as f:
+[?2004l[?2004h>             return json.load(f)
+[?2004l[?2004h>     except FileNotFoundError:
+[?2004l[?2004h>         return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def save_checkpoint(line_num):
+[?2004l[?2004h>     # Fixed: use context manager and proper naming
+[?2004l[?2004h>     with open('.checkpoint', 'w') as f:
+[?2004l[?2004h>         json.dump({'last_line': line_num}, f)
+[?2004l[?2004h>         f.flush()  # Ensure data is written
+[?2004l[?2004h>         os.fsync(f.fileno())  # Force write to disk
+[?2004l[?2004h> 
+[?2004l[?2004h> def process_batch(conn, batch):
+[?2004l[?2004h>     aggregates = {}
+[?2004l[?2004h>     for event in batch:
+[?2004l[?2004h>         cat = event['category']
+[?2004l[?2004h>         if cat not in aggregates:
+[?2004l[?2004h>             aggregates[cat] = {'total': 0, 'count': 0}
+[?2004l[?2004h>         aggregates[cat]['total'] += event['value']
+[?2004l[?2004h>         aggregates[cat]['count'] += 1
+[?2004l[?2004h> 
+[?2004l[?2004h>     for cat, data in aggregates.items():
+[?2004l[?2004h>         # Fixed: accumulate instead of replace
+[?2004l[?2004h>         conn.execute('''
+[?2004l[?2004h>             INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+[?2004l[?2004h>             ON CONFLICT(category) DO UPDATE SET
+[?2004l[?2004h>                 total_value = total_value + excluded.total_value,
+[?2004l[?2004h>                 count = count + excluded.count
+[?2004l[?2004h>         ''', (cat, data['total'], data['count']))
+[?2004l[?2004h> 
+[?2004l[?2004h> def process():
+[?2004l[?2004h>     conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h>     conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+[?2004l[?2004h> 
+[?2004l[?2004h>     checkpoint = load_checkpoint()
+[?2004l[?2004h>     start_from = checkpoint['last_line'] if checkpoint else 0
+[?2004l[?2004h> 
+[?2004l[?2004h>     with open('data/events.json', 'r') as f:
+[?2004l[?2004h>         batch = []
+[?2004l[?2004h>         line_num = 0
+[?2004l[?2004h>         for i, line in enumerate(f):
+[?2004l[?2004h>             if i < start_from:  # Skip already processed lines
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             batch.append(json.loads(line))
+[?2004l[?2004h>             line_num = i + 1  # Track actual line number
+[?2004l[?2004h>             if len(batch) >= BATCH_SIZE:
+[?2004l[?2004h>                 process_batch(conn, batch)
+[?2004l[?2004h>                 conn.commit()  # Fixed: commit after each batch
+[?2004l[?2004h>                 save_checkpoint(line_num)  # Save line number, not batch number
+[?2004l[?2004h>                 batch = []
+[?2004l[?2004h>         if batch:
+[?2004l[?2004h>             process_batch(conn, batch)
+[?2004l[?2004h>             conn.commit()
+[?2004l[?2004h>             save_checkpoint(line_num)
+[?2004l[?2004h> 
+[?2004l[?2004h>     conn.close()
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     process()
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# cat process.py
+[?2004limport json
+import sqlite3
+import os
+
+BATCH_SIZE = 1000
+
+def load_checkpoint():
+    try:
+        with open('.checkpoint', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def save_checkpoint(line_num):
+    # Fixed: use context manager and proper naming
+    with open('.checkpoint', 'w') as f:
+        json.dump({'last_line': line_num}, f)
+        f.flush()  # Ensure data is written
+        os.fsync(f.fileno())  # Force write to disk
+
+def process_batch(conn, batch):
+    aggregates = {}
+    for event in batch:
+        cat = event['category']
+        if cat not in aggregates:
+            aggregates[cat] = {'total': 0, 'count': 0}
+        aggregates[cat]['total'] += event['value']
+        aggregates[cat]['count'] += 1
+
+    for cat, data in aggregates.items():
+        # Fixed: accumulate instead of replace
+        conn.execute('''
+            INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+            ON CONFLICT(category) DO UPDATE SET
+                total_value = total_value + excluded.total_value,
+                count = count + excluded.count
+        ''', (cat, data['total'], data['count']))
+
+def process():
+    conn = sqlite3.connect('output/summary.db')
+    conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+
+    checkpoint = load_checkpoint()
+    start_from = checkpoint['last_line'] if checkpoint else 0
+
+    with open('data/events.json', 'r') as f:
+        batch = []
+        line_num = 0
+        for i, line in enumerate(f):
+            if i < start_from:  # Skip already processed lines
+                continue
+            batch.append(json.loads(line))
+            line_num = i + 1  # Track actual line number
+            if len(batch) >= BATCH_SIZE:
+                process_batch(conn, batch)
+                conn.commit()  # Fixed: commit after each batch
+                save_checkpoint(line_num)  # Save line number, not batch number
+                batch = []
+        if batch:
+            process_batch(conn, batch)
+            conn.commit()
+            save_checkpoint(line_num)
+
+    conn.close()
+
+if __name__ == '__main__':
+    process()
+[?2004hroot@6131d4766dab:/home/user/pipeline# python3 process.py &
+[?2004l[1] 561
+[?2004hroot@6131d4766dab:/home/user/pipeline# sleep 2
+[?2004l[1]+  Done                    python3 process.py
+[?2004hroot@6131d4766dab:/home/user/pipeline# kill %1
+[?2004lbash: kill: %1: no such job
+[?2004hroot@6131d4766dab:/home/user/pipeline# ls -la .checkpoint
+[?2004l-rw-r--r-- 1 root root 20 Apr 29 09:13 .checkpoint
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint
+[?2004l{"last_line": 50000}[?2004hroot@6131d4766dab:/home/user/pipeline# sqlite3 output/summary.db 'SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary'
+[?2004lbash: sqlite3: command not found
+[?2004hroot@6131d4766dab:/home/user/pipeline# rm .checkpoint output/summary.db
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); print('Before:', conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone() if conn.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='summary'\").fetchone() else 'No table'); conn.close()" 2>/dev/null || echo 'No database yet'
+[?2004lBefore: No table
+[?2004hroot@6131d4766dab:/home/user/pipeline# timeout 0.3 python3 process.py || echo "Process killed (exit code: $?)"
+[?2004lProcess killed (exit code: 124)
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint
+[?2004lcat: .checkpoint: No such file or directory
+[?2004hroot@6131d4766dab:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone(); print(f'After first run: {result[0]} categories, {result[1]} total records'); conn.close()"
+[?2004lTraceback (most recent call last):
+  File "<string>", line 1, in <module>
+sqlite3.OperationalError: no such table: summary
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "Now running again to resume from checkpoint..."
+[?2004lNow running again to resume from checkpoint...
+[?2004hroot@6131d4766dab:/home/user/pipeline# python3 process.py
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint
+[?2004l{"last_line": 50000}[?2004hroot@6131d4766dab:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone(); print(f'Categories: {result[0]}, Total records: {result[1]}'); conn.close()"
+[?2004lCategories: 10, Total records: 50000
+[?2004hroot@6131d4766dab:/home/user/pipeline# rm .checkpoint output/summary.db
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# timeout 1 python3 process.py || echo "Process killed (exit code: $?)"
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# cat > process_test.py << 'EOF'
+[?2004l    save_checkpoint(line_num)
+            print(f"Processed final batch, checkpoint at line {line_num}")
+
+    conn.close()
+    print("Processing complete!")
+
+if __name__ == '__main__':
+    process()
+EOF
+[?2004h> import json
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> import os
+[?2004l[?2004h> import time
+[?2004l[?2004h> 
+[?2004l[?2004h> BATCH_SIZE = 1000
+[?2004l[?2004h> 
+[?2004l[?2004h> def load_checkpoint():
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         with open('.checkpoint', 'r') as f:
+[?2004l[?2004h>             return json.load(f)
+[?2004l[?2004h>     except FileNotFoundError:
+[?2004l[?2004h>         return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def save_checkpoint(line_num):
+[?2004l[?2004h>     with open('.checkpoint', 'w') as f:
+[?2004l[?2004h>         json.dump({'last_line': line_num}, f)
+[?2004l[?2004h>         f.flush()
+[?2004l[?2004h>         os.fsync(f.fileno())
+[?2004l[?2004h> 
+[?2004l[?2004h> def process_batch(conn, batch):
+[?2004l[?2004h>     aggregates = {}
+[?2004l[?2004h>     for event in batch:
+[?2004l[?2004h>         cat = event['category']
+[?2004l[?2004h>         if cat not in aggregates:
+[?2004l[?2004h>             aggregates[cat] = {'total': 0, 'count': 0}
+[?2004l[?2004h>         aggregates[cat]['total'] += event['value']
+[?2004l[?2004h>         aggregates[cat]['count'] += 1
+[?2004l[?2004h> 
+[?2004l[?2004h>     for cat, data in aggregates.items():
+[?2004l[?2004h>         conn.execute('''
+[?2004l[?2004h>             INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+[?2004l[?2004h>             ON CONFLICT(category) DO UPDATE SET
+[?2004l[?2004h>                 total_value = total_value + excluded.total_value,
+[?2004l[?2004h>                 count = count + excluded.count
+[?2004l[?2004h>         ''', (cat, data['total'], data['count']))
+[?2004l[?2004h> 
+[?2004l[?2004h> def process():
+[?2004l[?2004h>     conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h>     conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+[?2004l[?2004h> 
+[?2004l[?2004h>     checkpoint = load_checkpoint()
+[?2004l[?2004h>     start_from = checkpoint['last_line'] if checkpoint else 0
+[?2004l[?2004h>     print(f"Starting from line: {start_from}")
+[?2004l[?2004h> 
+[?2004l[?2004h>     with open('data/events.json', 'r') as f:
+[?2004l[?2004h>         batch = []
+[?2004l[?2004h>         line_num = 0
+[?2004l[?2004h>         for i, line in enumerate(f):
+[?2004l[?2004h>             if i < start_from:
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             batch.append(json.loads(line))
+[?2004l[?2004h>             line_num = i + 1
+[?2004l[?2004h>             if len(batch) >= BATCH_SIZE:
+[?2004l[?2004h>                 process_batch(conn, batch)
+[?2004l[?2004h>                 conn.commit()
+[?2004l[?2004h>                 save_checkpoint(line_num)
+[?2004l[?2004h>                 print(f"Processed batch, checkpoint at line {line_num}")
+[?2004l[?2004h>                 time.sleep(0.5)  # Slow down for testing
+[?2004l[?2004h>                 batch = []
+[?2004l[?2004h>         if batch:
+[?2004l[?2004h>             process_batch(conn, batch)
+[?2004l[?2004h>             conn.commit()
+[?2004l[?2004h>             save_checkpoint(line_num)
+[?2004l[?2004h>             print(f"Processed final batch, checkpoint at line {line_num}")
+[?2004l[?2004h> 
+[?2004l[?2004h>     conn.close()
+[?2004l[?2004h>     print("Processing complete!")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     process()
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# python3 process_test.py &
+[?2004l[1] 748
+[?2004hroot@6131d4766dab:/home/user/pipeline# Starting from line: 50000
+Processing complete!
+sleep 2
+[?2004l[1]+  Done                    python3 process_test.py
+[?2004hroot@6131d4766dab:/home/user/pipeline# kill %1
+[?2004lbash: kill: %1: no such job
+[?2004hroot@6131d4766dab:/home/user/pipeline# rm .checkpoint output/summary.db
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# python3 process_test.py &
+[?2004l[1] 787
+[?2004hroot@6131d4766dab:/home/user/pipeline# Starting from line: 0
+Processed batch, checkpoint at line 1000
+sleep 2.5
+[?2004lProcessed batch, checkpoint at line 2000
+Processed batch, checkpoint at line 3000
+Processed batch, checkpoint at line 4000
+Processed batch, checkpoint at line 5000
+Processed batch, checkpoint at line 6000
+[?2004hroot@6131d4766dab:/home/user/pipeline# kill %1
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# wait
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint
+[?2004l{"last_line": 6000}[?2004hroot@6131d4766dab:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone(); print(f'After interruption: {result[0]} categories, {result[1]} total records processed'); conn.close()"
+[?2004lAfter interruption: 10 categories, 6000 total records processed
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "\n=== Running again to test resume ==="
+[?2004l\n=== Running again to test resume ===
+[?2004hroot@6131d4766dab:/home/user/pipeline# python3 process_test.py
+[?2004lStarting from line: 6000
+Processed batch, checkpoint at line 7000
+Processed batch, checkpoint at line 8000
+Processed batch, checkpoint at line 9000
+Processed batch, checkpoint at line 10000
+Processed batch, checkpoint at line 11000
+Processed batch, checkpoint at line 12000
+Processed batch, checkpoint at line 13000
+Processed batch, checkpoint at line 14000
+Processed batch, checkpoint at line 15000
+Processed batch, checkpoint at line 16000
+Processed batch, checkpoint at line 17000
+Processed batch, checkpoint at line 18000
+Processed batch, checkpoint at line 19000
+Processed batch, checkpoint at line 20000
+Processed batch, checkpoint at line 21000
+Processed batch, checkpoint at line 22000
+Processed batch, checkpoint at line 23000
+Processed batch, checkpoint at line 24000
+Processed batch, checkpoint at line 25000
+Processed batch, checkpoint at line 26000
+Processed batch, checkpoint at line 27000
+Processed batch, checkpoint at line 28000
+Processed batch, checkpoint at line 29000
+Processed batch, checkpoint at line 30000
+Processed batch, checkpoint at line 31000
+Processed batch, checkpoint at line 32000
+Processed batch, checkpoint at line 33000
+Processed batch, checkpoint at line 34000
+Processed batch, checkpoint at line 35000
+Processed batch, checkpoint at line 36000
+Processed batch, checkpoint at line 37000
+Processed batch, checkpoint at line 38000
+Processed batch, checkpoint at line 39000
+Processed batch, checkpoint at line 40000
+Processed batch, checkpoint at line 41000
+Processed batch, checkpoint at line 42000
+Processed batch, checkpoint at line 43000
+Processed batch, checkpoint at line 44000
+Processed batch, checkpoint at line 45000
+Processed batch, checkpoint at line 46000
+Processed batch, checkpoint at line 47000
+Processed batch, checkpoint at line 48000
+Processed batch, checkpoint at line 49000
+Processed batch, checkpoint at line 50000
+Processing complete!
+[?2004hroot@6131d4766dab:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone(); print(f'Final result: {result[0]} categories, {result[1]} total records'); print('SUCCESS: All records processed exactly once!' if result[1] == 50000 else 'ERROR: Record count mismatch!'); conn.close()"
+[?2004lbash: !': event not found
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "\n=== Testing with production process.py (no delays) ==="
+[?2004l\n=== Testing with production process.py (no delays) ===
+[?2004hroot@6131d4766dab:/home/user/pipeline# rm .checkpoint output/summary.db
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# timeout 0.1 python3 process.py || echo "Killed after 0.1s"
+[?2004lKilled after 0.1s
+[?2004hroot@6131d4766dab:/home/user/pipeline# python3 << 'PYEOF'
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h> try:
+[?2004l[?2004h>     result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone()
+[?2004l[?2004h>     print(f'After 0.1s timeout: {result[0]} categories, {result[1]} total records')
+[?2004l[?2004h> except:
+[?2004l[?2004h>     print('No data yet')
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> PYEOF
+[?2004lAfter 0.1s timeout: 10 categories, 7000 total records
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint 2>/dev/null || echo 'No checkpoint created'
+[?2004l{"last_line": 7000}[?2004hroot@6131d4766dab:/home/user/pipeline# echo "Running process.py to completion..."
+[?2004lRunning process.py to completion...
+[?2004hroot@6131d4766dab:/home/user/pipeline# python3 process.py
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# python3 << 'PYEOF'
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h> result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone()
+[?2004l[?2004h> print(f'Final database state:')
+[?2004l[?2004h> print(f'  Categories: {result[0]}')
+[?2004l[?2004h> print(f'  Total records: {result[1]}')
+[?2004l[?2004h> if result[1] == 50000:
+[?2004l[?2004h>     print('  Status: SUCCESS - All records processed exactly once, no duplicates!')
+[?2004l[?2004h> else:
+[?2004l[?2004h>     print(f'  Status: ERROR - Expected 50000 records, got {result[1]}')
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> PYEOF
+[?2004lFinal database state:
+  Categories: 10
+  Total records: 50000
+  Status: SUCCESS - All records processed exactly once, no duplicates!
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint
+[?2004l{"last_line": 50000}[?2004hroot@6131d4766dab:/home/user/pipeline# cat > test_checkpoint_resume.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> set -e
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "=== Checkpoint Resume Test ==="
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Step 1: Clean up previous run"
+[?2004l[?2004h> rm -f .checkpoint output/summary.db
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Step 2: Start processing and kill after 0.15 seconds"
+[?2004l[?2004h> timeout 0.15 python3 process.py || true
+[?2004l[?2004h> 
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "Step 3: Check partial progress"
+[?2004l[?2004h> echo -n "Checkpoint: "
+[?2004l[?2004h> cat .checkpoint
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> python3 << 'PYEOF'
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+[?2004l[?2004h> print(f"Records processed so far: {result[0]}")
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> PYEOF
+[?2004l[?2004h> 
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "Step 4: Resume processing to completion"
+[?2004l[?2004h> python3 process.py
+[?2004l[?2004h> 
+[?2004l[?2004h> echo ""
+[?2004l[?2004h> echo "Step 5: Verify final results"
+[?2004l[?2004h> python3 << 'PYEOF'
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h> result = conn.execute('SELECT COUNT(*), SUM(count) FROM summary').fetchone()
+[?2004l[?2004h> print(f"Final: {result[0]} categories, {result[1]} total records")
+[?2004l[?2004h> if result[1] == 50000:
+[?2004l[?2004h>     print("✓ SUCCESS: All 50,000 records processed exactly once!")
+[?2004l[?2004h> else:
+[?2004l[?2004h>     print(f"✗ FAILED: Expected 50000, got {result[1]}")
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> PYEOF
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# chmod +x test_checkpoint_resume.sh
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# ./test_checkpoint_resume.sh
+[?2004l=== Checkpoint Resume Test ===
+
+Step 1: Clean up previous run
+Step 2: Start processing and kill after 0.15 seconds
+
+Step 3: Check partial progress
+Checkpoint: {"last_line": 8000}
+Records processed so far: 8000
+
+Step 4: Resume processing to completion
+
+Step 5: Verify final results
+Final: 10 categories, 50000 total records
+✓ SUCCESS: All 50,000 records processed exactly once!
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat > BUGFIX_SUMMARY.md << 'EOF'
+[?2004lied final total: exactly 50,000 records (no duplicates)
+
+## Files Modified
+- `process.py` - Fixed all four bugs listed above
+- Created `test_checkpoint_resume.sh` - Automated test script
+- Backed up original to `process.py.bak`
+EOF
+[?2004h> # Checkpoint Resume Bug Fix Summary
+[?2004l[?2004h> 
+[?2004l[?2004h> ## Problem
+[?2004l[?2004h> The pipeline script would crash partway through processing 50k JSON records, and despite writing a checkpoint file, it would reprocess everything from the beginning on restart instead of resuming from where it left off.
+[?2004l[?2004h> 
+[?2004l[?2004h> ## Root Causes Found
+[?2004l[?2004h> 
+[?2004l[?2004h> ### 1. **Critical: Checkpoint saved batch number, but code compared it to line number**
+[?2004l[?2004h> - **Bug**: `save_checkpoint(batch_num)` saved the batch count (0-49) but `if i < start_from` compared it to line index
+[?2004l[?2004h> - **Impact**: If batch_num=1 (1000 records processed), only 1 line was skipped on resume
+[?2004l[?2004h> - **Fix**: Changed to save and compare actual line numbers (`line_num = i + 1`)
+[?2004l[?2004h> 
+[?2004l[?2004h> ### 2. **Data Loss: INSERT OR REPLACE overwrote aggregates instead of accumulating**
+[?2004l[?2004h> - **Bug**: `INSERT OR REPLACE` would overwrite existing category totals on resume
+[?2004l[?2004h> - **Impact**: Resumed runs would lose previously aggregated data
+[?2004l[?2004h> - **Fix**: Changed to `INSERT ... ON CONFLICT DO UPDATE` to accumulate values:
+[?2004l[?2004h>   ```sql
+[?2004l[?2004h>   INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+[?2004l[?2004h>   ON CONFLICT(category) DO UPDATE SET
+[?2004l[?2004h>       total_value = total_value + excluded.total_value,
+[?2004l[?2004h>       count = count + excluded.count
+[?2004l[?2004h>   ```
+[?2004l[?2004h> 
+[?2004l[?2004h> ### 3. **Checkpoint File Not Flushed: Race condition on crash**
+[?2004l[?2004h> - **Bug**: `json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))` didn't flush buffer
+[?2004l[?2004h> - **Impact**: Checkpoint might not be written to disk before crash
+[?2004l[?2004h> - **Fix**: Used context manager with explicit flush and fsync:
+[?2004l[?2004h>   ```python
+[?2004l[?2004h>   with open('.checkpoint', 'w') as f:
+[?2004l[?2004h>       json.dump({'last_line': line_num}, f)
+[?2004l[?2004h>       f.flush()
+[?2004l[?2004h>       os.fsync(f.fileno())
+[?2004l[?2004h>   ```
+[?2004l[?2004h> 
+[?2004l[?2004h> ### 4. **No Intermediate Commits: All work lost on crash**
+[?2004l[?2004h> - **Bug**: `conn.commit()` only called at end of processing
+[?2004l[?2004h> - **Impact**: Database changes lost if process killed before completion
+[?2004l[?2004h> - **Fix**: Added `conn.commit()` after each batch
+[?2004l[?2004h> 
+[?2004l[?2004h> ## Testing
+[?2004l[?2004h> Ran comprehensive test:
+[?2004l[?2004h> 1. Processed 8,000 records, killed process
+[?2004l[?2004h> 2. Verified checkpoint at line 8000
+[?2004l[?2004h> 3. Resumed processing
+[?2004l[?2004h> 4. Verified final total: exactly 50,000 records (no duplicates)
+[?2004l[?2004h> 
+[?2004l[?2004h> ## Files Modified
+[?2004l[?2004h> - `process.py` - Fixed all four bugs listed above
+[?2004l[?2004h> - Created `test_checkpoint_resume.sh` - Automated test script
+[?2004l[?2004h> - Backed up original to `process.py.bak`
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# cat BUGFIX_SUMMARY.md
+[?2004l# Checkpoint Resume Bug Fix Summary
+
+## Problem
+The pipeline script would crash partway through processing 50k JSON records, and despite writing a checkpoint file, it would reprocess everything from the beginning on restart instead of resuming from where it left off.
+
+## Root Causes Found
+
+### 1. **Critical: Checkpoint saved batch number, but code compared it to line number**
+- **Bug**: `save_checkpoint(batch_num)` saved the batch count (0-49) but `if i < start_from` compared it to line index
+- **Impact**: If batch_num=1 (1000 records processed), only 1 line was skipped on resume
+- **Fix**: Changed to save and compare actual line numbers (`line_num = i + 1`)
+
+### 2. **Data Loss: INSERT OR REPLACE overwrote aggregates instead of accumulating**
+- **Bug**: `INSERT OR REPLACE` would overwrite existing category totals on resume
+- **Impact**: Resumed runs would lose previously aggregated data
+- **Fix**: Changed to `INSERT ... ON CONFLICT DO UPDATE` to accumulate values:
+  ```sql
+  INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+  ON CONFLICT(category) DO UPDATE SET
+      total_value = total_value + excluded.total_value,
+      count = count + excluded.count
+  ```
+
+### 3. **Checkpoint File Not Flushed: Race condition on crash**
+- **Bug**: `json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))` didn't flush buffer
+- **Impact**: Checkpoint might not be written to disk before crash
+- **Fix**: Used context manager with explicit flush and fsync:
+  ```python
+  with open('.checkpoint', 'w') as f:
+      json.dump({'last_line': line_num}, f)
+      f.flush()
+      os.fsync(f.fileno())
+  ```
+
+### 4. **No Intermediate Commits: All work lost on crash**
+- **Bug**: `conn.commit()` only called at end of processing
+- **Impact**: Database changes lost if process killed before completion
+- **Fix**: Added `conn.commit()` after each batch
+
+## Testing
+Ran comprehensive test:
+1. Processed 8,000 records, killed process
+2. Verified checkpoint at line 8000
+3. Resumed processing
+4. Verified final total: exactly 50,000 records (no duplicates)
+
+## Files Modified
+- `process.py` - Fixed all four bugs listed above
+- Created `test_checkpoint_resume.sh` - Automated test script
+- Backed up original to `process.py.bak`
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "=== Final Verification: Testing run.sh ==="
+[?2004l=== Final Verification: Testing run.sh ===
+[?2004hroot@6131d4766dab:/home/user/pipeline# rm -f .checkpoint output/summary.db
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# timeout 0.2 ./run.sh || echo "Killed midway"
+[?2004lKilled midway
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "Checkpoint after first run:"
+[?2004lCheckpoint after first run:
+[?2004hroot@6131d4766dab:/home/user/pipeline# cat .checkpoint
+[?2004l{"last_line": 17000}[?2004hroot@6131d4766dab:/home/user/pipeline# echo ""
+[?2004l
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "Resuming with run.sh..."
+[?2004lResuming with run.sh...
+[?2004hroot@6131d4766dab:/home/user/pipeline# ./run.sh
+[?2004l[?2004hroot@6131d4766dab:/home/user/pipeline# python3 << 'PYEOF'
+[?2004l[?2004h> import sqlite3
+[?2004l[?2004h> conn = sqlite3.connect('output/summary.db')
+[?2004l[?2004h> result = conn.execute('SELECT COUNT(*), SUM(count) FROM summary').fetchone()
+[?2004l[?2004h> print(f"\nFinal verification: {result[0]} categories, {result[1]} total records")
+[?2004l[?2004h> print("✓ run.sh works correctly with checkpoint resume!" if result[1] == 50000 else "✗ Error in run.sh")
+[?2004l[?2004h> conn.close()
+[?2004l[?2004h> PYEOF
+[?2004l
+Final verification: 10 categories, 50000 total records
+✓ run.sh works correctly with checkpoint resume!
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "\n========================================"
+[?2004l\n========================================
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "CHECKPOINT RESUME BUG FIX - COMPLETE"
+[?2004lCHECKPOINT RESUME BUG FIX - COMPLETE
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "========================================\n"
+[?2004l========================================\n
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "BUGS FIXED:"
+[?2004lBUGS FIXED:
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "1. Checkpoint saved batch# instead of line# (critical logic error)"
+[?2004l1. Checkpoint saved batch# instead of line# (critical logic error)
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "2. INSERT OR REPLACE overwrote data instead of accumulating"
+[?2004l2. INSERT OR REPLACE overwrote data instead of accumulating
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "3. Checkpoint file not flushed to disk (race condition)"
+[?2004l3. Checkpoint file not flushed to disk (race condition)
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "4. No intermediate commits (data loss on crash)\n"
+[?2004l4. No intermediate commits (data loss on crash)\n
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "VERIFICATION:"
+[?2004lVERIFICATION:
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "✓ Killed process at 17,000 records"
+[?2004l✓ Killed process at 17,000 records
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "✓ Resumed and completed remaining 33,000 records"
+[?2004l✓ Resumed and completed remaining 33,000 records
+[?2004hroot@6131d4766dab:/home/user/pipeline# echo "✓ Final total: 50,000 records (no duplicates)\n"
+[?2004l✓ Final total: 50,000 records (no duplicates)\n
+[?2004hroot@6131d4766dab:/home/user/pipeline# ls -lh
+[?2004ltotal 32K
+-rw-r--r-- 1 root root 2.2K Apr 29 09:16 BUGFIX_SUMMARY.md
+drwxrwxrwx 1 root root 4.0K Apr 29 09:12 [0m[34;42mdata[0m
+drwxrwxrwx 1 root root 4.0K Apr 29 09:16 [34;42moutput[0m
+-rwxrwxrwx 1 root root 2.2K Apr 29 09:13 [01;32mprocess.py[0m
+-rwxr-xr-x 1 root root 1.9K Apr 29 09:13 [01;32mprocess.py.bak[0m
+-rw-r--r-- 1 root root 2.2K Apr 29 09:14 process_test.py
+-rwxrwxrwx 1 root root   74 Apr 29 09:12 [01;32mrun.sh[0m
+-rwxr-xr-x 1 root root 1.1K Apr 29 09:15 [01;32mtest_checkpoint_resume.sh[0m
+[?2004hroot@6131d4766dab:/home/user/pipeline# 

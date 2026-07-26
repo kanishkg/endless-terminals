@@ -1,0 +1,60 @@
+[?2004huser@591b1362c395:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@591b1362c395:~$ clear
+[?2004l[H[J[?2004huser@591b1362c395:~$ cd /home/user/project
+[?2004l[?2004huser@591b1362c395:~/project$ pwd
+[?2004l/home/user/project
+[?2004huser@591b1362c395:~/project$ ls -la
+[?2004ltotal 52
+drwxr-xr-x 1 user user 4096 Apr 29 09:53 .
+drwxrwxrwx 1 root root 4096 Apr 29 09:53 ..
+drwxr-xr-x 1 user user 4096 Apr 29 09:53 .git
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file1.txt
+-rw-r--r-- 1 user user   22 Apr 29 09:53 file10.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file2.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file3.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file4.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file5.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file6.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file7.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file8.txt
+-rw-r--r-- 1 user user   21 Apr 29 09:53 file9.txt
+[?2004huser@591b1362c395:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+cd /srv/repos/project
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@591b1362c395:~/project$ git config --list --local
+[?2004l[?1h=core.repositoryformatversion=0[m
+core.filemode=true[m
+core.bare=false[m
+core.logallrefupdates=true[m
+remote.origin.url=/home/user/project.git[m
+remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*[m
+[K[?1l>[?2004huser@591b1362c395:~/project$ sed -i 's|cd /srv/repos/project|cd /home/user/project|' .git/hooks/pre-push
+[?2004l[?2004huser@591b1362c395:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+cd /home/user/project
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@591b1362c395:~/project$ bash .git/hooks/pre-push
+[?2004l[?2004huser@591b1362c395:~/project$ echo $?
+[?2004l0
+[?2004huser@591b1362c395:~/project$ ls -la /var/log/git-hooks.log 2>&1 || echo 'Log file does not exist yet or not accessible'
+[?2004l-rw-rw-rw- 1 root root 91 Apr 29 09:54 /var/log/git-hooks.log
+[?2004huser@591b1362c395:~/project$ cat /var/log/git-hooks.log
+[?2004lWed Apr 29 09:54:23 UTC 2026: push verified, HEAD=cc749b8c516da3db208650d627822298c3237006
+[?2004huser@591b1362c395:~/project$ git remote -v
+[?2004lorigin	/home/user/project.git (fetch)
+origin	/home/user/project.git (push)
+[?2004huser@591b1362c395:~/project$ git push origin main 2>&1 || git push origin master 2>&1
+[?2004lEverything up-to-date
+[?2004huser@591b1362c395:~/project$ cat /var/log/git-hooks.log
+[?2004lWed Apr 29 09:54:23 UTC 2026: push verified, HEAD=cc749b8c516da3db208650d627822298c3237006
+Wed Apr 29 09:54:29 UTC 2026: push verified, HEAD=cc749b8c516da3db208650d627822298c3237006
+[?2004huser@591b1362c395:~/project$ echo 'Git hook issue resolved! The pre-push hook was using the old path /srv/repos/project instead of /home/user/project.'
+[?2004lGit hook issue resolved! The pre-push hook was using the old path /srv/repos/project instead of /home/user/project.
+[?2004huser@591b1362c395:~/project$ 

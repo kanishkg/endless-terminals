@@ -1,0 +1,154 @@
+# T4-compatible training config.
+# Only overrides fields that differ from ppo_base_config defaults.
+# Uses the new SkyRL dataclass schema field names.
+# T4 changes: float16 (no bfloat16), enforce_eager (no CUDA graphs), bf16: false
+
+defaults:
+  - ppo_base_config
+  - _self_
+
+data:
+  train_data: ["data/train.parquet"]
+  val_data: ["data/validation.parquet"]
+
+trainer:
+  strategy: fsdp2
+  sequence_parallel_backend: "ulysses"
+
+  placement:
+    policy_num_gpus_per_node: 4
+    critic_num_gpus_per_node: 4
+    ref_num_gpus_per_node: 4
+
+  policy:
+    model:
+      path: meta-llama/Llama-3.2-3B-Instruct
+    optimizer_config:
+      lr: 5.0e-7
+      max_grad_norm: 1.0
+      num_warmup_steps: 10
+      weight_decay: 0.01
+      offload_after_step: true
+    fsdp_config:
+      cpu_offload: false
+      reshard_after_forward: true
+      fsdp_size: -1
+    use_torch_compile: true
+    sequence_parallel_size: 1
+
+  ref:
+    fsdp_config:
+      cpu_offload: true
+
+  critic:
+    model:
+      path: meta-llama/Llama-3.2-3B-Instruct
+    optimizer_config:
+      lr: 1.0e-6
+      max_grad_norm: 1.0
+      num_warmup_steps: 10
+      weight_decay: 0.01
+      offload_after_step: true
+    fsdp_config:
+      cpu_offload: false
+      reshard_after_forward: true
+      fsdp_size: -1
+
+  algorithm:
+    advantage_estimator: "gae"
+    kl_estimator_type: "k3"
+    use_kl_in_reward: false
+    use_kl_loss: false
+    kl_loss_coef: 0.001
+    advantage_batch_normalize: false
+    value_head_prefix: "value_head"
+    policy_loss_type: "regular"
+    loss_reduction: "sequence_mean"
+    lambd: 1.0
+    gamma: 1.0
+    eps_clip_low: 0.2
+    eps_clip_high: 0.28
+    clip_ratio_c: 3.0
+    value_clip: 0.2
+
+  epochs: 10
+  update_epochs_per_batch: 2
+  train_batch_size: 7
+  policy_mini_batch_size: 7
+  micro_forward_batch_size_per_gpu: 2
+  micro_train_batch_size_per_gpu: 2
+  critic_mini_batch_size: 7
+  update_ref_every_epoch: true
+  max_prompt_length: 1536
+  eval_batch_size: 256
+  eval_before_train: false
+  eval_interval: 50
+  gradient_checkpointing: true
+  bf16: false             # T4 doesn't support bfloat16
+  use_sample_packing: false  # T4 doesn't support FlashAttention 2 (requires compute >= 8.0)
+  flash_attn: false       # T4 doesn't support FlashAttention 2
+  seed: 42
+
+  resume_mode: latest
+  resume_path: null
+  ckpt_path: /tmp/skyrl_checkpoints
+  max_ckpts_to_keep: 10
+  ckpt_interval: 10
+  hf_save_interval: 20
+  export_path: /tmp/skyrl_export
+  project_name: "simrl-sky-endless"
+  run_name: "endless-ppo-llama-3.2-3b-instruct-t4"
+  logger: "tensorboard"
+
+
+# Inference/generation settings — legacy flat schema (auto-migrated to inference_engine.*)
+generator:
+  model_dtype: "float16"        # T4 doesn't support bfloat16
+  run_engines_locally: true
+  num_inference_engines: 4
+  backend: "vllm"
+  weight_sync_backend: "nccl"
+  weight_transfer_threshold_cuda_ipc_GB: 0.3  # T4: small IPC chunks to fit in limited free VRAM
+  inference_engine_tensor_parallel_size: 1
+  n_samples_per_prompt: 16
+  async_engine: true
+  batched: false
+  max_input_length: 16384
+  enable_prefix_caching: true
+  enable_chunked_prefill: true
+  max_num_batched_tokens: 16384
+  enforce_eager: true           # prevent CUDA graph OOM on T4
+  vllm_v1_disable_multiproc: true  # T4: avoid coordinator subprocess OOM during concurrent engine init
+  gpu_memory_utilization: 0.50  # T4 colocated: reduced to leave room for FSDP + IPC weight sync buffer
+  max_num_seqs: 32
+  engine_init_kwargs:
+    max_model_len: 8192         # T4 colocated: reduce KV cache to fit in 0.60 utilization
+  remote_inference_engine_urls: ["127.0.0.1:8001"]
+  max_turns: 16
+  override_existing_update_group: "auto"
+
+  sampling_params:
+    max_generate_length: 2048
+    temperature: 0.7
+    top_p: 1.0
+    min_p: 0.0
+    top_k: -1
+
+  use_conversation_multi_turn: true
+  apply_overlong_filtering: false
+
+  eval_sampling_params:
+    max_generate_length: 2048
+    temperature: 0.7
+    top_p: 1.0
+    min_p: 0.0
+    top_k: -1
+  eval_n_samples_per_prompt: 1
+  zero_reward_on_non_stop: false
+
+
+# Environment configuration
+environment:
+  env_class: endless
+  skyrl_gym:
+    max_env_workers: 64

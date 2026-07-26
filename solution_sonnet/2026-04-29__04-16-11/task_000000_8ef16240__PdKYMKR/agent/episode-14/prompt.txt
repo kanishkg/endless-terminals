@@ -1,0 +1,72 @@
+New Terminal Output:
+
+root@9ee7a2f4e93f:/home/user/pipeline# python3 -c "import sqlite3; conn = sqlite3.connect('output/summary.db'); result = conn.execute('SELECT SUM(count) FROM su
+mmary').fetchone()[0]; print('Final result:', result); print('SUCCESS' if result == 50000 else 'FAILED')"
+Final result: 50000
+SUCCESS
+root@9ee7a2f4e93f:/home/user/pipeline# echo 'Creating summary of fixes...'
+Creating summary of fixes...
+root@9ee7a2f4e93f:/home/user/pipeline# cat > FIXES.md << 'EOF'
+> # Checkpoint Resume Fix Summary
+>
+> ## Issues Found
+>
+> 1. **Buffer not flushing**: save_checkpoint() didn't use context manager and didn't flush/fsync
+>    - Result: Checkpoint file might not be written to disk before crash
+>
+> 2. **Semantic mismatch**: Saved batch_num as 'last_line' but used it to skip individual lines
+>    - Example: If 5 batches processed (5000 records), checkpoint saved 5, resume only skipped 5 lines
+>    - Result: Reprocessed almost everything from the beginning
+>
+> 3. **Data overwriting**: Used INSERT OR REPLACE instead of accumulating
+>    - Result: On resume, previously aggregated data was replaced instead of accumulated
+>
+> 4. **No batch commits**: Only committed at the end
+>    - Result: Data loss if crash occurred
+>
+> ## Fixes Applied
+>
+> 1. **save_checkpoint()**: Added context manager, flush(), and os.fsync()
+> 2. **Line tracking**: Changed to track actual line numbers (i+1) instead of batch numbers
+> 3. **SQL**: Changed to INSERT ON CONFLICT DO UPDATE to accumulate values
+> 4. **Commits**: Added conn.commit() after each batch
+>
+> ## Test Results
+>
+> - Interrupted at 17,000 records → Resumed correctly
+> - Interrupted at 40,000 records → Resumed correctly
+> - Final result: 50,000 records (100% correct, no duplicates)
+> - Multiple interrupt/resume cycles: PASSED
+> EOF
+root@9ee7a2f4e93f:/home/user/pipeline# cat FIXES.md
+# Checkpoint Resume Fix Summary
+
+## Issues Found
+
+1. **Buffer not flushing**: save_checkpoint() didn't use context manager and didn't flush/fsync
+   - Result: Checkpoint file might not be written to disk before crash
+
+2. **Semantic mismatch**: Saved batch_num as 'last_line' but used it to skip individual lines
+   - Example: If 5 batches processed (5000 records), checkpoint saved 5, resume only skipped 5 lines
+   - Result: Reprocessed almost everything from the beginning
+
+3. **Data overwriting**: Used INSERT OR REPLACE instead of accumulating
+   - Result: On resume, previously aggregated data was replaced instead of accumulated
+
+4. **No batch commits**: Only committed at the end
+   - Result: Data loss if crash occurred
+
+## Fixes Applied
+
+1. **save_checkpoint()**: Added context manager, flush(), and os.fsync()
+2. **Line tracking**: Changed to track actual line numbers (i+1) instead of batch numbers
+3. **SQL**: Changed to INSERT ON CONFLICT DO UPDATE to accumulate values
+4. **Commits**: Added conn.commit() after each batch
+
+## Test Results
+
+- Interrupted at 17,000 records → Resumed correctly
+- Interrupted at 40,000 records → Resumed correctly
+- Final result: 50,000 records (100% correct, no duplicates)
+- Multiple interrupt/resume cycles: PASSED
+root@9ee7a2f4e93f:/home/user/pipeline#

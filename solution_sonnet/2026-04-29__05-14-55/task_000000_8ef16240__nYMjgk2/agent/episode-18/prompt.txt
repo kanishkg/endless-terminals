@@ -1,0 +1,82 @@
+New Terminal Output:
+
+root@e6879a171c79:/home/user/pipeline# cat > BUGFIX_SUMMARY.txt << 'EOF'
+> CHECKPOINT/RESUME BUG FIXES
+> ============================
+>
+> Original Issues:
+> 1. Checkpoint saved batch_num (number of batches) but used it as line number
+>    - When batch_num=1, it only skipped 1 line instead of 1000 lines
+>    - This caused almost all data to be reprocessed on resume
+>
+> 2. INSERT OR REPLACE overwrote existing aggregates instead of accumulating
+>    - On resume, previous batch results were lost/replaced
+>    - This caused data loss for categories already processed
+>
+> 3. Checkpoint file not properly flushed to disk
+>    - Used open() without context manager
+>    - No explicit flush() or fsync() calls
+>    - Could result in empty/corrupt checkpoint on crash
+>
+> Fixes Applied:
+> 1. Changed checkpoint to save actual line number (start_from + lines_processed)
+>    - Now correctly skips all previously processed lines
+>    - Added lines_processed counter to track position
+>
+> 2. Changed to INSERT ... ON CONFLICT DO UPDATE
+>    - Accumulates total_value and count instead of replacing
+>    - Preserves previous batch results when resuming
+>
+> 3. Added proper file handling for checkpoint
+>    - Used context manager (with statement)
+>    - Added explicit f.flush() and os.fsync()
+>    - Ensures checkpoint is written to disk before continuing
+>
+> 4. Added conn.commit() after each batch
+>    - Ensures database changes persist if process is killed
+>
+> Verification:
+> - Interrupted run at 6000 records, resumed successfully
+> - Final totals match clean run: 50000 records, 2494808.87 value
+> - No data duplication or loss
+> EOF
+root@e6879a171c79:/home/user/pipeline# cat BUGFIX_SUMMARY.txt
+CHECKPOINT/RESUME BUG FIXES
+============================
+
+Original Issues:
+1. Checkpoint saved batch_num (number of batches) but used it as line number
+   - When batch_num=1, it only skipped 1 line instead of 1000 lines
+   - This caused almost all data to be reprocessed on resume
+
+2. INSERT OR REPLACE overwrote existing aggregates instead of accumulating
+   - On resume, previous batch results were lost/replaced
+   - This caused data loss for categories already processed
+
+3. Checkpoint file not properly flushed to disk
+   - Used open() without context manager
+   - No explicit flush() or fsync() calls
+   - Could result in empty/corrupt checkpoint on crash
+
+Fixes Applied:
+1. Changed checkpoint to save actual line number (start_from + lines_processed)
+   - Now correctly skips all previously processed lines
+   - Added lines_processed counter to track position
+
+2. Changed to INSERT ... ON CONFLICT DO UPDATE
+   - Accumulates total_value and count instead of replacing
+   - Preserves previous batch results when resuming
+
+3. Added proper file handling for checkpoint
+   - Used context manager (with statement)
+   - Added explicit f.flush() and os.fsync()
+   - Ensures checkpoint is written to disk before continuing
+
+4. Added conn.commit() after each batch
+   - Ensures database changes persist if process is killed
+
+Verification:
+- Interrupted run at 6000 records, resumed successfully
+- Final totals match clean run: 50000 records, 2494808.87 value
+- No data duplication or loss
+root@e6879a171c79:/home/user/pipeline#

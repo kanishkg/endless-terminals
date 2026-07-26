@@ -1,0 +1,76 @@
+New Terminal Output:
+
+user@05a0b98bd59f:~$ cat > process_memory.sh << 'EOF'
+lt" ]]; then
+            percentage=$(echo "$result" | cut -f1)
+            # Output: percentage for sorting, then hostname and percentage for final output
+            echo -e "${percentage}\t${hostname}\t${percentage}" >> "$TEMP_FILE"
+        fi
+    fi
+done
+
+# Sort by percentage (ascending - worst first) and output hostname + percentage
+if [[ -s "$TEMP_FILE" ]]; then
+    sort -n "$TEMP_FILE" | awk -F'\t' '{printf "%s\t%s\n", $2, $3}' > "$OUTPUT"
+fi
+
+# Cleanup
+rm -f "$TEMP_FILE"
+EOF
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT="/home/user/low_memory_report.txt"
+>
+> # Clear output file
+> > "$OUTPUT"
+>
+> # Temporary file for results
+> TEMP_FILE=$(mktemp)
+>
+> # Process each host file
+> for hostfile in /home/user/memstats/host*.txt; do
+>     hostname=$(basename "$hostfile" .txt)
+>
+>     # Extract MemTotal and MemAvailable, handle missing data gracefully
+>     memtotal=$(grep -E '^MemTotal:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>     memavail=$(grep -E '^MemAvailable:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>
+>     # Check if both values exist and are valid numbers
+>     if [[ -n "$memtotal" && -n "$memavail" && "$memtotal" -gt 0 ]]; then
+>         # Calculate percentage available and check if less than 20% using awk
+>         result=$(awk -v total="$memtotal" -v avail="$memavail" 'BEGIN {
+>             percentage = (avail * 100) / total
+>             if (percentage < 20) {
+>                 printf "%.2f\t%s\n", percentage, "MATCH"
+>             }
+>         }')
+>
+>         if [[ -n "$result" ]]; then
+>             percentage=$(echo "$result" | cut -f1)
+>             # Output: percentage for sorting, then hostname and percentage for final output
+>             echo -e "${percentage}\t${hostname}\t${percentage}" >> "$TEMP_FILE"
+>         fi
+>     fi
+> done
+>
+> # Sort by percentage (ascending - worst first) and output hostname + percentage
+> if [[ -s "$TEMP_FILE" ]]; then
+>     sort -n "$TEMP_FILE" | awk -F'\t' '{printf "%s\t%s\n", $2, $3}' > "$OUTPUT"
+> fi
+>
+> # Cleanup
+> rm -f "$TEMP_FILE"
+> EOF
+user@05a0b98bd59f:~$ bash process_memory.sh
+user@05a0b98bd59f:~$ cat /home/user/low_memory_report.txt
+host07  10.00
+host02  15.00
+host04  16.00
+host06  16.00
+user@05a0b98bd59f:~$ cat -A /home/user/low_memory_report.txt
+host07^I10.00$
+host02^I15.00$
+host04^I16.00$
+host06^I16.00$
+user@05a0b98bd59f:~$

@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}{{ meta.task_id }} · Task{% endblock %}
+
+{% block content %}
+<nav class="text-xs text-ink-400 mb-4">
+    <a href="{{ url_for('tasks_index') }}" class="hover:text-accent-500">Tasks</a>
+    <span class="mx-2">/</span>
+    <span class="text-ink-200 mono">{{ meta.task_id }}</span>
+</nav>
+
+<div class="flex items-start justify-between gap-6 mb-4 flex-wrap">
+    <div>
+        <h1 class="text-2xl font-semibold tracking-tight mono">{{ meta.task_id }}</h1>
+        <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            {% if meta.difficulty %}<span class="pill-neutral">difficulty: {{ meta.difficulty }}</span>{% endif %}
+            {% if meta.category %}<span class="pill-neutral">category: {{ meta.category }}</span>{% endif %}
+            {% for t in meta.tags %}<span class="pill-neutral">{{ t }}</span>{% endfor %}
+            <span class="pill-neutral">cpus: {{ meta.cpus }}</span>
+            <span class="pill-neutral">mem: {{ meta.memory_mb }} MB</span>
+            <span class="pill-neutral">storage: {{ meta.storage_mb }} MB</span>
+            <span class="pill-neutral">agent tmo: {{ meta.agent_timeout_sec | int }}s</span>
+            <span class="pill-neutral">verifier tmo: {{ meta.verifier_timeout_sec | int }}s</span>
+        </div>
+    </div>
+    <div class="flex flex-col items-end">
+        <div class="text-xs text-ink-400">Overall pass rate</div>
+        <div class="text-2xl font-semibold {% if rollup.pass_rate and rollup.pass_rate >= 0.5 %}text-accent-500{% elif rollup.pass_rate and rollup.pass_rate >= 0.3 %}text-warn-500{% else %}text-danger-500{% endif %}">
+            {{ rollup.pass_rate | pct }}
+        </div>
+        <div class="text-xs text-ink-500">{{ rollup.n_pass }} pass · {{ rollup.n_fail }} fail · {{ rollup.n_error }} err · {{ rollup.n_trials }} total</div>
+    </div>
+</div>
+
+<div class="subnav flex items-center gap-3 text-sm">
+    <a href="#instruction" class="text-ink-300 hover:text-accent-500">Instruction</a>
+    <a href="#truth" class="text-ink-300 hover:text-accent-500">Ground truth</a>
+    <a href="#trials" class="text-ink-300 hover:text-accent-500">Trials</a>
+    <a href="#dockerfile" class="text-ink-300 hover:text-accent-500">Dockerfile</a>
+    {% if final_test %}<a href="#final-test" class="text-ink-300 hover:text-accent-500">Final test</a>{% endif %}
+    {% if initial_test %}<a href="#initial-test" class="text-ink-300 hover:text-accent-500">Initial test</a>{% endif %}
+    {% if solve %}<a href="#solve" class="text-ink-300 hover:text-accent-500">Solve script</a>{% endif %}
+</div>
+
+<section id="instruction" class="card p-6 mt-6">
+    <h2 class="text-sm uppercase tracking-wider text-ink-400 mb-3">Instruction</h2>
+    <div id="instruction-md" class="prose prose-invert prose-tighter max-w-none"></div>
+    <script type="text/markdown" data-target="#instruction-md">{{ meta.instruction }}</script>
+</section>
+
+<section id="truth" class="mt-6">
+    <details class="card p-6">
+        <summary class="cursor-pointer flex items-center justify-between">
+            <h2 class="text-sm uppercase tracking-wider text-ink-400">Ground truth (initial / expected final state)</h2>
+            <span class="text-xs text-ink-500">click to expand</span>
+        </summary>
+        <pre class="mt-4 text-xs whitespace-pre-wrap text-ink-200 font-mono">{{ meta.truth }}</pre>
+    </details>
+</section>
+
+<section id="trials" class="card p-6 mt-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Trials by run</h2>
+        <div class="flex items-center gap-2 text-[11px] text-ink-400">
+            <span class="cell cell-pass"></span> pass
+            <span class="cell cell-fail ml-2"></span> fail
+            <span class="cell cell-err ml-2"></span> error
+        </div>
+    </div>
+    <div class="space-y-4">
+        {% for r in per_run_trials %}
+            <div class="border border-ink-800 rounded-lg p-4">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                        <a href="{{ url_for('run_detail', run_id=r.run.run_id) }}" class="mono text-sm hover:text-accent-500">{{ r.run.run_id }}</a>
+                        <span class="ml-2 text-xs text-ink-500 mono">{{ r.run.pretty_model }}</span>
+                    </div>
+                    <div class="text-xs text-ink-400 mono">{{ r.run.started_at | ts }}</div>
+                </div>
+                <div class="mt-3">
+                    <table class="w-full text-xs">
+                        <thead class="text-ink-400 uppercase tracking-wider">
+                            <tr>
+                                <th class="text-left font-medium pb-1">Trial</th>
+                                <th class="text-left font-medium pb-1">Result</th>
+                                <th class="text-right font-medium pb-1">Episodes</th>
+                                <th class="text-right font-medium pb-1">In tok</th>
+                                <th class="text-right font-medium pb-1">Out tok</th>
+                                <th class="text-right font-medium pb-1">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-ink-800">
+                            {% for t in r.trials %}
+                                <tr class="hover:bg-ink-900/60">
+                                    <td class="py-1.5">
+                                        <a href="{{ url_for('trial_detail', run_id=t.run_id, trial_id=t.trial_id) }}"
+                                           class="mono hover:text-accent-500">{{ t.trial_id | short_id }}</a>
+                                    </td>
+                                    <td class="py-1.5">
+                                        {% if t.exception %}
+                                            <span class="pill-error">{{ t.exception }}</span>
+                                        {% elif (t.reward or 0) >= 1.0 %}
+                                            <span class="pill-pass">pass</span>
+                                        {% else %}
+                                            <span class="pill-fail">fail</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-1.5 text-right tabular-nums">{{ t.n_episodes or '—' }}</td>
+                                    <td class="py-1.5 text-right tabular-nums text-ink-400">{{ t.n_input_tokens | intcomma }}</td>
+                                    <td class="py-1.5 text-right tabular-nums text-ink-400">{{ t.n_output_tokens | intcomma }}</td>
+                                    <td class="py-1.5 text-right tabular-nums text-ink-400">{{ t.duration_sec | dur }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="text-ink-500 text-sm">No trials for this task yet.</div>
+        {% endfor %}
+    </div>
+</section>
+
+<section id="dockerfile" class="card p-6 mt-6 collapsible open">
+    <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm uppercase tracking-wider text-ink-400">Dockerfile <span class="ml-2 text-[11px] text-ink-500">{{ meta.dockerfile_lines }} lines</span></h2>
+        <button class="collapsible-toggle text-xs text-ink-400 hover:text-accent-500">Hide</button>
+    </div>
+    <div class="collapsible-body">
+        <pre class="text-xs"><code class="language-dockerfile">{{ dockerfile }}</code></pre>
+    </div>
+</section>
+
+{% if final_test %}
+<section id="final-test" class="card p-6 mt-6 collapsible">
+    <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm uppercase tracking-wider text-ink-400">Final-state test (verifier)</h2>
+        <button class="collapsible-toggle text-xs text-ink-400 hover:text-accent-500">Show</button>
+    </div>
+    <div class="collapsible-body">
+        <pre class="text-xs"><code class="language-python">{{ final_test }}</code></pre>
+    </div>
+</section>
+{% endif %}
+
+{% if initial_test %}
+<section id="initial-test" class="card p-6 mt-6 collapsible">
+    <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm uppercase tracking-wider text-ink-400">Initial-state test</h2>
+        <button class="collapsible-toggle text-xs text-ink-400 hover:text-accent-500">Show</button>
+    </div>
+    <div class="collapsible-body">
+        <pre class="text-xs"><code class="language-python">{{ initial_test }}</code></pre>
+    </div>
+</section>
+{% endif %}
+
+{% if solve %}
+<section id="solve" class="card p-6 mt-6 collapsible">
+    <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm uppercase tracking-wider text-ink-400">Reference solve.sh</h2>
+        <button class="collapsible-toggle text-xs text-ink-400 hover:text-accent-500">Show</button>
+    </div>
+    <div class="collapsible-body">
+        <pre class="text-xs"><code class="language-bash">{{ solve }}</code></pre>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

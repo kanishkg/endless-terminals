@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import pathlib
 import argparse
@@ -11,36 +12,30 @@ import json
 from pathlib import Path
 
 sys.path.insert(0, str(pathlib.Path().resolve()))
-from generator.env import InteractiveContainerEnvironment
-
 from generator.sample_solutions import _extract_action, SYSTEM_MESSAGE, USER_TEMPLATE
 
 
 def build_container_for_task(task_dir_name, task_dir, verbose=True):
-    """Build container for a single task. Returns (task_dir_name, success)."""
-    sif_path = Path(task_dir) / task_dir_name / "container.sif"
-    def_path = Path(task_dir) / task_dir_name / "container.def"
-    initial_test_path = Path(task_dir) / task_dir_name / "test_initial_state.py"
-    final_test_path = Path(task_dir) / task_dir_name / "test_final_state.py"
-    
-    if sif_path.exists():
-        return task_dir_name, True
-    
+    """Build Docker image for a single task. Returns (task_dir_name, success)."""
+    dockerfile = Path(task_dir) / task_dir_name / "environment" / "Dockerfile"
+
+    if not dockerfile.exists():
+        print(f"Dockerfile not found for {task_dir_name}")
+        return task_dir_name, False
+
+    tag = f"harbor-task-{task_dir_name}:latest"
     try:
-        env = InteractiveContainerEnvironment(
-            container_sif_path=sif_path,
-            initial_test_path=initial_test_path,
-            final_test_path=final_test_path,
-            def_path=def_path,
-            verbose=verbose,
+        proc = subprocess.run(
+            ["docker", "build", "-t", tag, "-f", str(dockerfile), str(dockerfile.parent)],
+            capture_output=True, text=True, timeout=300,
         )
-        ok = env.build_container()
-        if not ok:
-            print(f"Failed to build SIF for {task_dir_name}")
+        if proc.returncode != 0:
+            if verbose:
+                print(f"Docker build failed for {task_dir_name}: {proc.stderr[-200:]}")
             return task_dir_name, False
         return task_dir_name, True
     except Exception as e:
-        print(f"Error building SIF for {task_dir_name}: {e}")
+        print(f"Error building Docker image for {task_dir_name}: {e}")
         return task_dir_name, False
 
 
@@ -51,24 +46,32 @@ if __name__ == "__main__":
     parser.add_argument("--difficulty", default="none")
     parser.add_argument("--max-time", default=300)
     parser.add_argument("--eval-count", type=int, default=100)
-    parser.add_argument("--build-sif", action="store_true")
+    parser.add_argument("--build-docker", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-workers", type=int, default=20, help="Number of parallel workers for building containers")
+    parser.add_argument(
+        "--source", choices=["stage1", "stage2"], default=None,
+        help=(
+            "Task filtering mode. 'stage1': filter by solutions/o3_summary.json pass@16>0 "
+            "(vLLM/Apptainer tasks). 'stage2': filter by solution/solution.json num_success>0 "
+            "(Harbor/Docker tasks). Auto-detected if not set."
+        ),
+    )
 
     args = parser.parse_args()
     random.seed(args.seed)
     task_dir_names = [f for f in os.listdir(args.task_dir) if "task" in f]
-    # check if task dir has o3 summary
-    task_dir_names = [f for f in task_dir_names if (Path(args.task_dir) / f / "solutions" / "o3_summary.json").exists()]
-    # check if o3 suummary pass @16 is greater than 0
-    task_dir_names = [f for f in task_dir_names if json.load(open(Path(args.task_dir) / f / "solutions" / "o3_summary.json"))["pass_at_k"]["16"] > 0]
+    # check if task dir has solution
+    task_dir_names = [f for f in task_dir_names if (Path(args.task_dir) / f / "solution" / "solution.json").exists()]
+    # check if solution pass @16 is greater than 0
+    task_dir_names = [f for f in task_dir_names if any(v > 0 for v in json.load(open(Path(args.task_dir) / f / "solution" / "solution.json"))["pass_at_k"].values())]
     task_dir_names = list(sorted(task_dir_names))
     random.shuffle(task_dir_names)
-    task_descriptions = [json.load(open(Path(args.task_dir) / f / "task.json"))["description"] for f in task_dir_names]
+    task_descriptions = [json.load(open(Path(args.task_dir) / f / "environment" / "task.json"))["description"] for f in task_dir_names]
 
     # Build containers in parallel if requested
     failed_tasks = set()
-    if args.build_sif:
+    if args.build_docker:
         print(f"Building containers in parallel with {args.max_workers} workers...")
         completed = 0
         total = len(task_dir_names)
@@ -104,10 +107,9 @@ if __name__ == "__main__":
         row = {}
         row["description"] = task_descriptions[t]
         row["task_dir"] = task_dir_name
-        initial_test_path = Path(args.task_dir) / task_dir_name / "test_initial_state.py"
+        initial_test_path = Path(args.task_dir) / task_dir_name / "environment" / "test_initial_state.py"
         
-        with open(initial_test_path, "r") as f:
-            test_py = f.read()
+        
         
         if t < len(task_dir_names) - args.eval_count:
             train_dataset.append(row)

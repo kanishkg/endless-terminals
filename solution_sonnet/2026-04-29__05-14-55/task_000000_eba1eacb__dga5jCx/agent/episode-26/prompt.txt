@@ -1,0 +1,42 @@
+New Terminal Output:
+
+root@dd3b062fe220:/home/user/netmon# ls -la
+total 36
+drwxrwxrwx 1 root root 4096 Apr 29 06:33 .
+drwxrwxrwx 1 root root 4096 Apr 29 06:30 ..
+-rw-r--r-- 1 root root  722 Apr 29 06:33 Makefile
+-rw-rw-rw- 1 root root  925 Apr 29 06:32 aggregate.py
+-rw-rw-rw- 1 root root   33 Apr 29 06:30 hosts.conf
+drwxr-xr-x 2 root root 4096 Apr 29 06:34 results
+drwxrwxrwx 1 root root 4096 Apr 29 06:30 scripts
+root@dd3b062fe220:/home/user/netmon# cat Makefile
+.PHONY: report clean check-config
+
+# Check if hosts.conf exists
+check-config:
+        @if [ ! -f hosts.conf ]; then echo "Error: hosts.conf not found. Cannot proceed."; exit 1; fi
+
+# Main target to generate the report
+report: results/status.json
+        @echo "Monitoring report complete!"
+
+# Generate the aggregated JSON report
+results/status.json: results/ping.txt results/ports.txt
+        @echo "Aggregating results..."
+        python3 aggregate.py
+
+# Run ping checks
+results/ping.txt: check-config
+        @echo "Running ping checks..."
+        ./scripts/check_ping.sh
+
+# Run port checks
+results/ports.txt: check-config
+        @echo "Running port checks..."
+        ./scripts/check_ports.sh
+
+# Clean up results
+clean:
+        rm -rf results
+        @echo "Cleaned up results directory"
+root@dd3b062fe220:/home/user/netmon#

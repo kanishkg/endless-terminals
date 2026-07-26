@@ -1,0 +1,61 @@
+New Terminal Output:
+
+MemAvaiuser@05a0b98bd59f:~$ cat > process_memory.sh << 'EOF'
+> #!/bin/bash
+>
+> # Output file
+> OUTPUT="/home/user/low_memory_report.txt"
+>
+> # Clear output file
+> > "$OUTPUT"
+>
+> # Temporary file for results
+> TEMP_FILE=$(mktemp)
+>
+> # Process each host file
+> for hostfile in /home/user/memstats/host*.txt; do
+>     hostname=$(basename "$hostfile" .txt)
+>
+>     # Extract MemTotal and MemAvailable, handle missing data gracefully
+>     memtotal=$(grep -E '^MemTotal:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>     memavail=$(grep -E '^MemAvailable:' "$hostfile" 2>/dev/null | awk '{print $2}')
+>
+>     # Check if both values exist and are valid numbers
+>     if [[ -n "$memtotal" && -n "$memavail" && "$memtotal" -gt 0 ]]; then
+>         # Calculate percentage available (using bc for floating point)
+>         percentage=$(echo "scale=2; ($memavail * 100) / $memtotal" | bc)
+>
+>         # Check if less than 20%
+>         is_low=$(echo "$percentage < 20" | bc)
+>         if [[ "$is_low" -eq 1 ]]; then
+>             echo -e "${percentage}\t${hostname}\t${percentage}" >> "$TEMP_FILE"
+>         fi
+>     fi
+> done
+>
+> # Sort by percentage (ascending - worst first) and output hostname + percentage
+> if [[ -s "$TEMP_FILE" ]]; then
+>     sort -n "$TEMP_FILE" | awk -F'\t' '{printf "%s\t%.2f\n", $2, $3}' > "$OUTPUT"
+> fi
+>
+> # Cleanup
+> rm -f "$TEMP_FILE"
+> EOF
+user@05a0b98bd59f:~$ chmod +x process_memory.sh
+user@05a0b98bd59f:~$ bash process_memory.sh
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 26: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 26: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 26: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 26: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 26: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 26: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 26: bc: command not found
+user@05a0b98bd59f:~$ cat /home/user/low_memory_report.txt
+user@05a0b98bd59f:~$

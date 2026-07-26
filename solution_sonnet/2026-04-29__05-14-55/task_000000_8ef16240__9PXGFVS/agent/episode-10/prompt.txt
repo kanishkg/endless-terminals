@@ -1,0 +1,29 @@
+New Terminal Output:
+
+root@4f2672db31b0:/home/user/pipeline# echo '=== Resuming from checkpoint ==='
+=== Resuming from checkpoint ===
+root@4f2672db31b0:/home/user/pipeline# python3 process.py
+root@4f2672db31b0:/home/user/pipeline# echo '=== Final checkpoint ==='
+=== Final checkpoint ===
+root@4f2672db31b0:/home/user/pipeline# cat .checkpoint
+{"last_line": 50000}root@4f2672db31b0:/home/user/pipeline# echo ''
+
+root@4f2672db31b0:/home/user/pipeline# echo '=== Final database state ==='
+=== Final database state ===
+root@4f2672db31b0:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT COUNT(*) as categories, SUM(count) as total_records FROM summary').fetchone()
+> print(f'Categories: {result[0]}, Total records processed: {result[1]}')
+> print('\nExpected: 50000 records (should not be 51000 which would indicate duplication)')
+> if result[1] == 50000:
+>     print('✓ SUCCESS: Correct count, no duplication!')
+> else:
+>     print(f'✗ FAILED: Expected 50000, got {result[1]}')
+> conn.close()
+> EOF
+Categories: 10, Total records processed: 50000
+
+Expected: 50000 records (should not be 51000 which would indicate duplication)
+✓ SUCCESS: Correct count, no duplication!
+root@4f2672db31b0:/home/user/pipeline#

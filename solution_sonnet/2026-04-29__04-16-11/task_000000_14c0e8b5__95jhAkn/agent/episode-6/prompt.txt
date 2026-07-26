@@ -1,0 +1,100 @@
+New Terminal Output:
+
+root@4fd21b139be2:/home/user/audit# cat check.py
+#!/usr/bin/env python3
+import json
+import csv
+import ipaddress
+import sys
+
+def parse_port_spec(port_spec):
+    """Parse a port specification into a set of allowed ports or a range."""
+    port_spec = str(port_spec)
+    if '-' in port_spec:
+        start, end = port_spec.split('-')
+        return ('range', int(start), int(end))
+    else:
+        return ('single', int(port_spec))
+
+def port_matches(port, port_spec):
+    """Check if a port matches a port specification."""
+    spec_type, *spec_data = port_spec
+    if spec_type == 'single':
+        return port == spec_data[0]
+    elif spec_type == 'range':
+        return spec_data[0] <= port <= spec_data[1]
+    return False
+
+def find_best_cidr_match(src_ip, rules):
+    """Find the most specific CIDR that matches the source IP."""
+    ip_obj = ipaddress.ip_address(src_ip)
+    matching_cidrs = []
+
+    for rule in rules:
+        network = ipaddress.ip_network(rule['source_cidr'])
+        if ip_obj in network:
+            matching_cidrs.append((rule['source_cidr'], network.prefixlen))
+
+    if not matching_cidrs:
+        return None
+
+    # Sort by prefix length (most specific first)
+    matching_cidrs.sort(key=lambda x: x[1], reverse=True)
+    return matching_cidrs[0][0]
+
+def find_matching_rule(src_ip, dest_port, rules):
+    """Find the most specific matching rule for a given source IP and destination port."""
+    ip_obj = ipaddress.ip_address(src_ip)
+    matching_rules = []
+
+    for rule in rules:
+        network = ipaddress.ip_network(rule['source_cidr'])
+        if ip_obj in network:
+            port_spec = parse_port_spec(rule['dest_port'])
+            if port_matches(dest_port, port_spec):
+                matching_rules.append((rule, network.prefixlen))
+
+    if not matching_rules:
+        return None
+
+    # Sort by prefix length (most specific first)
+    matching_rules.sort(key=lambda x: x[1], reverse=True)
+    return matching_rules[0][0]
+
+def main():
+    # Load firewall rules
+    with open('/home/user/audit/firewall_rules.json', 'r') as f:
+        config = json.load(f)
+
+    rules = config['rules']
+    default_action = config.get('default_action', 'deny')
+
+    # Load connections
+    with open('/home/user/audit/connections.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        connections = list(reader)
+
+    # Check each connection
+    for conn in connections:
+        src_ip = conn['src_ip']
+        dest_port = int(conn['dest_port'])
+
+        matching_rule = find_matching_rule(src_ip, dest_port, rules)
+
+        if matching_rule is None:
+            # No matching rule, apply default action
+            if default_action == 'deny':
+                # Find the best CIDR match for context
+                best_cidr = find_best_cidr_match(src_ip, rules)
+                if best_cidr:
+                    print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {best_cidr}")
+                else:
+                    print(f"BLOCKED: {src_ip}:{dest_port} not allowed from any rule")
+        elif matching_rule['action'] == 'deny':
+            # Explicit deny rule
+            print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {matching_rule['source_cidr']}")
+        # If action is 'allow', connection is permitted (no output)
+
+if __name__ == '__main__':
+    main()
+root@4fd21b139be2:/home/user/audit#

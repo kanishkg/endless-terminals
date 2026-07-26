@@ -1,0 +1,64 @@
+New Terminal Output:
+
+user@2a422e2e1198:~/scheduler$ cat > test_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test the timezone conversion fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> # Import the fixed function
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+> from app import convert_to_berlin
+>
+> def test_dst_transition():
+>     """Test conversion during DST transition."""
+>     print("Testing timezone conversion fix...\n")
+>
+>     # Test the problematic Maintenance Window meeting
+>     # 2024-03-31 is when Europe/Berlin transitions from CET to CEST
+>     # At 2:00 AM CET, clocks jump to 3:00 AM CEST
+>     utc_time = "2024-03-31T01:30:00"
+>
+>     print(f"Input UTC time: {utc_time}")
+>
+>     # Convert using the fixed function
+>     berlin_time = convert_to_berlin(utc_time)
+>     print(f"Converted Berlin time: {berlin_time}")
+>     print(f"Formatted: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+>     # Verify it's in CEST (UTC+2) not CET (UTC+1)
+>     expected_hour = 3  # Should be 3:30 CEST, not 1:30 CET or 2:30 CET
+>     if berlin_time.hour == expected_hour and berlin_time.minute == 30:
+>         print(f"\n✓ PASS: Correctly converted to {expected_hour}:30 CEST (after DST transition)")
+>     else:
+>         print(f"\n✗ FAIL: Expected {expected_hour}:30, got {berlin_time.hour}:{berlin_time.minute:02d}")
+>
+>     # Test a few more cases
+>     print("\n--- Additional test cases ---")
+>     test_cases = [
+>         ("2024-03-31T08:00:00", "Daily Standup"),
+>         ("2024-04-01T14:00:00", "Weekly Review"),
+>     ]
+>
+>     for utc_str, name in test_cases:
+>         berlin = convert_to_berlin(utc_str)
+>         print(f"{name}: {utc_str} UTC -> {berlin.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> if __name__ == '__main__':
+>     test_dst_transition()
+> EOF
+user@2a422e2e1198:~/scheduler$ python3 test_fix.py
+Testing timezone conversion fix...
+
+Input UTC time: 2024-03-31T01:30:00
+Converted Berlin time: 2024-03-31 03:30:00+02:00
+Formatted: 2024-03-31 03:30:00 CEST+0200
+
+✓ PASS: Correctly converted to 3:30 CEST (after DST transition)
+
+--- Additional test cases ---
+Daily Standup: 2024-03-31T08:00:00 UTC -> 2024-03-31 10:00:00 CEST+0200
+Weekly Review: 2024-04-01T14:00:00 UTC -> 2024-04-01 16:00:00 CEST+0200
+user@2a422e2e1198:~/scheduler$

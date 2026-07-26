@@ -1,0 +1,47 @@
+New Terminal Output:
+
+root@e6762aeb75ea:/home/user/etl# cat run.sh
+#!/bin/bash
+cd /home/user/etl
+source venv/bin/activate
+python3 ingest.py
+root@e6762aeb75ea:/home/user/etl# cat ingest.py
+import pandas as pd
+import pyarrow
+import pyarrow.parquet as pq
+from transforms import clean_records
+
+def main():
+    # Read raw data
+    df = pd.read_csv('data/raw/records.csv')
+
+    # Transform
+    df_clean = clean_records(df)
+
+    # Write to parquet
+    df_clean.to_parquet('data/processed/output.parquet', index=False)
+    print(f"Successfully processed {len(df_clean)} records")
+
+if __name__ == "__main__":
+    main()
+root@e6762aeb75ea:/home/user/etl# cat transforms.py
+import pandas as pd
+import numpy as np
+
+def clean_records(df):
+    """Clean records by removing invalid status entries."""
+    # Filter out rows where status is 'invalid'
+    df_clean = df[df['status'] != 'invalid'].copy()
+
+    # Convert value column to numeric, coercing errors
+    df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
+
+    # Fill any NaN values in value column with 0
+    df_clean['value'] = df_clean['value'].fillna(0)
+
+    return df_clean
+root@e6762aeb75ea:/home/user/etl# cat requirements.txt
+pandas==2.1.0
+pyarrow==14.0.1
+numpy==1.26.0
+root@e6762aeb75ea:/home/user/etl#

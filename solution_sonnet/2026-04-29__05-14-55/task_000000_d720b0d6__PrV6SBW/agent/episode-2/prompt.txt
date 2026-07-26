@@ -1,0 +1,88 @@
+New Terminal Output:
+
+root@7e48eccb5004:/home/user/admin# cat export_users.sh
+#!/bin/bash
+# export_users.sh - Export user data to CSV format
+# Combines data from multiple source files
+
+DATA_DIR="/home/user/admin/data"
+OUTPUT_FILE="/home/user/admin/export.csv"
+
+# Source files
+USERS_DAT="$DATA_DIR/users.dat"
+EMAILS_DAT="$DATA_DIR/emails.dat"
+GROUPS_DAT="$DATA_DIR/groups.dat"
+MEMBERSHIPS_DAT="$DATA_DIR/memberships.dat"
+
+# Create temporary directory
+TMPDIR=$(mktemp -d)
+trap "rm -rf $TMPDIR" EXIT
+
+# Write header
+echo "username,uid,primary_group,email,shell,supplementary_groups" > "$OUTPUT_FILE"
+
+# Extract and sort user data (sorted alphabetically by username)
+sort -t'|' -k1,1 "$USERS_DAT" > "$TMPDIR/users_sorted.tmp"
+
+# Extract emails - BUG 1: using space delimiter instead of tab
+# emails.dat is tab-delimited but we use cut -d' ' (space)
+cut -d' ' -f1 "$EMAILS_DAT" | sort -n > "$TMPDIR/email_uids.tmp"
+cut -d' ' -f2 "$EMAILS_DAT" | sort -n > "$TMPDIR/emails.tmp"
+
+# BUG 2: Sorting mismatch - users are sorted alphabetically, but we're pasting
+# with emails sorted by UID numerically. The paste will combine wrong lines.
+# We sort users by username but emails by uid, so line N of users doesn't
+# correspond to line N of emails.
+
+# Extract uid from users for joining
+awk -F'|' '{print $2}' "$TMPDIR/users_sorted.tmp" > "$TMPDIR/user_uids.tmp"
+
+# Create email lookup by uid (but this still has the delimiter bug)
+sort -t' ' -k1,1n "$EMAILS_DAT" > "$TMPDIR/emails_sorted.tmp"
+
+# Process each user
+while IFS='|' read -r username uid gid gecos homedir shell; do
+    # Get email for this uid - BUG 1 manifests here: the cut with wrong delimiter
+    # causes the whole "uid<TAB>email" to be treated as field 1
+    email=$(grep "^${uid}" "$TMPDIR/emails_sorted.tmp" | cut -d' ' -f2)
+
+    # If email is empty (because cut -d' ' failed), fall back to the broken paste method
+    if [ -z "$email" ]; then
+        # This creates even more chaos - just use a placeholder
+        email=$(awk -v u="$uid" '$1 == u {print $2}' "$EMAILS_DAT")
+    fi
+
+    # Resolve primary group name - BUG 3: awk uses wrong field separator
+    # groups.dat is colon-delimited but awk defaults to space/tab
+    # so the whole "gid:groupname:description" becomes $1
+    primary_group=$(awk -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT")
+
+    # If group resolution failed, just use the gid
+    if [ -z "$primary_group" ]; then
+        primary_group="$gid"
+    fi
+
+    # Get supplementary groups for this uid
+    supp_gids=$(grep "^${uid} " "$MEMBERSHIPS_DAT" | cut -d' ' -f2-)
+
+    # Resolve supplementary group names - BUG 3 again: wrong FS in awk
+    supp_names=""
+    for sgid in $supp_gids; do
+        gname=$(awk -v g="$sgid" '$1 == g {print $2}' "$GROUPS_DAT")
+        if [ -z "$gname" ]; then
+            gname="$sgid"
+        fi
+        if [ -z "$supp_names" ]; then
+            supp_names="$gname"
+        else
+            supp_names="$supp_names;$gname"
+        fi
+    done
+
+    # Output CSV line
+    echo "$username,$uid,$primary_group,$email,$shell,$supp_names"
+
+done < "$TMPDIR/users_sorted.tmp" >> "$OUTPUT_FILE"
+
+exit 0
+root@7e48eccb5004:/home/user/admin#

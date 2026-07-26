@@ -1,0 +1,42 @@
+New Terminal Output:
+
+root@50a1135fe11d:/home/user/monitoring# cp check_yaml.py check_yaml.py.bak
+root@50a1135fe11d:/home/user/monitoring# cat > check_yaml.py << 'EOF'
+> #!/usr/bin/env python3
+> import sys
+> import yaml
+> from yaml.constructor import ConstructorError
+>
+> class DuplicateKeysLoader(yaml.SafeLoader):
+>     def construct_mapping(self, node, deep=False):
+>         if not isinstance(node, yaml.MappingNode):
+>             raise ConstructorError(None, None,
+>                     "expected a mapping node, but found %s" % node.id,
+>                     node.start_mark)
+>         mapping = {}
+>         for key_node, value_node in node.value:
+>             key = self.construct_object(key_node, deep=deep)
+>             if not isinstance(key, str):
+>                 try:
+>                     key = str(key)
+>                 except:
+>                     raise ConstructorError("while constructing a mapping", node.start_mark,
+>                             "found unhashable key", key_node.start_mark)
+>             if key in mapping:
+>                 raise ConstructorError("while constructing a mapping", node.start_mark,
+>                         f"found duplicate key '{key}'", key_node.start_mark)
+>             value = self.construct_object(value_node, deep=deep)
+>             mapping[key] = value
+>         return mapping
+>
+> for path in sys.argv[1:]:
+>     try:
+>         with open(path) as f:
+>             yaml.load(f, Loader=DuplicateKeysLoader)
+>         print(f"OK: {path}")
+>     except yaml.YAMLError as e:
+>         print(f"ERROR: {path}: {e}")
+>     except Exception as e:
+>         print(f"ERROR: {path}: {e}")
+> EOF
+root@50a1135fe11d:/home/user/monitoring#

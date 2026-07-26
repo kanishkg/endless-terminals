@@ -1,0 +1,67 @@
+New Terminal Output:
+
+root@92f6952020ba:/home/user/audit# cat > test_detailed.py << 'EOF'
+> #!/usr/bin/env python3
+> import json
+> import csv
+> import ipaddress
+>
+> def parse_port_spec(port_spec):
+>     port_str = str(port_spec)
+>     if '-' in port_str:
+>         start, end = port_str.split('-')
+>         return set(range(int(start), int(end) + 1))
+>     else:
+>         return {int(port_str)}
+>
+> def load_firewall_rules(json_path):
+>     with open(json_path, 'r') as f:
+>         data = json.load(f)
+>     rules = []
+>     for rule in data['rules']:
+>         network = ipaddress.ip_network(rule['source_cidr'])
+>         allowed_ports = parse_port_spec(rule['dest_port'])
+>         rules.append({
+>             'id': rule['id'],
+>             'action': rule['action'],
+>             'network': network,
+>             'allowed_ports': allowed_ports,
+>             'source_cidr': rule['source_cidr']
+>         })
+>     rules.sort(key=lambda r: r['network'].prefixlen, reverse=True)
+>     return rules, data.get('default_action', 'deny')
+>
+> def check_connection(src_ip, dest_port, rules, default_action):
+>     src_addr = ipaddress.ip_address(src_ip)
+>     dest_port_int = int(dest_port)
+>     for rule in rules:
+>         if src_addr in rule['network']:
+>             if dest_port_int in rule['allowed_ports']:
+>                 if rule['action'] == 'allow':
+>                     return (True, rule['source_cidr'])
+>                 else:
+>                     return (False, rule['source_cidr'])
+>     return (default_action == 'allow', None)
+>
+> rules, default_action = load_firewall_rules('firewall_rules.json')
+> with open('connections.csv', 'r') as f:
+>     reader = csv.DictReader(f)
+>     for row in reader:
+>         src_ip = row['src_ip']
+>         dest_port = row['dest_port']
+>         allowed, matching_cidr = check_connection(src_ip, dest_port, rules, default_action)
+>         status = "ALLOWED" if allowed else "BLOCKED"
+>         cidr_info = f" (matched {matching_cidr})" if matching_cidr else " (default deny)"
+>         print(f"{status}: {src_ip}:{dest_port}{cidr_info}")
+> EOF
+root@92f6952020ba:/home/user/audit# python3 test_detailed.py
+BLOCKED: 10.1.5.17:8443 (matched 10.1.5.0/24)
+ALLOWED: 10.1.2.33:8500 (matched 10.1.0.0/16)
+ALLOWED: 192.168.1.50:22 (matched 192.168.1.0/24)
+BLOCKED: 192.168.2.10:22 (default deny)
+ALLOWED: 10.0.50.1:443 (matched 10.0.0.0/8)
+ALLOWED: 10.1.5.200:8080 (matched 10.1.0.0/16)
+ALLOWED: 172.16.5.5:3306 (matched 172.16.0.0/12)
+ALLOWED: 8.8.8.8:80 (matched 0.0.0.0/0)
+BLOCKED: 8.8.8.8:443 (default deny)
+root@92f6952020ba:/home/user/audit#

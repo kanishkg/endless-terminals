@@ -1,0 +1,28 @@
+New Terminal Output:
+
+user@d98eed8be608:~$ awk '
+> /\/api\/v[0-9]+\/internal\// && !/^10\./ {
+>   # Extract timestamp from brackets
+>   match($0, /\[([^\]]+)\]/, ts)
+>   timestamp = ts[1]
+>
+>   # Parse timestamp: DD/Mon/YYYY:HH:MM:SS +0000
+>   split(timestamp, dt, /[:\/]/)
+>   day = dt[1]
+>   month = dt[2]
+>   year = dt[3]
+>   time = dt[4] ":" dt[5] ":" dt[6]
+>
+>   # Convert month name to number
+>   months["Jan"]="01"; months["Feb"]="02"; months["Mar"]="03"; months["Apr"]="04"
+>   months["May"]="05"; months["Jun"]="06"; months["Jul"]="07"; months["Aug"]="08"
+>   months["Sep"]="09"; months["Oct"]="10"; months["Nov"]="11"; months["Dec"]="12"
+>
+>   # Create ISO 8601 timestamp
+>   iso_timestamp = year "-" months[month] "-" day "T" time
+>
+>   # Replace the bracketed timestamp with ISO format
+>   sub(/\[[^\]]+\]/, iso_timestamp, $0)
+>   print $0
+> }' /var/log/app/access.log > /home/user/internal_hits.log
+user@d98eed8be608:~$

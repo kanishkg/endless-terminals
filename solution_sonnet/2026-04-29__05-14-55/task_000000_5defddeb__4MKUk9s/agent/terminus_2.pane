@@ -1,0 +1,319 @@
+[?2004hI have no name!@c5e0e44210b1:/home/user$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004lTraceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 28, in upgrade
+    self.install_id
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 78, in install_id
+    raise ConfigError('no install ID found')
+asciinema.config.ConfigError: no install ID found
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/bin/asciinema", line 33, in <module>
+    sys.exit(load_entry_point('asciinema==2.1.0', 'console_scripts', 'asciinema')())
+  File "/usr/lib/python3/dist-packages/asciinema/__main__.py", line 34, in main
+    cfg = config.load()
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 185, in load
+    config.upgrade()
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 31, in upgrade
+    self.__save_install_id(id)
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 50, in __save_install_id
+    self.__create_config_home()
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 57, in __create_config_home
+    os.makedirs(self.config_home)
+  File "/usr/lib/python3.10/os.py", line 215, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/usr/lib/python3.10/os.py", line 225, in makedirs
+    mkdir(name, mode)
+PermissionError: [Errno 13] Permission denied: '/.config'
+[?2004hI have no name!@c5e0e44210b1:/home/user$ clear
+[?2004l[H[J[?2004hI have no name!@c5e0e44210b1:/home/user$ ls -la /home/user/
+[?2004ltotal 16
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 .
+drwxr-xr-x 1 root root 4096 Apr 29 05:59 ..
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 backup
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 data
+[?2004hI have no name!@c5e0e44210b1:/home/user$ ls -la /home/user/backup/
+[?2004ltotal 24
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 ..
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 archives
+-rwxrwxrwx 1 1000 1000  348 Apr 29 05:59 full.sh
+-rwxrwxrwx 1 1000 1000  653 Apr 29 05:59 incremental.sh
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 state
+[?2004hI have no name!@c5e0e44210b1:/home/user$ ls -la /home/user/backup/state/
+[?2004ltotal 12
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 ..
+-rwxrwxrwx 1 1000 1000   11 Apr 29 05:59 last_incremental
+-rwxrwxrwx 1 1000 1000    0 Mar 15  2024 reference
+[?2004hI have no name!@c5e0e44210b1:/home/user$ ls -la /home/user/backup/archives/
+[?2004ltotal 8
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 ..
+[?2004hI have no name!@c5e0e44210b1:/home/user$ cat /home/user/backup/incremental.sh
+[?2004l#!/bin/bash
+set -e
+SOURCE="/home/user/data"
+ARCHIVE_DIR="/home/user/backup/archives"
+STATE_DIR="/home/user/backup/state"
+TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+
+ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+if [[ -f "$TIMESTAMP_FILE" ]]; then
+    NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+    find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+    TAR_PID=$!
+    date +%s > "$TIMESTAMP_FILE"
+    wait $TAR_PID
+else
+    # First incremental = full
+    tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+    date +%s > "$TIMESTAMP_FILE"
+    touch "$STATE_DIR/reference"
+fi
+[?2004hI have no name!@c5e0e44210b1:/home/user$ cat /home/user/backup/full.sh
+[?2004l#!/bin/bash
+set -e
+SOURCE="/home/user/data"
+ARCHIVE_DIR="/home/user/backup/archives"
+STATE_DIR="/home/user/backup/state"
+
+ARCHIVE_NAME="full_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+
+touch "$STATE_DIR/reference"
+date +%s > "$STATE_DIR/last_incremental"
+
+echo "Full backup created: $ARCHIVE_DIR/$ARCHIVE_NAME"
+[?2004hI have no name!@c5e0e44210b1:/home/user$ cat /home/user/backup/state/last_incremental
+[?2004l1710500400
+[?2004hI have no name!@c5e0e44210b1:/home/user$ ls -la /home/user/data/
+[?2004ltotal 24
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 ..
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 binaries
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 configs
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 subdir1
+drwxrwxrwx 1 1000 1000 4096 Apr 29 05:59 subdir2
+[?2004hI have no name!@c5e0e44210b1:/home/user$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ls -lh archives/
+[?2004ltotal 11M
+-rw-r--r-- 1 1000 root 11M Apr 29 06:00 incremental_20260429_060007.tar.gz
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ mkdir -p /tmp/test_extract
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cd /tmp/test_extract
+[?2004l[?2004hI have no name!@c5e0e44210b1:/tmp/test_extract$ tar -xzf /home/user/backup/archives/incremental_*.tar.gz 2>&1
+[?2004l[?2004hI have no name!@c5e0e44210b1:/tmp/test_extract$ ls -la
+[?2004ltotal 12
+drwxr-xr-x 3 1000 root 4096 Apr 29 06:00 .
+drwxrwxrwt 1 root root 4096 Apr 29 06:00 ..
+drwxr-xr-x 3 1000 root 4096 Apr 29 06:00 home
+[?2004hI have no name!@c5e0e44210b1:/tmp/test_extract$ find . -type f | head -20
+[?2004l./home/user/data/configs/config_9.conf
+./home/user/data/configs/app_5.yaml
+./home/user/data/configs/app_8.yaml
+./home/user/data/configs/config_11.conf
+./home/user/data/configs/app_4.yaml
+./home/user/data/configs/config_14.conf
+./home/user/data/configs/config_15.conf
+./home/user/data/configs/config_7.conf
+./home/user/data/configs/config_4.conf
+./home/user/data/configs/config_12.conf
+./home/user/data/configs/app_6.yaml
+./home/user/data/configs/config_6.conf
+./home/user/data/configs/config_5.conf
+./home/user/data/configs/app_7.yaml
+./home/user/data/configs/app_10.yaml
+./home/user/data/configs/config_8.conf
+./home/user/data/configs/config_13.conf
+./home/user/data/configs/app_9.yaml
+./home/user/data/configs/app_3.yaml
+./home/user/data/configs/config_10.conf
+[?2004hI have no name!@c5e0e44210b1:/tmp/test_extract$ cd /home/user/data
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/data$ touch configs/new_config.txt
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/data$ echo 'test data' > subdir1/modified_file.txt
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/data$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ls -lh archives/
+[?2004ltotal 22M
+-rw-r--r-- 1 1000 root 11M Apr 29 06:00 incremental_20260429_060007.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 06:00 incremental_20260429_060023.tar.gz
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ rm -rf /tmp/test_extract && mkdir /tmp/test_extract
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ tar -xzf archives/incremental_20*.tar.gz -C /tmp/test_extract 2>&1 | tail -20
+[?2004ltar: archives/incremental_20260429_060023.tar.gz: Not found in archive
+tar: Exiting with failure status due to previous errors
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ls /tmp/test_extract/home/user/data/configs/new_config.txt 2>&1
+[?2004lls: cannot access '/tmp/test_extract/home/user/data/configs/new_config.txt': No such file or directory
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ls /tmp/test_extract/home/user/data/subdir1/modified_file.txt 2>&1
+[?2004lls: cannot access '/tmp/test_extract/home/user/data/subdir1/modified_file.txt': No such file or directory
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ tar -xzf archives/incremental_20260429_060023.tar.gz -C /tmp/test_extract 2>&1
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ find /tmp/test_extract -type f
+[?2004l/tmp/test_extract/home/user/data/configs/config_9.conf
+/tmp/test_extract/home/user/data/configs/app_5.yaml
+/tmp/test_extract/home/user/data/configs/app_8.yaml
+/tmp/test_extract/home/user/data/configs/config_11.conf
+/tmp/test_extract/home/user/data/configs/app_4.yaml
+/tmp/test_extract/home/user/data/configs/config_14.conf
+/tmp/test_extract/home/user/data/configs/new_config.txt
+/tmp/test_extract/home/user/data/configs/config_15.conf
+/tmp/test_extract/home/user/data/configs/config_7.conf
+/tmp/test_extract/home/user/data/configs/config_4.conf
+/tmp/test_extract/home/user/data/configs/config_12.conf
+/tmp/test_extract/home/user/data/configs/app_6.yaml
+/tmp/test_extract/home/user/data/configs/config_6.conf
+/tmp/test_extract/home/user/data/configs/config_5.conf
+/tmp/test_extract/home/user/data/configs/app_7.yaml
+/tmp/test_extract/home/user/data/configs/app_10.yaml
+/tmp/test_extract/home/user/data/configs/config_8.conf
+/tmp/test_extract/home/user/data/configs/config_13.conf
+/tmp/test_extract/home/user/data/configs/app_9.yaml
+/tmp/test_extract/home/user/data/configs/app_3.yaml
+/tmp/test_extract/home/user/data/configs/config_10.conf
+/tmp/test_extract/home/user/data/subdir1/modified_file.txt
+/tmp/test_extract/home/user/data/subdir1/small_bin_4.dat
+/tmp/test_extract/home/user/data/subdir1/small_bin_1.dat
+/tmp/test_extract/home/user/data/subdir1/small_bin_2.dat
+/tmp/test_extract/home/user/data/subdir1/small_bin_3.dat
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_6.conf
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_8.conf
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_1.conf
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_7.conf
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_4.conf
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_3.conf
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_2.conf
+/tmp/test_extract/home/user/data/subdir1/nested/nested_config_5.conf
+/tmp/test_extract/home/user/data/subdir1/small_bin_5.dat
+/tmp/test_extract/home/user/data/binaries/blob4.bin
+/tmp/test_extract/home/user/data/binaries/blob1.bin
+/tmp/test_extract/home/user/data/binaries/blob5.bin
+/tmp/test_extract/home/user/data/binaries/blob2.bin
+/tmp/test_extract/home/user/data/binaries/blob3.bin
+/tmp/test_extract/home/user/data/subdir2/data_2.txt
+/tmp/test_extract/home/user/data/subdir2/data_5.txt
+/tmp/test_extract/home/user/data/subdir2/data_6.txt
+/tmp/test_extract/home/user/data/subdir2/data_4.txt
+/tmp/test_extract/home/user/data/subdir2/data_3.txt
+/tmp/test_extract/home/user/data/subdir2/data_1.txt
+/tmp/test_extract/home/user/data/subdir2/data_7.txt
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cp incremental.sh incremental.sh.backup
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cat > incremental.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> set -e
+[?2004l[?2004h> SOURCE="/home/user/data"
+[?2004l[?2004h> ARCHIVE_DIR="/home/user/backup/archives"
+[?2004l[?2004h> STATE_DIR="/home/user/backup/state"
+[?2004l[?2004h> TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+[?2004l[?2004h> 
+[?2004l[?2004h> ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+[?2004l[?2004h> 
+[?2004l[?2004h> if [[ -f "$TIMESTAMP_FILE" ]]; then
+[?2004l[?2004h>     NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+[?2004l[?2004h>     find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+[?2004l[?2004h>         tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+[?2004l[?2004h>     TAR_PID=$!
+[?2004l[?2004h>     wait $TAR_PID
+[?2004l[?2004h>     date +%s > "$TIMESTAMP_FILE"
+[?2004l[?2004h> else
+[?2004l[?2004h>     # First incremental = full
+[?2004l[?2004h>     tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+[?2004l[?2004h>     date +%s > "$TIMESTAMP_FILE"
+[?2004l[?2004h>     touch "$STATE_DIR/reference"
+[?2004l[?2004h> fi
+[?2004l[?2004h> EOF
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ chmod +x incremental.sh
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ diff -u incremental.sh.backup incremental.sh
+[?2004l--- incremental.sh.backup	2026-04-29 06:00:51.655935434 +0000
++++ incremental.sh	2026-04-29 06:00:51.768867110 +0000
+@@ -12,8 +12,8 @@
+     find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+         tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+     TAR_PID=$!
+-    date +%s > "$TIMESTAMP_FILE"
+     wait $TAR_PID
++    date +%s > "$TIMESTAMP_FILE"
+ else
+     # First incremental = full
+     tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ echo 'Testing fixed script' > /home/user/data/configs/test_file.conf
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ echo 'Another test' > /home/user/data/subdir2/test2.txt
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ls -lht archives/ | head -5
+[?2004ltotal 33M
+-rw-r--r-- 1 1000 root 11M Apr 29 06:00 incremental_20260429_060058.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 06:00 incremental_20260429_060023.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 06:00 incremental_20260429_060007.tar.gz
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ rm -rf /tmp/test_extract && mkdir /tmp/test_extract
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ LATEST=$(ls -t archives/incremental_*.tar.gz | head -1)
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ tar -xzf "$LATEST" -C /tmp/test_extract
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cat /tmp/test_extract/home/user/data/configs/test_file.conf
+[?2004lTesting fixed script
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cat /tmp/test_extract/home/user/data/subdir2/test2.txt
+[?2004lAnother test
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ echo 'Test 3' > /home/user/data/configs/test3.txt && ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ echo 'Test 4' > /home/user/data/configs/test4.txt && ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ for archive in archives/incremental_*.tar.gz; do echo "Testing $archive..."; tar -tzf "$archive" > /dev/null 2>&11 && echo "  OK" || echo "  FAILED"; done
+[?2004lTesting archives/incremental_20260429_060007.tar.gz...
+  OK
+Testing archives/incremental_20260429_060023.tar.gz...
+  OK
+Testing archives/incremental_20260429_060058.tar.gz...
+  OK
+Testing archives/incremental_20260429_060114.tar.gz...
+  OK
+Testing archives/incremental_20260429_060116.tar.gz...
+  OK
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ rm -rf /tmp/final_test && mkdir /tmp/final_test
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ tar -xzf archives/incremental_20260429_060116.tar.gz -C /tmp/final_test
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cat /tmp/final_test/home/user/data/configs/test4.txt
+[?2004lTest 4
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ rm -f archives/incremental_*.tar.gz
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ cat incremental.sh
+[?2004l#!/bin/bash
+set -e
+SOURCE="/home/user/data"
+ARCHIVE_DIR="/home/user/backup/archives"
+STATE_DIR="/home/user/backup/state"
+TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+
+ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+if [[ -f "$TIMESTAMP_FILE" ]]; then
+    NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+    find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+    TAR_PID=$!
+    wait $TAR_PID
+    date +%s > "$TIMESTAMP_FILE"
+else
+    # First incremental = full
+    tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+    date +%s > "$TIMESTAMP_FILE"
+    touch "$STATE_DIR/reference"
+fi
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ echo 'Final verification' > /home/user/data/configs/final_test.txt
+[?2004l[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ ls -lh archives/
+[?2004ltotal 11M
+-rw-r--r-- 1 1000 root 11M Apr 29 06:01 incremental_20260429_060134.tar.gz
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ tar -tzf archives/incremental_*.tar.gz | grep final_test
+[?2004lhome/user/data/configs/final_test.txt
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ rm -rf /tmp/verify && mkdir /tmp/verify && tar -xzf archives/incremental_*.tar.gz -C /tmp/verify && cat /tmp/veriify/home/user/data/configs/final_test.txt
+[?2004lFinal verification
+[?2004hI have no name!@c5e0e44210b1:/home/user/backup$ 

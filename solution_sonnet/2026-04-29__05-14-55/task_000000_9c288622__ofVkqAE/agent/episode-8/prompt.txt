@@ -1,0 +1,120 @@
+New Terminal Output:
+
+user@1c85edd2d583:~/scheduler$ cat > BUGFIX_SUMMARY.txt << 'EOF'
+> =============================================================================
+> BUG FIX SUMMARY: Meeting Reminder Timezone Conversion Issue
+> =============================================================================
+>
+> PROBLEM:
+> --------
+> Meeting reminders were being sent at incorrect times (off by exactly 1 hour)
+> for meetings scheduled between 2am-3am Berlin time. This occurred when the
+> app was run via cron but worked correctly during manual testing.
+>
+> ROOT CAUSE:
+> -----------
+> The convert_to_berlin() function in app.py was incorrectly using:
+>     BERLIN_TZ.localize(utc_dt)
+>
+> This treated the naive datetime (parsed from UTC string) as if it were
+> already in Berlin timezone, rather than converting FROM UTC TO Berlin.
+>
+> During DST transitions (like March 31, 2024 when clocks spring forward),
+> this caused a 1-hour offset error for meetings in the 2am-3am window.
+>
+> SOLUTION:
+> ---------
+> Fixed the convert_to_berlin() function to properly:
+> 1. Localize the naive datetime as UTC: UTC_TZ.localize(utc_dt)
+> 2. Convert to Berlin timezone: utc_dt.astimezone(BERLIN_TZ)
+>
+> CHANGES MADE:
+> -------------
+> File: /home/user/scheduler/app.py
+> Lines 28-30 changed from:
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)
+> To:
+>     utc_dt = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+>
+> VERIFICATION:
+> -------------
+> Tested with the Maintenance Window meeting (2024-03-31T01:30:00 UTC):
+> - OLD (buggy): Converted to 01:30 CET (incorrect)
+> - NEW (fixed): Converts to 03:30 CEST (correct)
+>
+> The Monday 2:30am maintenance window reminder will now be sent at the
+> correct time.
+>
+> FILES MODIFIED:
+> ---------------
+> - /home/user/scheduler/app.py (fixed)
+> - /home/user/scheduler/app.py.backup (original backup)
+>
+> CRON JOB:
+> ---------
+> No changes needed to crontab. The existing cron job will now use the
+> fixed version of app.py.
+>
+> STATUS: FIXED AND READY FOR PRODUCTION
+> =============================================================================
+> EOF
+user@1c85edd2d583:~/scheduler$ cat BUGFIX_SUMMARY.txt
+=============================================================================
+BUG FIX SUMMARY: Meeting Reminder Timezone Conversion Issue
+=============================================================================
+
+PROBLEM:
+--------
+Meeting reminders were being sent at incorrect times (off by exactly 1 hour)
+for meetings scheduled between 2am-3am Berlin time. This occurred when the
+app was run via cron but worked correctly during manual testing.
+
+ROOT CAUSE:
+-----------
+The convert_to_berlin() function in app.py was incorrectly using:
+    BERLIN_TZ.localize(utc_dt)
+
+This treated the naive datetime (parsed from UTC string) as if it were
+already in Berlin timezone, rather than converting FROM UTC TO Berlin.
+
+During DST transitions (like March 31, 2024 when clocks spring forward),
+this caused a 1-hour offset error for meetings in the 2am-3am window.
+
+SOLUTION:
+---------
+Fixed the convert_to_berlin() function to properly:
+1. Localize the naive datetime as UTC: UTC_TZ.localize(utc_dt)
+2. Convert to Berlin timezone: utc_dt.astimezone(BERLIN_TZ)
+
+CHANGES MADE:
+-------------
+File: /home/user/scheduler/app.py
+Lines 28-30 changed from:
+    berlin_dt = BERLIN_TZ.localize(utc_dt)
+To:
+    utc_dt = UTC_TZ.localize(utc_dt)
+    berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+
+VERIFICATION:
+-------------
+Tested with the Maintenance Window meeting (2024-03-31T01:30:00 UTC):
+- OLD (buggy): Converted to 01:30 CET (incorrect)
+- NEW (fixed): Converts to 03:30 CEST (correct)
+
+The Monday 2:30am maintenance window reminder will now be sent at the
+correct time.
+
+FILES MODIFIED:
+---------------
+- /home/user/scheduler/app.py (fixed)
+- /home/user/scheduler/app.py.backup (original backup)
+
+CRON JOB:
+---------
+No changes needed to crontab. The existing cron job will now use the
+fixed version of app.py.
+
+STATUS: FIXED AND READY FOR PRODUCTION
+=============================================================================
+user@1c85edd2d583:~/scheduler$

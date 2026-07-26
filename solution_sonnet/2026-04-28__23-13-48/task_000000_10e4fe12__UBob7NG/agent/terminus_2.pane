@@ -1,0 +1,196 @@
+[?2004huser@4c3b93dd32ae:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@4c3b93dd32ae:~$ clear
+[?2004l[H[J[?2004huser@4c3b93dd32ae:~$ ls -la
+[?2004ltotal 36
+drwxrwxrwx 1 user user 4096 Apr 29 00:11 [0m[34;42m.[0m
+drwxr-xr-x 1 root root 4096 Apr 28 23:14 [01;34m..[0m
+-rw-r--r-- 1 user user  220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 user user 3771 Jan  6  2022 .bashrc
+drwxr-xr-x 3 user user 4096 Apr 29 00:11 [01;34m.config[0m
+-rw-r--r-- 1 user user  807 Jan  6  2022 .profile
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34mbackups[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34mprojects[0m
+[?2004huser@4c3b93dd32ae:~$ ls -la /home/user/projects 2>&1 | head -20
+[?2004ltotal 24
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 .
+drwxrwxrwx 1 user user 4096 Apr 29 00:11 ..
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 alpha
+drwx--x--x 1 user user 4096 Apr 28 23:14 beta
+drwx------ 1 root root 4096 Apr 28 23:14 delta
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 gamma
+[?2004huser@4c3b93dd32ae:~$ find /home/user/projects -type f 2>/dev/null | head -20
+[?2004l/home/user/projects/beta/notes.txt
+/home/user/projects/beta/data.csv
+/home/user/projects/alpha/secret.key
+/home/user/projects/alpha/config.json
+/home/user/projects/gamma/subdir/deep.txt
+/home/user/projects/gamma/locked.dat
+/home/user/projects/gamma/readable.md
+[?2004huser@4c3b93dd32ae:~$ cat > /home/user/backup.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Backup script that copies accessible files from /home/user/projects
+[?2004l[?2004h> # to /home/user/backups while preserving directory structure
+[?2004l[?2004h> 
+[?2004l[?2004h> SOURCE_DIR="/home/user/projects"
+[?2004l[?2004h> BACKUP_DIR="/home/user/backups"
+[?2004l[?2004h> MANIFEST="${BACKUP_DIR}/manifest.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clear or create manifest
+[?2004l[?2004h> > "$MANIFEST"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find all files we can access (suppress permission errors)
+[?2004l[?2004h> find "$SOURCE_DIR" -type f 2>/dev/null | while IFS= read -r file; do
+[?2004l[?2004h>     # Try to read the file's ownership info
+[?2004l[?2004h>     if owner_info=$(stat -c "%U:%G" "$file" 2>/dev/null); then
+[?2004l[?2004h>         # Calculate relative path
+[?2004l[?2004h>         rel_path="${file#$SOURCE_DIR/}"
+[?2004l[?2004h>         dest_file="${BACKUP_DIR}/${rel_path}"
+[?2004l[?2004h>         dest_dir=$(dirname "$dest_file")
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Create destination directory structure
+[?2004l[?2004h>         mkdir -p "$dest_dir" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Try to copy the file
+[?2004l[?2004h>         if cp "$file" "$dest_file" 2>/dev/null; then
+[?2004l[?2004h>             # Record in manifest
+[?2004l[?2004h>             echo "${rel_path} ${owner_info}" >> "$MANIFEST"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Backup complete. Manifest written to $MANIFEST"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@4c3b93dd32ae:~$ chmod +x /home/user/backup.sh
+[?2004l[?2004huser@4c3b93dd32ae:~$ cat /home/user/backup.sh
+[?2004l#!/bin/bash
+
+# Backup script that copies accessible files from /home/user/projects
+# to /home/user/backups while preserving directory structure
+
+SOURCE_DIR="/home/user/projects"
+BACKUP_DIR="/home/user/backups"
+MANIFEST="${BACKUP_DIR}/manifest.txt"
+
+# Clear or create manifest
+> "$MANIFEST"
+
+# Find all files we can access (suppress permission errors)
+find "$SOURCE_DIR" -type f 2>/dev/null | while IFS= read -r file; do
+    # Try to read the file's ownership info
+    if owner_info=$(stat -c "%U:%G" "$file" 2>/dev/null); then
+        # Calculate relative path
+        rel_path="${file#$SOURCE_DIR/}"
+        dest_file="${BACKUP_DIR}/${rel_path}"
+        dest_dir=$(dirname "$dest_file")
+        
+        # Create destination directory structure
+        mkdir -p "$dest_dir" 2>/dev/null
+        
+        # Try to copy the file
+        if cp "$file" "$dest_file" 2>/dev/null; then
+            # Record in manifest
+            echo "${rel_path} ${owner_info}" >> "$MANIFEST"
+        fi
+    fi
+done
+
+echo "Backup complete. Manifest written to $MANIFEST"
+[?2004huser@4c3b93dd32ae:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest written to /home/user/backups/manifest.txt
+[?2004huser@4c3b93dd32ae:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@4c3b93dd32ae:~$ tree /home/user/backups 2>/dev/null || find /home/user/backups -type f
+[?2004l/home/user/backups/beta/notes.txt
+/home/user/backups/beta/data.csv
+/home/user/backups/alpha/config.json
+/home/user/backups/gamma/subdir/deep.txt
+/home/user/backups/gamma/readable.md
+/home/user/backups/manifest.txt
+[?2004huser@4c3b93dd32ae:~$ ls -la /home/user/projects/alpha/
+[?2004ltotal 16
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [0m[01;34m.[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34m..[0m
+-rw-r--r-- 1 user user   12 Apr 28 23:14 config.json
+-rw------- 1 root root   12 Apr 28 23:14 secret.key
+[?2004huser@4c3b93dd32ae:~$ ls -la /home/user/projects/gamma/
+[?2004ltotal 20
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [0m[01;34m.[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34m..[0m
+-rw------- 1 root root   12 Apr 28 23:14 locked.dat
+-rw-r--r-- 1 user user   12 Apr 28 23:14 readable.md
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34msubdir[0m
+[?2004huser@4c3b93dd32ae:~$ stat /home/user/projects/alpha/secret.key 2>&1
+[?2004l  File: /home/user/projects/alpha/secret.key
+  Size: 12        	Blocks: 8          IO Block: 4096   regular file
+Device: 2eh/46d	Inode: 4006334     Links: 1
+Access: (0600/-rw-------)  Uid: (    0/    root)   Gid: (    0/    root)
+Access: 2026-04-28 23:14:37.000000000 +0000
+Modify: 2026-04-28 23:14:37.000000000 +0000
+Change: 2026-04-29 00:11:44.383906847 +0000
+ Birth: 2026-04-29 00:11:44.383797716 +0000
+[?2004huser@4c3b93dd32ae:~$ diff /home/user/projects/alpha/config.json /home/user/backups/alpha/config.json && echo "Files match!"
+[?2004lFiles match!
+[?2004huser@4c3b93dd32ae:~$ ls -la /home/user/backups/gamma/subdir/
+[?2004ltotal 12
+drwxr-xr-x 2 user user 4096 Apr 29 00:12 [0m[01;34m.[0m
+drwxr-xr-x 3 user user 4096 Apr 29 00:12 [01;34m..[0m
+-rw-r--r-- 1 user user    9 Apr 29 00:12 deep.txt
+[?2004huser@4c3b93dd32ae:~$ echo "Testing script requirements:"
+[?2004lTesting script requirements:
+[?2004huser@4c3b93dd32ae:~$ echo "1. Script location: $(ls -l /home/user/backup.sh | awk '{print $9}')"
+[?2004l1. Script location: /home/user/backup.sh
+[?2004huser@4c3b93dd32ae:~$ echo "2. Script executable: $(test -x /home/user/backup.sh && echo 'Yes' || echo 'No')"
+[?2004l2. Script executable: Yes
+[?2004huser@4c3b93dd32ae:~$ echo "3. Backups directory exists: $(test -d /home/user/backups && echo 'Yes' || echo 'No')"
+[?2004l3. Backups directory exists: Yes
+[?2004huser@4c3b93dd32ae:~$ echo "4. Manifest exists: $(test -f /home/user/backups/manifest.txt && echo 'Yes' || echo 'No')"
+[?2004l4. Manifest exists: Yes
+[?2004huser@4c3b93dd32ae:~$ echo "5. Files copied: $(find /home/user/backups -type f ! -name manifest.txt | wc -l)"
+[?2004l5. Files copied: 5
+[?2004huser@4c3b93dd32ae:~$ echo "6. Directory structure preserved: $(test -d /home/user/backups/gamma/subdir && echo 'Yes' || echo 'No')"
+[?2004l6. Directory structure preserved: Yes
+[?2004huser@4c3b93dd32ae:~$ echo "=== Final Verification ==="
+[?2004l=== Final Verification ===
+[?2004huser@4c3b93dd32ae:~$ echo "Backup script location:"
+[?2004lBackup script location:
+[?2004huser@4c3b93dd32ae:~$ ls -lh /home/user/backup.sh
+[?2004l-rwxr-xr-x 1 user user 1.1K Apr 29 00:12 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@4c3b93dd32ae:~$ echo ""
+[?2004l
+[?2004huser@4c3b93dd32ae:~$ echo "Manifest contents:"
+[?2004lManifest contents:
+[?2004huser@4c3b93dd32ae:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@4c3b93dd32ae:~$ echo ""
+[?2004l
+[?2004huser@4c3b93dd32ae:~$ echo "Backup directory structure:"
+[?2004lBackup directory structure:
+[?2004huser@4c3b93dd32ae:~$ find /home/user/backups -type d | sort
+[?2004l/home/user/backups
+/home/user/backups/alpha
+/home/user/backups/beta
+/home/user/backups/gamma
+/home/user/backups/gamma/subdir
+[?2004huser@4c3b93dd32ae:~$ echo ""
+[?2004l
+[?2004huser@4c3b93dd32ae:~$ echo "All backed up files:"
+[?2004lAll backed up files:
+[?2004huser@4c3b93dd32ae:~$ find /home/user/backups -type f | sort
+[?2004l/home/user/backups/alpha/config.json
+/home/user/backups/beta/data.csv
+/home/user/backups/beta/notes.txt
+/home/user/backups/gamma/readable.md
+/home/user/backups/gamma/subdir/deep.txt
+/home/user/backups/manifest.txt
+[?2004huser@4c3b93dd32ae:~$ 

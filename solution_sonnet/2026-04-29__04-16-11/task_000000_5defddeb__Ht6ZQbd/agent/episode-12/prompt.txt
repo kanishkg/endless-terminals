@@ -1,0 +1,75 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+I have no name!@60695ee8b33e:/tmp/test_extract2$ cd /home/user/backup
+I have no name!@60695ee8b33e:/home/user/backup$ cat > /tmp/fix_summary.txt << 'EOF'
+> INCREMENTAL BACKUP FIX SUMMARY
+> ================================
+>
+> PROBLEM:
+> Incremental backups were producing corrupt archives that failed during extraction
+> with "unexpected EOF" or truncated files.
+>
+> ROOT CAUSE:
+> Race condition in incremental.sh - the timestamp file was being updated BEFORE
+> the tar process completed. The script backgrounded tar with '&', immediately
+> updated the timestamp, then waited for tar to finish.
+>
+> THE BUG (lines 13-16 of original script):
+>     find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \\
+>         tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+>     TAR_PID=$!
+>     date +%s > "$TIMESTAMP_FILE"  # <-- UPDATED TOO EARLY
+>     wait $TAR_PID
+>
+> THE FIX:
+> Moved the timestamp update to AFTER the wait command:
+>     find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \\
+>         tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+>     TAR_PID=$!
+>     wait $TAR_PID
+>     date +%s > "$TIMESTAMP_FILE"  # <-- NOW UPDATED AFTER TAR COMPLETES
+>
+> VERIFICATION:
+> - Created test incremental backups
+> - Successfully extracted archives without errors
+> - Verified file contents are complete and correct
+> - Exit code 0 on all extractions
+> EOF
+I have no name!@60695ee8b33e:/home/user/backup$ cat /tmp/fix_summary.txt
+INCREMENTAL BACKUP FIX SUMMARY
+================================
+
+PROBLEM:
+Incremental backups were producing corrupt archives that failed during extraction
+with "unexpected EOF" or truncated files.
+
+ROOT CAUSE:
+Race condition in incremental.sh - the timestamp file was being updated BEFORE
+the tar process completed. The script backgrounded tar with '&', immediately
+updated the timestamp, then waited for tar to finish.
+
+THE BUG (lines 13-16 of original script):
+    find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \\
+        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+    TAR_PID=$!
+    date +%s > "$TIMESTAMP_FILE"  # <-- UPDATED TOO EARLY
+    wait $TAR_PID
+
+THE FIX:
+Moved the timestamp update to AFTER the wait command:
+    find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \\
+        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+    TAR_PID=$!
+    wait $TAR_PID
+    date +%s > "$TIMESTAMP_FILE"  # <-- NOW UPDATED AFTER TAR COMPLETES
+
+VERIFICATION:
+- Created test incremental backups
+- Successfully extracted archives without errors
+- Verified file contents are complete and correct
+- Exit code 0 on all extractions
+I have no name!@60695ee8b33e:/home/user/backup$

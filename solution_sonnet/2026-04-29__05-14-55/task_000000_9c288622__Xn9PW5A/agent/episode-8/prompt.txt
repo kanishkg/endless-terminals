@@ -1,0 +1,59 @@
+New Terminal Output:
+
+user@c83efca373bd:~/scheduler$ cat > test_dst_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test DST handling for the fixed conversion function."""
+>
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def convert_to_berlin_OLD(utc_time_str):
+>     """OLD buggy version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)  # BUG: treats UTC as Berlin
+>     return berlin_dt
+>
+> def convert_to_berlin_NEW(utc_time_str):
+>     """NEW fixed version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt_aware = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt_aware.astimezone(BERLIN_TZ)
+>     return berlin_dt
+>
+> print("Testing DST transition handling...\n")
+>
+> # Test case: March 31, 2024 - DST transition in Europe/Berlin
+> # At 2:00 AM CET, clocks moved forward to 3:00 AM CEST
+> # So 01:30 UTC = 02:30 CET (before transition) or 03:30 CEST (after transition)
+> test_cases = [
+>     ("2024-03-31T00:30:00", "Before DST transition (should be 01:30 or 02:30 Berlin)"),
+>     ("2024-03-31T01:00:00", "At DST transition (should be 02:00 or 03:00 Berlin)"),
+>     ("2024-03-31T01:30:00", "Maintenance Window - CRITICAL (should be 02:30 or 03:30 Berlin)"),
+>     ("2024-03-31T02:00:00", "After DST transition (should be 04:00 CEST Berlin)"),
+> ]
+>
+> for utc_time, description in test_cases:
+>     print(f"Test: {description}")
+>     print(f"  UTC time: {utc_time}")
+>
+>     old_result = convert_to_berlin_OLD(utc_time)
+>     new_result = convert_to_berlin_NEW(utc_time)
+>
+>     print(f"  OLD (buggy):  {old_result.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+>     print(f"  NEW (fixed):  {new_result.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+>
+>     if old_result != new_result:
+>         print(f"  ⚠️  DIFFERENCE DETECTED: {(new_result - old_result).total_seconds() / 3600:.1f} hours")
+>     else:
+>         print(f"  ✓ Same result (no DST issue for this time)")
+>     print()
+>
+> print("\nConclusion:")
+> print("The OLD version incorrectly treats the UTC datetime as a Berlin datetime,")
+> print("causing issues during DST transitions. The NEW version correctly converts")
+> print("from UTC to Berlin time, properly handling DST.")
+> EOF
+user@c83efca373bd:~/scheduler$

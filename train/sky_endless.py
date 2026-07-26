@@ -1,5 +1,8 @@
+import subprocess
 import sys
 import pathlib
+import tempfile
+import uuid
 from pathlib import Path
 import re
 from typing import Any, Dict
@@ -7,9 +10,107 @@ from typing import Any, Dict
 from skyrl_gym.envs.base_text_env import BaseTextEnv, BaseTextEnvStepOutput
 
 sys.path.insert(0, str(pathlib.Path().resolve()))
-from generator.env import InteractiveContainerEnvironment
 from generator.sample_solutions import _extract_action
 import time
+import threading
+
+# Limit concurrent Docker containers to avoid resource exhaustion
+_CONTAINER_LOCK = threading.Lock()
+_MAX_CONTAINERS = 10
+
+
+class DockerContainerEnvironment:
+    """Docker-based container environment for SkyRL training."""
+
+    def __init__(self, dockerfile_path, final_test_path, verbose=False):
+        self.dockerfile_path = Path(dockerfile_path)
+        self.final_test_path = Path(final_test_path)
+        self.verbose = verbose
+        self.image_tag = None
+        self.container_name = None
+        self.instance_name = None  # None means not running
+
+    def initialize(self, run_initial_tests=False):
+        tag = f"skyrl-{self.dockerfile_path.parent.parent.name}-{uuid.uuid4().hex[:8]}"
+        try:
+            proc = subprocess.run(
+                ["docker", "build", "-t", tag, "-f", str(self.dockerfile_path), str(self.dockerfile_path.parent)],
+                env={**__import__("os").environ, "DOCKER_BUILDKIT": "1"},
+                capture_output=True, text=True, timeout=600,
+            )
+            build_ok = proc.returncode == 0
+        except subprocess.TimeoutExpired:
+            build_ok = False
+        if not build_ok:
+            if self.verbose:
+                print(f"Docker build failed or timed out")
+            return False
+        self.image_tag = tag
+
+        cname = f"skyrl-run-{uuid.uuid4().hex[:8]}"
+        try:
+            proc = subprocess.run(
+                ["docker", "run", "-d", "--name", cname, tag, "sleep", "3600"],
+                capture_output=True, text=True, timeout=120,
+            )
+            if proc.returncode != 0:
+                if self.verbose:
+                    print(f"Docker run failed: {proc.stderr}")
+                subprocess.run(["docker", "rmi", "-f", tag], capture_output=True, timeout=30)
+                return False
+        except subprocess.TimeoutExpired:
+            # must remove timeouted container before image removal to avoid another silent fail
+            subprocess.run(["docker", "rm", "-f", cname], capture_output=True, timeout=30)
+            subprocess.run(["docker", "rmi", "-f", tag], capture_output=True, timeout=30)
+            return False
+        self.container_name = cname
+        self.instance_name = cname
+        return True
+
+    def exec(self, command, timeout=30):
+        try:
+            proc = subprocess.run(
+                ["docker", "exec", self.container_name, "bash", "-c", command],
+                capture_output=True, text=True, timeout=timeout,
+            )
+            output = (proc.stdout or "") + (proc.stderr or "")
+            return proc.returncode == 0, output
+        except subprocess.TimeoutExpired:
+            return False, f"Command timed out after {timeout}s"
+        except Exception as e:
+            return False, str(e)
+
+    def run_final_tests(self):
+        test_py = self.final_test_path.read_text(encoding="utf-8")
+        subprocess.run(
+            ["docker", "exec", self.container_name, "mkdir", "-p", "/tests"],
+            capture_output=True, timeout=10,
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(test_py)
+            tmp_path = f.name
+        try:
+            result = subprocess.run(
+                ["docker", "cp", tmp_path, f"{self.container_name}:/tests/test_final_state.py"],
+                capture_output=True, timeout=10,
+            )
+            if result.returncode != 0:
+                return False, f"docker cp failed: {result.stderr}"
+        except subprocess.TimeoutExpired:
+            return False, "docker cp timed out"
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+        self.exec("pip3 install -q pytest 2>/dev/null || pip install -q pytest 2>/dev/null", timeout=60)
+        return self.exec("cd /home/user && python3 -m pytest /tests/test_final_state.py -v", timeout=120)
+
+    def cleanup(self):
+        if self.container_name:
+            subprocess.Popen(["docker", "rm", "-f", self.container_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.container_name = None
+        if self.image_tag:
+            subprocess.Popen(["docker", "rmi", "-f", self.image_tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.image_tag = None
+        self.instance_name = None
 
 
 class SkyRLContainerEnv(BaseTextEnv):
@@ -21,10 +122,8 @@ class SkyRLContainerEnv(BaseTextEnv):
         task_dir = extras["extra_info"].get("task_dir")
         task_dir = Path(task_dir)
 
-        container_sif_path = task_dir / "container.sif"
-        initial_test_path = task_dir / "test_initial_state.py"
-        final_test_path = task_dir / "test_final_state.py"
-        def_path = task_dir / "container.def"
+        dockerfile_path = task_dir / "environment" / "Dockerfile"
+        final_test_path = task_dir / "tests" / "test_final_state.py"
         self.start_time = time.time()
         self.max_time = extras["extra_info"].get("max_time", 600)
         # check if max_time is a string and convert to int
@@ -37,12 +136,10 @@ class SkyRLContainerEnv(BaseTextEnv):
         verbose_mode = extras["extra_info"].get("verbose", False)
         # Output truncation limit (default 50K chars to prevent memory issues)
         self.max_output_length = extras["extra_info"].get("max_output_length", 50000)
-        
-        self.env = InteractiveContainerEnvironment(
-            container_sif_path=container_sif_path,
-            initial_test_path=initial_test_path,
+
+        self.env = DockerContainerEnvironment(
+            dockerfile_path=dockerfile_path,
             final_test_path=final_test_path,
-            def_path=def_path,
             verbose=verbose_mode,
         )
         # Lazy initialization: don't initialize in __init__ to prevent delayed Ray actor 

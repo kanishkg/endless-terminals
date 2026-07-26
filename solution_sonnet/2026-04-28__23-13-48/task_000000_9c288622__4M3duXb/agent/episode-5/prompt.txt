@@ -1,0 +1,96 @@
+New Terminal Output:
+
+user@d34482275169:~/scheduler$ cat > test_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test the timezone conversion fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> # Import the fixed function
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+> from app import convert_to_berlin
+>
+> def test_conversions():
+>     """Test various UTC to Berlin conversions."""
+>     print("Testing timezone conversions...\n")
+>
+>     # Test cases: UTC times that should convert to 2am-3am Berlin during DST transition
+>     test_cases = [
+>         # March 31, 2024 - DST starts (2am becomes 3am)
+>         # UTC 01:30 should be CET 02:30 (before DST) or CEST 03:30 (after DST)
+>         ("2024-03-31T00:30:00", "Should be 01:30 or 02:30 CET/CEST"),
+>         ("2024-03-31T01:30:00", "Should be 02:30 or 03:30 CET/CEST"),
+>
+>         # Regular winter time (CET = UTC+1)
+>         ("2024-01-15T01:00:00", "Should be 02:00 CET (UTC+1)"),
+>
+>         # Regular summer time (CEST = UTC+2)
+>         ("2024-06-15T01:00:00", "Should be 03:00 CEST (UTC+2)"),
+>
+>         # October 27, 2024 - DST ends (3am becomes 2am)
+>         ("2024-10-27T00:30:00", "Should be 02:30 CEST (UTC+2)"),
+>         ("2024-10-27T01:30:00", "Should be 02:30 CET (UTC+1) after DST ends"),
+>     ]
+>
+>     for utc_time_str, description in test_cases:
+>         berlin_time = convert_to_berlin(utc_time_str)
+>         print(f"UTC: {utc_time_str}")
+>         print(f"Berlin: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+>         print(f"Note: {description}")
+>         print()
+>
+>     print("\n=== Verification ===")
+>     # Verify a known conversion
+>     # June 15, 2024 01:00 UTC should be June 15, 2024 03:00 CEST (UTC+2)
+>     result = convert_to_berlin("2024-06-15T01:00:00")
+>     expected_hour = 3
+>     if result.hour == expected_hour:
+>         print(f"✓ Summer time conversion correct: {result.strftime('%H:%M %Z')}")
+>     else:
+>         print(f"✗ Summer time conversion FAILED: got {result.hour}:00, expected {expected_hour}:00")
+>
+>     # January 15, 2024 01:00 UTC should be January 15, 2024 02:00 CET (UTC+1)
+>     result = convert_to_berlin("2024-01-15T01:00:00")
+>     expected_hour = 2
+>     if result.hour == expected_hour:
+>         print(f"✓ Winter time conversion correct: {result.strftime('%H:%M %Z')}")
+>     else:
+>         print(f"✗ Winter time conversion FAILED: got {result.hour}:00, expected {expected_hour}:00")
+>
+> if __name__ == '__main__':
+>     test_conversions()
+> EOF
+user@d34482275169:~/scheduler$ python3 test_fix.py
+Testing timezone conversions...
+
+UTC: 2024-03-31T00:30:00
+Berlin: 2024-03-31 01:30:00 CET (UTC+0100)
+Note: Should be 01:30 or 02:30 CET/CEST
+
+UTC: 2024-03-31T01:30:00
+Berlin: 2024-03-31 03:30:00 CEST (UTC+0200)
+Note: Should be 02:30 or 03:30 CET/CEST
+
+UTC: 2024-01-15T01:00:00
+Berlin: 2024-01-15 02:00:00 CET (UTC+0100)
+Note: Should be 02:00 CET (UTC+1)
+
+UTC: 2024-06-15T01:00:00
+Berlin: 2024-06-15 03:00:00 CEST (UTC+0200)
+Note: Should be 03:00 CEST (UTC+2)
+
+UTC: 2024-10-27T00:30:00
+Berlin: 2024-10-27 02:30:00 CEST (UTC+0200)
+Note: Should be 02:30 CEST (UTC+2)
+
+UTC: 2024-10-27T01:30:00
+Berlin: 2024-10-27 02:30:00 CET (UTC+0100)
+Note: Should be 02:30 CET (UTC+1) after DST ends
+
+
+=== Verification ===
+✓ Summer time conversion correct: 03:00 CEST
+✓ Winter time conversion correct: 02:00 CET
+user@d34482275169:~/scheduler$

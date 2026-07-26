@@ -1,0 +1,46 @@
+New Terminal Output:
+
+root@a5f57d7c81ae:/home/user/netmon# rm Makefile
+root@a5f57d7c81ae:/home/user/netmon# cat > Makefile << 'EOF'
+> .PHONY: report clean check-config
+>
+> # Main target to generate the monitoring report
+> report: check-config results/status.json
+> @echo "Monitoring report complete!"
+>
+> # Check that hosts.conf exists before proceeding
+> check-config:
+> @if [ ! -f hosts.conf ]; then \
+>
+aggregate.py  hosts.conf    scripts/
+> echo "ERROR: hosts.conf is missing. Cannot proceed."; \
+>
+aggregate.py  hosts.conf    scripts/
+> exit 1; \
+> fi
+> @echo "Configuration file found."
+>
+> # Create results directory
+> results:
+> mkdir -p results
+>
+> # Run ping checks
+> results/ping.txt: check-config results
+> @echo "Running ping checks..."
+> ./scripts/check_ping.sh
+>
+> # Run port checks
+> results/ports.txt: check-config results
+> @echo "Running port checks..."
+> ./scripts/check_ports.sh
+>
+> # Generate aggregated JSON report
+> results/status.json: results/ping.txt results/ports.txt
+> @echo "Aggregating results..."
+> ./aggregate.py
+>
+> # Clean up generated files
+> clean:
+> rm -rf results
+> EOF
+root@a5f57d7c81ae:/home/user/netmon#

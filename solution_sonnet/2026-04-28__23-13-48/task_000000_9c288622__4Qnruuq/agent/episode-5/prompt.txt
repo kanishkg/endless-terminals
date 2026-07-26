@@ -1,0 +1,84 @@
+New Terminal Output:
+
+user@e09899677ebe:~/scheduler$ cat > test_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test to verify the DST fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> # Import the fixed function
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+> from app import convert_to_berlin
+>
+> def test_dst_transition():
+>     """Test conversion during DST transition."""
+>     print("Testing DST transition fix...\n")
+>
+>     # Test case 1: The problematic maintenance window meeting
+>     # 2024-03-31 01:30:00 UTC should be 2024-03-31 03:30:00 CEST
+>     # (DST started at 2am, clocks jumped to 3am)
+>     utc_time = '2024-03-31T01:30:00'
+>     berlin_time = convert_to_berlin(utc_time)
+>     print(f"Test 1 - Maintenance Window (DST transition):")
+>     print(f"  UTC:    {utc_time}")
+>     print(f"  Berlin: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"  Expected: 2024-03-31 03:30:00 CEST (UTC+2)")
+>
+>     # Verify it's 3:30 CEST (not 2:30)
+>     assert berlin_time.hour == 3, f"Expected hour 3, got {berlin_time.hour}"
+>     assert berlin_time.minute == 30, f"Expected minute 30, got {berlin_time.minute}"
+>     assert berlin_time.strftime('%Z') == 'CEST', f"Expected CEST, got {berlin_time.strftime('%Z')}"
+>     print("  ✓ PASSED\n")
+>
+>     # Test case 2: Before DST (winter time)
+>     utc_time2 = '2024-03-30T01:30:00'
+>     berlin_time2 = convert_to_berlin(utc_time2)
+>     print(f"Test 2 - Before DST transition:")
+>     print(f"  UTC:    {utc_time2}")
+>     print(f"  Berlin: {berlin_time2.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"  Expected: 2024-03-30 02:30:00 CET (UTC+1)")
+>     assert berlin_time2.hour == 2, f"Expected hour 2, got {berlin_time2.hour}"
+>     assert berlin_time2.strftime('%Z') == 'CET', f"Expected CET, got {berlin_time2.strftime('%Z')}"
+>     print("  ✓ PASSED\n")
+>
+>     # Test case 3: After DST (summer time)
+>     utc_time3 = '2024-04-01T01:30:00'
+>     berlin_time3 = convert_to_berlin(utc_time3)
+>     print(f"Test 3 - After DST transition:")
+>     print(f"  UTC:    {utc_time3}")
+>     print(f"  Berlin: {berlin_time3.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"  Expected: 2024-04-01 03:30:00 CEST (UTC+2)")
+>     assert berlin_time3.hour == 3, f"Expected hour 3, got {berlin_time3.hour}"
+>     assert berlin_time3.strftime('%Z') == 'CEST', f"Expected CEST, got {berlin_time3.strftime('%Z')}"
+>     print("  ✓ PASSED\n")
+>
+>     print("All tests passed! DST handling is now correct.")
+>
+> if __name__ == '__main__':
+>     test_dst_transition()
+> EOF
+user@e09899677ebe:~/scheduler$ python3 test_fix.py
+Testing DST transition fix...
+
+Test 1 - Maintenance Window (DST transition):
+  UTC:    2024-03-31T01:30:00
+  Berlin: 2024-03-31 03:30:00 CEST+0200
+  Expected: 2024-03-31 03:30:00 CEST (UTC+2)
+  ✓ PASSED
+
+Test 2 - Before DST transition:
+  UTC:    2024-03-30T01:30:00
+  Berlin: 2024-03-30 02:30:00 CET+0100
+  Expected: 2024-03-30 02:30:00 CET (UTC+1)
+  ✓ PASSED
+
+Test 3 - After DST transition:
+  UTC:    2024-04-01T01:30:00
+  Berlin: 2024-04-01 03:30:00 CEST+0200
+  Expected: 2024-04-01 03:30:00 CEST (UTC+2)
+  ✓ PASSED
+
+All tests passed! DST handling is now correct.
+user@e09899677ebe:~/scheduler$

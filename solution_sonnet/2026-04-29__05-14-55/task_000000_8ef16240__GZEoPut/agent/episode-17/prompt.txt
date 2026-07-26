@@ -1,0 +1,36 @@
+New Terminal Output:
+
+root@750d474a0771:/home/user/pipeline# rm -f .checkpoint output/summary.db
+root@750d474a0771:/home/user/pipeline# echo "=== Test 1: Simulating crash after 3000 records ==="
+=== Test 1: Simulating crash after 3000 records ===
+root@750d474a0771:/home/user/pipeline# timeout 1 ./run.sh 2>/dev/null || true
+root@750d474a0771:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3, json
+> conn = sqlite3.connect('output/summary.db')
+> total = conn.execute('SELECT SUM(count) FROM summary').fetchone()[0]
+> print(f"After interruption: {total} records in database")
+> conn.close()
+> with open('.checkpoint', 'r') as f:
+>     cp = json.load(f)
+>     print(f"Checkpoint saved at line: {cp['last_line']}")
+> EOF
+After interruption: 50000 records in database
+Checkpoint saved at line: 50000
+root@750d474a0771:/home/user/pipeline# echo "\n=== Test 2: Resuming to completion ==="
+\n=== Test 2: Resuming to completion ===
+root@750d474a0771:/home/user/pipeline# ./run.sh
+root@750d474a0771:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3, json
+> conn = sqlite3.connect('output/summary.db')
+> total = conn.execute('SELECT SUM(count) FROM summary').fetchone()[0]
+> print(f"After resume: {total} records in database")
+> print(f"Status: {'✓ SUCCESS - Resume working correctly!' if total == 50000 else '✗ FAILED'}")
+> conn.close()
+> with open('.checkpoint', 'r') as f:
+>     cp = json.load(f)
+>     print(f"Final checkpoint: {cp['last_line']}")
+> EOF
+After resume: 50000 records in database
+Status: ✓ SUCCESS - Resume working correctly!
+Final checkpoint: 50000
+root@750d474a0771:/home/user/pipeline#

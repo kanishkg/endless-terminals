@@ -1,0 +1,56 @@
+New Terminal Output:
+
+user@b897f1e02288:~/scheduler$ cat > test_dst_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test that DST conversion is now correct."""
+>
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+>
+> from app import convert_to_berlin
+> import pytz
+> from datetime import datetime
+>
+> # Test the problematic meeting time
+> print("Testing DST transition fix...")
+> print()
+>
+> # The maintenance window meeting: 2024-03-31T01:30:00 UTC
+> # March 31, 2024 is when DST transition happens in Europe (2am -> 3am)
+> utc_time_str = "2024-03-31T01:30:00"
+>
+> print(f"UTC time: {utc_time_str}")
+>
+> berlin_time = convert_to_berlin(utc_time_str)
+> print(f"Berlin time: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print()
+>
+> # Verify the conversion is correct
+> # At 01:30 UTC on March 31, 2024, Berlin should be in CEST (UTC+2)
+> # So 01:30 UTC = 03:30 CEST (not 02:30 because 2am-3am doesn't exist due to DST)
+> expected_hour = 3  # Should be 3am in CEST
+> expected_minute = 30
+>
+> if berlin_time.hour == expected_hour and berlin_time.minute == expected_minute:
+>     print("✓ SUCCESS: Conversion is correct!")
+>     print(f"  01:30 UTC correctly converts to {berlin_time.hour:02d}:{berlin_time.minute:02d} CEST")
+>     print(f"  Timezone offset: {berlin_time.strftime('%z')}")
+> else:
+>     print("✗ FAILED: Conversion is still wrong!")
+>     print(f"  Expected: {expected_hour:02d}:{expected_minute:02d}")
+>     print(f"  Got: {berlin_time.hour:02d}:{berlin_time.minute:02d}")
+>     sys.exit(1)
+>
+> print()
+> print("Testing another time outside DST transition...")
+> utc_time_str2 = "2024-03-31T08:00:00"
+> berlin_time2 = convert_to_berlin(utc_time_str2)
+> print(f"UTC: {utc_time_str2} -> Berlin: {berlin_time2.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print("Expected: 10:00 CEST (UTC+2)")
+> if berlin_time2.hour == 10:
+>     print("✓ Correct!")
+> else:
+>     print("✗ Wrong!")
+>
+> EOF
+user@b897f1e02288:~/scheduler$

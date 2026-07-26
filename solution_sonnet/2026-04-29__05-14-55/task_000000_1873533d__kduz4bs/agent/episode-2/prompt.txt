@@ -1,0 +1,61 @@
+New Terminal Output:
+
+user@bd7840463581:~$ cat > /home/user/bin/env-merge.sh << 'EOF'
+> #!/bin/bash
+>
+> if [ $# -ne 2 ]; then
+>     echo "Usage: $0 <file1.env> <file2.env>" >&2
+>     exit 1
+> fi
+>
+> if [ ! -f "$1" ]; then
+>     echo "Error: File '$1' not found" >&2
+>     exit 1
+> fi
+>
+> if [ ! -f "$2" ]; then
+>     echo "Error: File '$2' not found" >&2
+>     exit 1
+> fi
+>
+> declare -A env_vars
+> declare -a keys_order
+>
+> # Function to parse env file
+> parse_env_file() {
+>     local file="$1"
+>     while IFS= read -r line || [ -n "$line" ]; do
+>         # Skip empty lines and comments
+>         [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+>
+>         # Extract key=value
+>         if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+>             key="${BASH_REMATCH[1]}"
+>             value="${BASH_REMATCH[2]}"
+>
+>             # Store in associative array
+>             if [ -z "${env_vars[$key]+x}" ]; then
+>                 keys_order+=("$key")
+>             fi
+>             env_vars["$key"]="$value"
+>         fi
+>     done < "$file"
+> }
+>
+> # Parse both files
+> parse_env_file "$1"
+> parse_env_file "$2"
+>
+> # Output merged result
+> for key in "${keys_order[@]}"; do
+>     echo "${key}=${env_vars[$key]}"
+> done
+> EOF
+user@bd7840463581:~$ chmod +x /home/user/bin/env-merge.sh
+user@bd7840463581:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /home/user/project/.env.local
+DATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+user@bd7840463581:~$

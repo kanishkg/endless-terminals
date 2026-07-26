@@ -1,1 +1,1 @@
-vllm serve meta-llama/Llama-3.2-3B-Instruct --tensor-parallel-size $1 --data-parallel-size $2 --gpu-memory-utilization 0.95 --api-key nokey --enable-prefix-caching --disable-log-requests --enable-chunked-prefill
+vllm serve Qwen/Qwen3-32B-AWQ --tensor-parallel-size $1 --data-parallel-size $2 --gpu-memory-utilization 0.95 --api-key nokey --enable-prefix-caching --disable-log-requests --enable-chunked-prefill

@@ -1,0 +1,33 @@
+New Terminal Output:
+
+root@10c596bc4f88:/home/user/firewall# cat test.sh
+#!/bin/bash
+# Simulates packet check through the firewall
+# Returns 0 if 10.200.0.50 can reach 10.100.0.42:5000, 1 otherwise
+
+# Check if FORWARD chain would accept this traffic
+# (simplified simulation using iptables-save parsing)
+
+RULES=$(iptables-save 2>/dev/null)
+
+# Check for explicit DROP before any ACCEPT for this traffic
+if echo "$RULES" | grep -q "\-A FORWARD.*10\.200\.0\.0/16.*10\.100\.0\.0/16.*DROP"; then
+    # Check if there's an ACCEPT for this specific traffic BEFORE the drop
+    ACCEPT_LINE=$(echo "$RULES" | grep -n "\-A FORWARD.*10\.200\.0\.0/16.*10\.100\.0\.0/16.*ACCEPT" | head -1 | cut -d: -f1)
+    DROP_LINE=$(echo "$RULES" | grep -n "\-A FORWARD.*10\.200\.0\.0/16.*10\.100\.0\.0/16.*DROP" | head -1 | cut -d: -f1)
+
+    if [ -z "$ACCEPT_LINE" ] || [ "$DROP_LINE" -lt "$ACCEPT_LINE" ]; then
+        echo "BLOCKED: Traffic from 10.200.0.0/16 to 10.100.0.42:5000 is being dropped"
+        exit 1
+    fi
+fi
+
+# Check if there's any ACCEPT rule that would match
+if echo "$RULES" | grep -qE "\-A FORWARD.*(10\.200\.0\.0/16|eth1).*ACCEPT"; then
+    echo "OK: Traffic from 10.200.0.0/16 to 10.100.0.42:5000 would be accepted"
+    exit 0
+fi
+
+echo "BLOCKED: No matching ACCEPT rule in FORWARD chain"
+exit 1
+root@10c596bc4f88:/home/user/firewall#

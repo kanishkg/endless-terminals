@@ -1,0 +1,159 @@
+New Terminal Output:
+
+root@4f2672db31b0:/home/user/pipeline# cat > BUGFIX_SUMMARY.md << 'EOF'
+ process_batch(conn, batch):
+    # ... process data ...
+    conn.commit()  # Commit after each batch
+```
+
+## Test Results
+
+✓ Single interruption and resume: PASSED (50,000 records, no duplication)
+✓ Multiple interruptions and resume: PASSED (50,000 records, no duplication)
+✓ Works with run.sh script: PASSED
+
+## Summary
+
+The checkpoint mechanism now correctly:
+1. Persists checkpoint data to disk immediately (survives crashes)
+2. Tracks actual line numbers (not batch numbers)
+3. Accumulates data on resume (doesn't overwrite)
+4. Commits after each batch (progress is saved)
+EOF
+> # Pipeline Checkpoint/Resume Bug Fixes
+>
+> ## Bugs Found and Fixed
+>
+> ### Bug 1: Checkpoint file not properly flushed to disk
+> **Problem:** The original code used `json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))` without a context manager or explicit flush. This meant th
+e checkpoint data could remain in the buffer and not be written to disk before a crash.
+>
+> **Fix:** Use proper context manager with explicit flush and fsync:
+> ```python
+> with open('.checkpoint', 'w') as f:
+>     json.dump({'last_line': last_line}, f)
+>     f.flush()
+>     os.fsync(f.fileno())  # Ensure it's written to disk
+> ```
+>
+> ### Bug 2: Checkpoint saved batch number but treated it as line number
+> **Problem:** The checkpoint saved `batch_num` (0, 1, 2...) with the key 'last_line', then on resume it skipped that many individual lines instead of batches.
+This caused massive confusion:
+> - After processing 1 batch (1000 lines), it saved batch_num=1
+> - On resume, it would skip only 1 line and reprocess lines 2-1000
+>
+> **Fix:** Track and save the actual line number processed:
+> ```python
+> line_num = i + 1  # Track the last line we've read
+> if len(batch) >= BATCH_SIZE:
+>     process_batch(conn, batch)
+>     save_checkpoint(line_num)  # Save actual line number
+> ```
+>
+> ### Bug 3: INSERT OR REPLACE overwrites data instead of accumulating
+> **Problem:** The SQL used `INSERT OR REPLACE` which completely replaces existing rows. When resuming, this would overwrite previous aggregations instead of ad
+ding to them, causing data loss.
+>
+> **Fix:** Use INSERT ... ON CONFLICT to accumulate values:
+> ```python
+> conn.execute('''
+>     INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+>     ON CONFLICT(category) DO UPDATE SET
+>         total_value = total_value + excluded.total_value,
+>         count = count + excluded.count
+> ''', (cat, data['total'], data['count']))
+> ```
+>
+> ### Bug 4: No commit after each batch
+> **Problem:** Database changes were only committed at the end, so a crash would lose all progress.
+>
+> **Fix:** Commit after each batch:
+> ```python
+> def process_batch(conn, batch):
+>     # ... process data ...
+>     conn.commit()  # Commit after each batch
+> ```
+>
+> ## Test Results
+>
+> ✓ Single interruption and resume: PASSED (50,000 records, no duplication)
+> ✓ Multiple interruptions and resume: PASSED (50,000 records, no duplication)
+> ✓ Works with run.sh script: PASSED
+>
+> ## Summary
+>
+> The checkpoint mechanism now correctly:
+> 1. Persists checkpoint data to disk immediately (survives crashes)
+> 2. Tracks actual line numbers (not batch numbers)
+> 3. Accumulates data on resume (doesn't overwrite)
+> 4. Commits after each batch (progress is saved)
+> EOF
+root@4f2672db31b0:/home/user/pipeline# cat BUGFIX_SUMMARY.md
+# Pipeline Checkpoint/Resume Bug Fixes
+
+## Bugs Found and Fixed
+
+### Bug 1: Checkpoint file not properly flushed to disk
+**Problem:** The original code used `json.dump({'last_line': batch_num}, open('.checkpoint', 'w'))` without a context manager or explicit flush. This meant the
+checkpoint data could remain in the buffer and not be written to disk before a crash.
+
+**Fix:** Use proper context manager with explicit flush and fsync:
+```python
+with open('.checkpoint', 'w') as f:
+    json.dump({'last_line': last_line}, f)
+    f.flush()
+    os.fsync(f.fileno())  # Ensure it's written to disk
+```
+
+### Bug 2: Checkpoint saved batch number but treated it as line number
+**Problem:** The checkpoint saved `batch_num` (0, 1, 2...) with the key 'last_line', then on resume it skipped that many individual lines instead of batches. Th
+is caused massive confusion:
+- After processing 1 batch (1000 lines), it saved batch_num=1
+- On resume, it would skip only 1 line and reprocess lines 2-1000
+
+**Fix:** Track and save the actual line number processed:
+```python
+line_num = i + 1  # Track the last line we've read
+if len(batch) >= BATCH_SIZE:
+    process_batch(conn, batch)
+    save_checkpoint(line_num)  # Save actual line number
+```
+
+### Bug 3: INSERT OR REPLACE overwrites data instead of accumulating
+**Problem:** The SQL used `INSERT OR REPLACE` which completely replaces existing rows. When resuming, this would overwrite previous aggregations instead of addi
+ng to them, causing data loss.
+
+**Fix:** Use INSERT ... ON CONFLICT to accumulate values:
+```python
+conn.execute('''
+    INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+    ON CONFLICT(category) DO UPDATE SET
+        total_value = total_value + excluded.total_value,
+        count = count + excluded.count
+''', (cat, data['total'], data['count']))
+```
+
+### Bug 4: No commit after each batch
+**Problem:** Database changes were only committed at the end, so a crash would lose all progress.
+
+**Fix:** Commit after each batch:
+```python
+def process_batch(conn, batch):
+    # ... process data ...
+    conn.commit()  # Commit after each batch
+```
+
+## Test Results
+
+✓ Single interruption and resume: PASSED (50,000 records, no duplication)
+✓ Multiple interruptions and resume: PASSED (50,000 records, no duplication)
+✓ Works with run.sh script: PASSED
+
+## Summary
+
+The checkpoint mechanism now correctly:
+1. Persists checkpoint data to disk immediately (survives crashes)
+2. Tracks actual line numbers (not batch numbers)
+3. Accumulates data on resume (doesn't overwrite)
+4. Commits after each batch (progress is saved)
+root@4f2672db31b0:/home/user/pipeline#

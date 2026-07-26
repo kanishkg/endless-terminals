@@ -1,0 +1,634 @@
+[?2004huser@eb2cbed3b54d:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@eb2cbed3b54d:~$ clear
+[?2004l[H[J[?2004huser@eb2cbed3b54d:~$ ls -la /home/user/inventory/
+[?2004ltotal 64
+drwxrwxrwx 1 user user  4096 Apr 29 10:13 .
+drwxrwxrwx 1 user user  4096 Apr 29 10:14 ..
+-rw-r--r-- 1 user user 57247 Apr 29 10:13 assets.csv
+[?2004huser@eb2cbed3b54d:~$ head -20 /home/user/inventory/assets.csv
+[?2004lid,name,serial,purchase_date,price,location
+AST-00712,Whiteboard Digital,SN-JSM-00713,02/12/2017,540.61,Warehouse B
+AST-00108,UPS Battery,SN-ULF-00109,2021-03-22,3121,Building C
+AST-00351,Webcam HD,SN-GGG-00352,2021-08-15,4671,IT Closet
+AST-00691,External SSD,SN-UMT-00692,2016-03-23,1418,Building C
+AST-00291,External SSD,SN-XTH-00292,2022-03-05,2213,Storage Room
+AST-00695,External SSD,SN-TGR-00696,02/14/2018,1977,Storage Room
+AST-00551,Laptop Dell XPS,SN-MDW-00552,07/22/2022,1705,Storage Room
+AST-00097,Docking Station,SN-OAN-00098,2015-09-27,3708.79,Storage Room
+AST-00497,Server Rack,SN-FBO-00498,12/23/2022,3220,Warehouse B
+AST-00229,Laptop Dell XPS,SN-IHL-00230,17.07.2016,826.99,Building C
+AST-00312,Projector 4K,SN-UVE-00312,2019-06-22,2434.96,Warehouse A
+AST-00635,Docking Station,SN-IVU-00636,2016-09-19,1893,IT Closet
+AST-00104,Webcam HD,SN-EWA-00105,2021-02-10,901,Office 101
+AST-00135,Standing Desk Pro,SN-DHE-00136,2021-10-05,3063,Building C
+AST-00704,UPS Battery,SN-LPB-00705,06/08/2015,2519,Warehouse A
+AST-00561,Scanner Flatbed,SN-QCO-00562,08/23/2016,1407.88,Office 202
+AST-00719,Laptop Dell XPS,SN-GUK-00720,07/25/2017,2159.71,Office 202
+AST-00619,Headset Bluetooth,SN-OIK-00620,2020-02-11,338.53,Remote Site
+AST-00306,Server Rack,SN-GLL-00306,2019-06-10,2871.86,Office 101
+[?2004huser@eb2cbed3b54d:~$ wc -l /home/user/inventory/assets.csv
+[?2004l847 /home/user/inventory/assets.csv
+[?2004huser@eb2cbed3b54d:~$ grep -E '\$|"' /home/user/inventory/assets.csv | head -10
+[?2004lAST-00741,External SSD,SN-GFX-00742,2017-05-24,"$3,779.70",Remote Site
+AST-00794,Whiteboard Digital,SN-EOS-00795,2023-02-26,"$4,646.53",Building C
+AST-00579,USB Hub,SN-ECQ-00580,12/05/2022,"$1,130.87",Building C
+AST-00375,Server Rack,SN-LFR-00376,2018-01-26,"$3,193.18",Storage Room
+AST-00203,Whiteboard Digital,SN-OEZ-00204,08/02/2017,$523.20,Storage Room
+AST-00727,Network Switch,SN-MSV-00728,2016-09-01,$647.35,Storage Room
+AST-00494,Phone VoIP,SN-KER-00495,12/19/2022,"$1,938.42",Office 101
+AST-00191,Webcam HD,SN-BUF-00192,2020-11-21,"$4,965.59",Building C
+AST-00669,Printer LaserJet,SN-PZJ-00670,08/04/2016,"$3,672.11",IT Closet
+AST-00292,SN-PXN-00293,UPS Battery,11/07/2023,"$1,103.23",IT Closet
+[?2004huser@eb2cbed3b54d:~$ cat > /home/user/inventory/process_assets.py << 'EOF'
+[?2004l[?2004h> import csv
+[?2004l[?2004h> import json
+[?2004l[?2004h> import re
+[?2004l[?2004h> from datetime import datetime
+[?2004l[?2004h> from collections import defaultdict
+[?2004l[?2004h> 
+[?2004l[?2004h> def parse_date(date_str):
+[?2004l[?2004h>     """Parse various date formats to ISO 8601"""
+[?2004l[?2004h>     date_str = date_str.strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try MM/DD/YYYY
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         dt = datetime.strptime(date_str, '%m/%d/%Y')
+[?2004l[?2004h>         return dt.strftime('%Y-%m-%d')
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try YYYY-MM-DD (already ISO)
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         dt = datetime.strptime(date_str, '%Y-%m-%d')
+[?2004l[?2004h>         return dt.strftime('%Y-%m-%d')
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try DD.MM.YYYY (European)
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         dt = datetime.strptime(date_str, '%d.%m.%Y')
+[?2004l[?2004h>         return dt.strftime('%Y-%m-%d')
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def parse_price(price_str):
+[?2004l[?2004h>     """Parse price to cents (integer)"""
+[?2004l[?2004h>     price_str = str(price_str).strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Remove dollar signs, commas, quotes
+[?2004l[?2004h>     price_str = price_str.replace('$', '').replace(',', '').replace('"', '').strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         # Convert to float first, then to cents
+[?2004l[?2004h>         price_float = float(price_str)
+[?2004l[?2004h>         price_cents = int(round(price_float * 100))
+[?2004l[?2004h>         
+[?2004l[?2004h>         if price_cents <= 0:
+[?2004l[?2004h>             return None
+[?2004l[?2004h>         
+[?2004l[?2004h>         return price_cents
+[?2004l[?2004h>     except (ValueError, TypeError):
+[?2004l[?2004h>         return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def process_csv():
+[?2004l[?2004h>     valid_records = {}
+[?2004l[?2004h>     rejected_records = []
+[?2004l[?2004h>     
+[?2004l[?2004h>     with open('/home/user/inventory/assets.csv', 'r', encoding='utf-8') as f:
+[?2004l[?2004h>         reader = csv.DictReader(f)
+[?2004l[?2004h>         
+[?2004l[?2004h>         for row_num, row in enumerate(reader, start=2):
+[?2004l[?2004h>             original_row = dict(row)
+[?2004l[?2004h>             rejection_reasons = []
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Extract and validate fields
+[?2004l[?2004h>             asset_id = row.get('id', '').strip()
+[?2004l[?2004h>             name = row.get('name', '').strip()
+[?2004l[?2004h>             serial = row.get('serial', '').strip()
+[?2004l[?2004h>             location = row.get('location', '').strip()
+[?2004l[?2004h>             
+[?2004l[?2004h>             if not asset_id:
+[?2004l[?2004h>                 rejected_records.append({
+[?2004l[?2004h>                     'original_row': original_row,
+[?2004l[?2004h>                     'reason': 'Missing asset ID'
+[?2004l[?2004h>                 })
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Parse date
+[?2004l[?2004h>             purchase_date = parse_date(row.get('purchase_date', ''))
+[?2004l[?2004h>             if not purchase_date:
+[?2004l[?2004h>                 rejection_reasons.append(f"Invalid date format: {row.get('purchase_date', '')}")
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Parse price
+[?2004l[?2004h>             price_cents = parse_price(row.get('price', ''))
+[?2004l[?2004h>             if price_cents is None:
+[?2004l[?2004h>                 rejection_reasons.append(f"Invalid price: {row.get('price', '')}")
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Check for missing required fields
+[?2004l[?2004h>             if not name:
+[?2004l[?2004h>                 rejection_reasons.append('Missing name')
+[?2004l[?2004h>             if not serial:
+[?2004l[?2004h>                 rejection_reasons.append('Missing serial')
+[?2004l[?2004h>             if not location:
+[?2004l[?2004h>                 rejection_reasons.append('Missing location')
+[?2004l[?2004h>             
+[?2004l[?2004h>             # If any validation failed, reject the record
+[?2004l[?2004h>             if rejection_reasons:
+[?2004l[?2004h>                 rejected_records.append({
+[?2004l[?2004h>                     'original_row': original_row,
+[?2004l[?2004h>                     'reason': '; '.join(rejection_reasons)
+[?2004l[?2004h>                 })
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Create valid record
+[?2004l[?2004h>             record = {
+[?2004l[?2004h>                 'id': asset_id,
+[?2004l[?2004h>                 'name': name,
+[?2004l[?2004h>                 'serial': serial,
+[?2004l[?2004h>                 'purchase_date': purchase_date,
+[?2004l[?2004h>                 'price_cents': price_cents,
+[?2004l[?2004h>                 'location': location
+[?2004l[?2004h>             }
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Handle duplicates - keep the one with latest purchase date
+[?2004l[?2004h>             if asset_id in valid_records:
+[?2004l[?2004h>                 existing_date = valid_records[asset_id]['purchase_date']
+[?2004l[?2004h>                 if purchase_date > existing_date:
+[?2004l[?2004h>                     valid_records[asset_id] = record
+[?2004l[?2004h>             else:
+[?2004l[?2004h>                 valid_records[asset_id] = record
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Convert to list
+[?2004l[?2004h>     assets_list = list(valid_records.values())
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Write valid records
+[?2004l[?2004h>     with open('/home/user/inventory/assets.json', 'w', encoding='utf-8') as f:
+[?2004l[?2004h>         json.dump(assets_list, f, indent=2)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Write rejected records
+[?2004l[?2004h>     with open('/home/user/inventory/rejected.json', 'w', encoding='utf-8') as f:
+[?2004l[?2004h>         json.dump(rejected_records, f, indent=2)
+[?2004l[?2004h>     
+[?2004l[?2004h>     print(f"Processed {len(assets_list)} valid assets")
+[?2004l[?2004h>     print(f"Rejected {len(rejected_records)} records")
+[?2004l[?2004h>     print(f"Total input rows: {len(assets_list) + len(rejected_records)}")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     process_csv()
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@eb2cbed3b54d:~$ python3 /home/user/inventory/process_assets.py
+[?2004lProcessed 809 valid assets
+Rejected 16 records
+Total input rows: 825
+[?2004huser@eb2cbed3b54d:~$ head -30 /home/user/inventory/assets.json
+[?2004l[
+  {
+    "id": "AST-00712",
+    "name": "Whiteboard Digital",
+    "serial": "SN-JSM-00713",
+    "purchase_date": "2017-02-12",
+    "price_cents": 54061,
+    "location": "Warehouse B"
+  },
+  {
+    "id": "AST-00108",
+    "name": "UPS Battery",
+    "serial": "SN-ULF-00109",
+    "purchase_date": "2021-03-22",
+    "price_cents": 312100,
+    "location": "Building C"
+  },
+  {
+    "id": "AST-00351",
+    "name": "Webcam HD",
+    "serial": "SN-GGG-00352",
+    "purchase_date": "2021-08-15",
+    "price_cents": 467100,
+    "location": "IT Closet"
+  },
+  {
+    "id": "AST-00691",
+    "name": "External SSD",
+    "serial": "SN-UMT-00692",
+    "purchase_date": "2016-03-23",
+[?2004huser@eb2cbed3b54d:~$ cat /home/user/inventory/rejected.json
+[?2004l[
+  {
+    "original_row": {
+      "id": "AST-00743",
+      "name": "Office Chair Ergonomic",
+      "serial": "SN-RCM-00744",
+      "purchase_date": "10/16/2017",
+      "price": "-579.02",
+      "location": "Office 202"
+    },
+    "reason": "Invalid price: -579.02"
+  },
+  {
+    "original_row": {
+      "id": "",
+      "name": "Headset Bluetooth",
+      "serial": "SN-REU-00427",
+      "purchase_date": "2022-02-22",
+      "price": "3293",
+      "location": "Office 101"
+    },
+    "reason": "Missing asset ID"
+  },
+  {
+    "original_row": {
+      "id": "AST-00606",
+      "name": "Keyboard Mechanical",
+      "serial": "SN-RSZ-00607",
+      "purchase_date": "02/03/2022",
+      "price": "-2098.30",
+      "location": "Office 202"
+    },
+    "reason": "Invalid price: -2098.30"
+  },
+  {
+    "original_row": {
+      "id": "AST-00209",
+      "name": "Cable Management Kit",
+      "serial": "SN-HEA-00210",
+      "purchase_date": "2015-03-20",
+      "price": "",
+      "location": "Building C"
+    },
+    "reason": "Invalid price: "
+  },
+  {
+    "original_row": {
+      "id": "AST-00626",
+      "name": "Cable Management Kit",
+      "serial": "SN-NIY-00627",
+      "purchase_date": "2020-13-45",
+      "price": "84",
+      "location": "Building C"
+    },
+    "reason": "Invalid date format: 2020-13-45"
+  },
+  {
+    "original_row": {
+      "id": "AST-00425",
+      "name": "Printer LaserJet",
+      "serial": "SN-AUP-00426",
+      "purchase_date": "01/19/2015",
+      "price": "",
+      "location": "Office 202"
+    },
+    "reason": "Invalid price: "
+  },
+  {
+    "original_row": {
+      "id": "AST-00709",
+      "name": "Scanner Flatbed",
+      "serial": "SN-VYN-00710",
+      "purchase_date": "invalid-date",
+      "price": "3913",
+      "location": "Office 101"
+    },
+    "reason": "Invalid date format: invalid-date"
+  },
+  {
+    "original_row": {
+      "id": "AST-00611",
+      "name": "SN-IPS-00612",
+      "serial": "UPS Battery",
+      "purchase_date": "17.05.2022",
+      "price": "-4759.58",
+      "location": "Remote Site"
+    },
+    "reason": "Invalid price: -4759.58"
+  },
+  {
+    "original_row": {
+      "id": "AST-00067",
+      "name": "Keyboard Mechanical",
+      "serial": "SN-GTW-00068",
+      "purchase_date": "2023-12-12",
+      "price": "",
+      "location": "Remote Site"
+    },
+    "reason": "Invalid price: "
+  },
+  {
+    "original_row": {
+      "id": "",
+      "name": "Phone VoIP",
+      "serial": "SN-RWU-00350",
+      "purchase_date": "03/15/2023",
+      "price": "884",
+      "location": "Office 101"
+    },
+    "reason": "Missing asset ID"
+  },
+  {
+    "original_row": {
+      "id": "AST-00049",
+      "name": "USB Hub",
+      "serial": "SN-HYZ-00050",
+      "purchase_date": "06/16/2022",
+      "price": "",
+      "location": "Office 202"
+    },
+    "reason": "Invalid price: "
+  },
+  {
+    "original_row": {
+      "id": "AST-00486",
+      "name": "Mouse Wireless",
+      "serial": "SN-QSE-00487",
+      "purchase_date": "2020-13-45",
+      "price": "3752.66",
+      "location": "Warehouse B"
+    },
+    "reason": "Invalid date format: 2020-13-45"
+  },
+  {
+    "original_row": {
+      "id": "AST-00489",
+      "name": "Projector 4K",
+      "serial": "SN-BIS-00490",
+      "purchase_date": "00/00/0000",
+      "price": "666",
+      "location": "Storage Room"
+    },
+    "reason": "Invalid date format: 00/00/0000"
+  },
+  {
+    "original_row": {
+      "id": "AST-00156",
+      "name": "Mouse Wireless",
+      "serial": "SN-SGR-00157",
+      "purchase_date": "2018-08-03",
+      "price": "-745.72",
+      "location": "Warehouse A"
+    },
+    "reason": "Invalid price: -745.72"
+  },
+  {
+    "original_row": {
+      "id": "AST-00106",
+      "name": "Network Switch",
+      "serial": "SN-ZSN-00107",
+      "purchase_date": "2016-07-08",
+      "price": "-4447.07",
+      "location": "Warehouse A"
+    },
+    "reason": "Invalid price: -4447.07"
+  },
+  {
+    "original_row": {
+      "id": "AST-00360",
+      "name": "Office Chair Ergonomic",
+      "serial": "SN-KDP-00361",
+      "purchase_date": "12/22/2017",
+      "price": "-1846.58",
+      "location": "Storage Room"
+    },
+    "reason": "Invalid price: -1846.58"
+  }
+][?2004huser@eb2cbed3b54d:~$ grep -E '^AST-[0-9]+,SN-' /home/user/inventory/assets.csv | head -5
+[?2004lAST-00705,SN-XZY-00706,Phone VoIP,2015-05-17,3298,Warehouse A
+AST-00685,SN-CFH-00686,Scanner Flatbed,2015-08-18,2014,Storage Room
+AST-00256,SN-QEQ-00257,Laptop Dell XPS,2019-04-25,4105,Remote Site
+AST-00393,SN-TJK-00394,Projector 4K,10/22/2017,1248,Office 101
+AST-00076,SN-ONV-00077,Headset Bluetooth,2020-03-09,1038,Remote Site
+[?2004huser@eb2cbed3b54d:~$ cat > /home/user/inventory/process_assets.py << 'EOF'
+[?2004l[?2004h> import csv
+[?2004l[?2004h> import json
+[?2004l[?2004h> import re
+[?2004l[?2004h> from datetime import datetime
+[?2004l[?2004h> from collections import defaultdict
+[?2004l[?2004h> 
+[?2004l[?2004h> def parse_date(date_str):
+[?2004l[?2004h>     """Parse various date formats to ISO 8601"""
+[?2004l[?2004h>     date_str = date_str.strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try MM/DD/YYYY
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         dt = datetime.strptime(date_str, '%m/%d/%Y')
+[?2004l[?2004h>         return dt.strftime('%Y-%m-%d')
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try YYYY-MM-DD (already ISO)
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         dt = datetime.strptime(date_str, '%Y-%m-%d')
+[?2004l[?2004h>         return dt.strftime('%Y-%m-%d')
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Try DD.MM.YYYY (European)
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         dt = datetime.strptime(date_str, '%d.%m.%Y')
+[?2004l[?2004h>         return dt.strftime('%Y-%m-%d')
+[?2004l[?2004h>     except ValueError:
+[?2004l[?2004h>         pass
+[?2004l[?2004h>     
+[?2004l[?2004h>     return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def parse_price(price_str):
+[?2004l[?2004h>     """Parse price to cents (integer)"""
+[?2004l[?2004h>     price_str = str(price_str).strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Remove dollar signs, commas, quotes
+[?2004l[?2004h>     price_str = price_str.replace('$', '').replace(',', '').replace('"', '').strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         # Convert to float first, then to cents
+[?2004l[?2004h>         price_float = float(price_str)
+[?2004l[?2004h>         price_cents = int(round(price_float * 100))
+[?2004l[?2004h>         
+[?2004l[?2004h>         if price_cents <= 0:
+[?2004l[?2004h>             return None
+[?2004l[?2004h>         
+[?2004l[?2004h>         return price_cents
+[?2004l[?2004h>     except (ValueError, TypeError):
+[?2004l[?2004h>         return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def fix_swapped_columns(row):
+[?2004l[?2004h>     """Detect and fix swapped name/serial columns"""
+[?2004l[?2004h>     name = row.get('name', '').strip()
+[?2004l[?2004h>     serial = row.get('serial', '').strip()
+[?2004l[?2004h>     
+[?2004l[?2004h>     # If name looks like a serial (starts with SN-) and serial doesn't, swap them
+[?2004l[?2004h>     if name.startswith('SN-') and not serial.startswith('SN-'):
+[?2004l[?2004h>         row['name'] = serial
+[?2004l[?2004h>         row['serial'] = name
+[?2004l[?2004h>     
+[?2004l[?2004h>     return row
+[?2004l[?2004h> 
+[?2004l[?2004h> def process_csv():
+[?2004l[?2004h>     valid_records = {}
+[?2004l[?2004h>     rejected_records = []
+[?2004l[?2004h>     
+[?2004l[?2004h>     with open('/home/user/inventory/assets.csv', 'r', encoding='utf-8') as f:
+[?2004l[?2004h>         reader = csv.DictReader(f)
+[?2004l[?2004h>         
+[?2004l[?2004h>         for row_num, row in enumerate(reader, start=2):
+[?2004l[?2004h>             original_row = dict(row)
+[?2004l[?2004h>             rejection_reasons = []
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Fix swapped columns if needed
+[?2004l[?2004h>             row = fix_swapped_columns(row)
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Extract and validate fields
+[?2004l[?2004h>             asset_id = row.get('id', '').strip()
+[?2004l[?2004h>             name = row.get('name', '').strip()
+[?2004l[?2004h>             serial = row.get('serial', '').strip()
+[?2004l[?2004h>             location = row.get('location', '').strip()
+[?2004l[?2004h>             
+[?2004l[?2004h>             if not asset_id:
+[?2004l[?2004h>                 rejected_records.append({
+[?2004l[?2004h>                     'original_row': original_row,
+[?2004l[?2004h>                     'reason': 'Missing asset ID'
+[?2004l[?2004h>                 })
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Parse date
+[?2004l[?2004h>             purchase_date = parse_date(row.get('purchase_date', ''))
+[?2004l[?2004h>             if not purchase_date:
+[?2004l[?2004h>                 rejection_reasons.append(f"Invalid date format: {row.get('purchase_date', '')}")
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Parse price
+[?2004l[?2004h>             price_cents = parse_price(row.get('price', ''))
+[?2004l[?2004h>             if price_cents is None:
+[?2004l[?2004h>                 rejection_reasons.append(f"Invalid price: {row.get('price', '')}")
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Check for missing required fields
+[?2004l[?2004h>             if not name:
+[?2004l[?2004h>                 rejection_reasons.append('Missing name')
+[?2004l[?2004h>             if not serial:
+[?2004l[?2004h>                 rejection_reasons.append('Missing serial')
+[?2004l[?2004h>             if not location:
+[?2004l[?2004h>                 rejection_reasons.append('Missing location')
+[?2004l[?2004h>             
+[?2004l[?2004h>             # If any validation failed, reject the record
+[?2004l[?2004h>             if rejection_reasons:
+[?2004l[?2004h>                 rejected_records.append({
+[?2004l[?2004h>                     'original_row': original_row,
+[?2004l[?2004h>                     'reason': '; '.join(rejection_reasons)
+[?2004l[?2004h>                 })
+[?2004l[?2004h>                 continue
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Create valid record
+[?2004l[?2004h>             record = {
+[?2004l[?2004h>                 'id': asset_id,
+[?2004l[?2004h>                 'name': name,
+[?2004l[?2004h>                 'serial': serial,
+[?2004l[?2004h>                 'purchase_date': purchase_date,
+[?2004l[?2004h>                 'price_cents': price_cents,
+[?2004l[?2004h>                 'location': location
+[?2004l[?2004h>             }
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Handle duplicates - keep the one with latest purchase date
+[?2004l[?2004h>             if asset_id in valid_records:
+[?2004l[?2004h>                 existing_date = valid_records[asset_id]['purchase_date']
+[?2004l[?2004h>                 if purchase_date > existing_date:
+[?2004l[?2004h>                     valid_records[asset_id] = record
+[?2004l[?2004h>             else:
+[?2004l[?2004h>                 valid_records[asset_id] = record
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Convert to list
+[?2004l[?2004h>     assets_list = list(valid_records.values())
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Write valid records
+[?2004l[?2004h>     with open('/home/user/inventory/assets.json', 'w', encoding='utf-8') as f:
+[?2004l[?2004h>         json.dump(assets_list, f, indent=2)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Write rejected records
+[?2004l[?2004h>     with open('/home/user/inventory/rejected.json', 'w', encoding='utf-8') as f:
+[?2004l[?2004h>         json.dump(rejected_records, f, indent=2)
+[?2004l[?2004h>     
+[?2004l[?2004h>     print(f"Processed {len(assets_list)} valid assets")
+[?2004l[?2004h>     print(f"Rejected {len(rejected_records)} records")
+[?2004l[?2004h>     print(f"Total input rows: {len(assets_list) + len(rejected_records)}")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     process_csv()
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@eb2cbed3b54d:~$ python3 /home/user/inventory/process_assets.py
+[?2004lProcessed 809 valid assets
+Rejected 16 records
+Total input rows: 825
+[?2004huser@eb2cbed3b54d:~$ cut -d',' -f1 /home/user/inventory/assets.csv | tail -n +2 | sort | uniq -d | head -10
+[?2004l
+AST-00300
+AST-00301
+AST-00302
+AST-00303
+AST-00304
+AST-00305
+AST-00306
+AST-00307
+AST-00308
+[?2004huser@eb2cbed3b54d:~$ cut -d',' -f1 /home/user/inventory/assets.csv | tail -n +2 | sort | uniq -d | wc -l
+[?2004l21
+[?2004huser@eb2cbed3b54d:~$ grep 'AST-00292' /home/user/inventory/assets.csv
+[?2004lAST-00292,SN-PXN-00293,UPS Battery,11/07/2023,"$1,103.23",IT Closet
+[?2004huser@eb2cbed3b54d:~$ grep -A5 '"AST-00292"' /home/user/inventory/assets.json
+[?2004l    "id": "AST-00292",
+    "name": "UPS Battery",
+    "serial": "SN-PXN-00293",
+    "purchase_date": "2023-11-07",
+    "price_cents": 110323,
+    "location": "IT Closet"
+[?2004huser@eb2cbed3b54d:~$ python3 -c "import json; data = json.load(open('/home/user/inventory/assets.json')); print(f'Valid JSON with {len(data)} records'); print('Sample record:', json.dumps(data[0], indent=2))"
+[?2004lValid JSON with 809 records
+Sample record: {
+  "id": "AST-00712",
+  "name": "Whiteboard Digital",
+  "serial": "SN-JSM-00713",
+  "purchase_date": "2017-02-12",
+  "price_cents": 54061,
+  "location": "Warehouse B"
+}
+[?2004huser@eb2cbed3b54d:~$ python3 -c "import json; data = json.load(open('/home/user/inventory/assets.json')); dates = [r['purchase_date'] for r in data[:10]]; print('Sample dates:', dates)"
+[?2004lSample dates: ['2017-02-12', '2021-03-22', '2021-08-15', '2016-03-23', '2022-03-05', '2018-02-14', '2022-07-22', '2015-09-27', '2022-12-23', '2016-07-17']
+[?2004huser@eb2cbed3b54d:~$ python3 -c "import json; data = json.load(open('/home/user/inventory/assets.json')); print('All dates ISO 8601?', all(len(r['purchase_date'])==10 and r['purchase_date'][4]=='-' and r['purchase_date'][7]=='-' for r in data)); print('All prices positive integers?', all(isinstance(r['price_cents'], int) and r['price_cents'] > 0 for r in data))"
+[?2004lAll dates ISO 8601? True
+All prices positive integers? True
+[?2004huser@eb2cbed3b54d:~$ python3 -c "import json; rej = json.load(open('/home/user/inventory/rejected.json')); print(f'Rejected: {len(rej)} records'); print('Rejection reasons:', set(r['reason'] for r in rej))"
+[?2004lRejected: 16 records
+Rejection reasons: {'Invalid price: -1846.58', 'Invalid price: -745.72', 'Invalid date format: 2020-13-45', 'Invalid date format: invalid-date', 'Missing asset ID', 'Invalid price: -579.02', 'Invalid date format: 00/00/0000', 'Invalid price: -4447.07', 'Invalid price: -4759.58', 'Invalid price: ', 'Invalid price: -2098.30'}
+[?2004huser@eb2cbed3b54d:~$ ls -lh /home/user/inventory/*.json
+[?2004l-rw-r--r-- 1 user user 146K Apr 29 10:15 /home/user/inventory/assets.json
+-rw-r--r-- 1 user user 4.1K Apr 29 10:15 /home/user/inventory/rejected.json
+[?2004huser@eb2cbed3b54d:~$ python3 -c "import json; assets = json.load(open('/home/user/inventory/assets.json')); print('Assets JSON structure check:'); sample = assets[0]; print(f'  Required fields present: {all(k in sample for k in [\"id\", \"name\", \"serial\", \"purchase_date\", \"price_cents\", \"location\"])}'); print(f'  Total valid assets: {len(assets)}'); rejected = json.load(open('/home/user/inventory/rejected.json')); print(f'\nRejected JSON structure check:'); print(f'  Has original_row and reason: {all(\"original_row\" in r and \"reason\" in r for r in rejected)}'); print(f'  Total rejected: {len(rejected)}')"
+[?2004lAssets JSON structure check:
+  Required fields present: True
+  Total valid assets: 809
+
+Rejected JSON structure check:
+  Has original_row and reason: True
+  Total rejected: 16
+[?2004huser@eb2cbed3b54d:~$ python3 -c "import json; assets = json.load(open('/home/user/inventory/assets.json')); print('Final validation:'); print(f'1. Total records: {len(assets)}'); print(f'2. All have required fields: {all(set(r.keys()) == {\"id\", \"name\", \"serial\", \"purchase_date\", \"price_cents\", \"location\"} for r in assets)}'); print(f'3. All IDs unique: {len(assets) == len(set(r[\"id\"] for r in assets))}'); print(f'4. Date format check (YYYY-MM-DD): {all(len(r[\"purchase_date\"].split(\"-\")) == 3 and len(r[\"purchase_date\"]) == 10 for r in assets)}'); print(f'5. Price type check: {all(type(r[\"price_cents\"]) == int and r[\"price_cents\"] > 0 for r in assets)}'); print(f'6. No empty fields: {all(r[\"id\"] and r[\"name\"] and r[\"serial\"] and r[\"purchase_date\"] and r[\"location\"] for r in assets)}')"
+[?2004lFinal validation:
+1. Total records: 809
+2. All have required fields: True
+3. All IDs unique: True
+4. Date format check (YYYY-MM-DD): True
+5. Price type check: True
+6. No empty fields: True
+[?2004huser@eb2cbed3b54d:~$ grep 'AST-00300' /home/user/inventory/assets.csv | head -5
+[?2004lAST-00300,External SSD,SN-KII-00300,2018-09-21,1688.99,Office 101
+AST-00300,External SSD,SN-KII-00300,2021-09-17,1688.99,Office 101
+[?2004huser@eb2cbed3b54d:~$ python3 -c "import json; assets = json.load(open('/home/user/inventory/assets.json')); dup = [r for r in assets if r['id'] == 'AST-00300']; print(f'Found {len(dup)} record(s) for AST-00300 (should be 1):'); print(json.dumps(dup, indent=2) if dup else 'Not found')"
+[?2004lFound 1 record(s) for AST-00300 (should be 1):
+[
+  {
+    "id": "AST-00300",
+    "name": "External SSD",
+    "serial": "SN-KII-00300",
+    "purchase_date": "2021-09-17",
+    "price_cents": 168899,
+    "location": "Office 101"
+  }
+]
+[?2004huser@eb2cbed3b54d:~$ 

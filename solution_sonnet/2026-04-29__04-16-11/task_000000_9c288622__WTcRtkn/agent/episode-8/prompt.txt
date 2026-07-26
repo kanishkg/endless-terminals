@@ -1,0 +1,65 @@
+New Terminal Output:
+
+user@9b9257e7c882:~/scheduler$ cat > test_dst_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test to verify DST transition handling is fixed."""
+>
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def old_buggy_convert(utc_time_str):
+>     """Old buggy conversion that treats UTC as Berlin time."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)
+>     return berlin_dt
+>
+> def new_fixed_convert(utc_time_str):
+>     """Fixed conversion that properly converts UTC to Berlin."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+>     return berlin_dt
+>
+> print("Testing DST transition case: 2024-03-31 (DST starts in Europe/Berlin)")
+> print("=" * 70)
+>
+> # Test the maintenance window meeting at 01:30 UTC on March 31, 2024
+> # This is during the DST transition (2am->3am in Berlin)
+> test_time = "2024-03-31T01:30:00"
+>
+> print(f"\nUTC Time: {test_time}")
+> print(f"Expected Berlin Time: 2024-03-31 03:30:00 CEST+0200 (after DST transition)\n")
+>
+> buggy_result = old_buggy_convert(test_time)
+> print(f"OLD BUGGY: {buggy_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"  -> Incorrectly treats UTC as Berlin time, missing DST adjustment")
+>
+> fixed_result = new_fixed_convert(test_time)
+> print(f"\nNEW FIXED: {fixed_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"  -> Correctly converts from UTC to Berlin time with DST")
+>
+> print(f"\nDifference: {(fixed_result - buggy_result).total_seconds() / 3600:.1f} hours")
+> print("\n" + "=" * 70)
+> print("Fix verified! The conversion now handles DST transitions correctly.")
+> EOF
+user@9b9257e7c882:~/scheduler$ python3 test_dst_fix.py
+Testing DST transition case: 2024-03-31 (DST starts in Europe/Berlin)
+======================================================================
+
+UTC Time: 2024-03-31T01:30:00
+Expected Berlin Time: 2024-03-31 03:30:00 CEST+0200 (after DST transition)
+
+OLD BUGGY: 2024-03-31 01:30:00 CET+0100
+  -> Incorrectly treats UTC as Berlin time, missing DST adjustment
+
+NEW FIXED: 2024-03-31 03:30:00 CEST+0200
+  -> Correctly converts from UTC to Berlin time with DST
+
+Difference: 1.0 hours
+
+======================================================================
+Fix verified! The conversion now handles DST transitions correctly.
+user@9b9257e7c882:~/scheduler$

@@ -1,0 +1,71 @@
+[?2004huser@218dcc0bf7b3:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@218dcc0bf7b3:~$ clear
+[?2004l[H[J[?2004huser@218dcc0bf7b3:~$ ls -lh /home/user/backup.sh
+[?2004lls: cannot access '/home/user/backup.sh': No such file or directory
+[?2004huser@218dcc0bf7b3:~$ echo '--- Script content:---'
+[?2004l--- Script content:---
+[?2004huser@218dcc0bf7b3:~$ cat /home/user/backup.sh
+[?2004lcat: /home/user/backup.sh: No such file or directory
+[?2004huser@218dcc0bf7b3:~$ echo '--- Backup structure:---'
+[?2004l--- Backup structure:---
+[?2004huser@218dcc0bf7b3:~$ find /home/user/backups -type f | sort
+[?2004l[?2004huser@218dcc0bf7b3:~$ echo '--- Manifest content:---'
+[?2004l--- Manifest content:---
+[?2004huser@218dcc0bf7b3:~$ cat /home/user/backups/manifest.txt
+[?2004lcat: /home/user/backups/manifest.txt: No such file or directory
+[?2004huser@218dcc0bf7b3:~$ cat > /home/user/backup.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Backup script that copies accessible files from /home/user/projects to /home/user/backups
+[?2004l[?2004h> # and creates a manifest with owner:group information
+[?2004l[?2004h> 
+[?2004l[?2004h> SOURCE_DIR="/home/user/projects"
+[?2004l[?2004h> BACKUP_DIR="/home/user/backups"
+[?2004l[?2004h> MANIFEST="${BACKUP_DIR}/manifest.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Create backup directory if it doesn't exist
+[?2004l[?2004h> mkdir -p "${BACKUP_DIR}" 2>/dev/null
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clear/create manifest file
+[?2004l[?2004h> > "${MANIFEST}"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find all readable files and process them
+[?2004l[?2004h> find "${SOURCE_DIR}" -type f -readable 2>/dev/null | while IFS= read -r file; do
+[?2004l[?2004h>     # Get relative path from source directory
+[?2004l[?2004h>     rel_path="${file#${SOURCE_DIR}/}"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Get owner:group information
+[?2004l[?2004h>     owner_info=$(stat -c "%U:%G" "${file}" 2>/dev/null)
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [ -n "${owner_info}" ]; then
+[?2004l[?2004h>         # Create target directory structure
+[?2004l[?2004h>         target_file="${BACKUP_DIR}/${rel_path}"
+[?2004l[?2004h>         target_dir=$(dirname "${target_file}")
+[?2004l[?2004h>         mkdir -p "${target_dir}" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Copy the file
+[?2004l[?2004h>         cp "${file}" "${target_file}" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # If copy succeeded, add to manifest
+[?2004l[?2004h>         if [ $? -eq 0 ]; then
+[?2004l[?2004h>             echo "${rel_path} ${owner_info}" >> "${MANIFEST}"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Backup complete. Manifest written to ${MANIFEST}"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@218dcc0bf7b3:~$ chmod +x /home/user/backup.sh
+[?2004l[?2004huser@218dcc0bf7b3:~$ ls -lh /home/user/backup.sh
+[?2004l-rwxr-xr-x 1 user user 1.3K Apr 29 09:44 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@218dcc0bf7b3:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest written to /home/user/backups/manifest.txt
+[?2004huser@218dcc0bf7b3:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@218dcc0bf7b3:~$ 

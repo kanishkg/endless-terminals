@@ -1,0 +1,31 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@6131d4766dab:/home/user/pipeline# echo "=== Final Verification: Testing run.sh ==="
+=== Final Verification: Testing run.sh ===
+root@6131d4766dab:/home/user/pipeline# rm -f .checkpoint output/summary.db
+root@6131d4766dab:/home/user/pipeline# timeout 0.2 ./run.sh || echo "Killed midway"
+Killed midway
+root@6131d4766dab:/home/user/pipeline# echo "Checkpoint after first run:"
+Checkpoint after first run:
+root@6131d4766dab:/home/user/pipeline# cat .checkpoint
+{"last_line": 17000}root@6131d4766dab:/home/user/pipeline# echo ""
+
+root@6131d4766dab:/home/user/pipeline# echo "Resuming with run.sh..."
+Resuming with run.sh...
+root@6131d4766dab:/home/user/pipeline# ./run.sh
+root@6131d4766dab:/home/user/pipeline# python3 << 'PYEOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT COUNT(*), SUM(count) FROM summary').fetchone()
+> print(f"\nFinal verification: {result[0]} categories, {result[1]} total records")
+> print("✓ run.sh works correctly with checkpoint resume!" if result[1] == 50000 else "✗ Error in run.sh")
+> conn.close()
+> PYEOF
+
+Final verification: 10 categories, 50000 total records
+✓ run.sh works correctly with checkpoint resume!
+root@6131d4766dab:/home/user/pipeline#

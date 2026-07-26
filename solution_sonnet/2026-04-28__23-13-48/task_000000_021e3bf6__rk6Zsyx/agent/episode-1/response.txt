@@ -1,0 +1,23 @@
+{
+  "analysis": "Good! I can see:\n1. There are 8 host files (host01.txt through host08.txt)\n2. host03.txt is only 35 bytes (vs 224 bytes for others) - it's truncated/corrupted as mentioned\n3. The format shows MemTotal and MemAvailable in kB\n4. host03.txt is indeed corrupted - it has MemTotal but MemAvailable is incomplete\n5. I need to parse these files, calculate percentage available, filter for <20%, and sort worst-first",
+  "plan": "I'll create a bash script that:\n1. Iterates through all host files\n2. Extracts MemTotal and MemAvailable using grep/awk\n3. Handles missing/corrupted data gracefully (skip if either value is missing)\n4. Calculates percentage: (MemAvailable/MemTotal)*100\n5. Filters for <20% available\n6. Sorts by percentage ascending (worst first)\n7. Outputs hostname and percentage tab-separated to the report file",
+  "commands": [
+    {
+      "keystrokes": "cat > process_memory.sh << 'EOF'\n#!/bin/bash\n\n# Output file\nOUTPUT=\"/home/user/low_memory_report.txt\"\n\n# Clear output file\n> \"$OUTPUT\"\n\n# Temporary file for sorting\nTEMP_FILE=$(mktemp)\n\n# Process each host file\nfor hostfile in /home/user/memstats/host*.txt; do\n    hostname=$(basename \"$hostfile\" .txt)\n    \n    # Extract MemTotal and MemAvailable, handle errors gracefully\n    memtotal=$(grep -E '^MemTotal:' \"$hostfile\" 2>/dev/null | awk '{print $2}')\n    memavail=$(grep -E '^MemAvailable:' \"$hostfile\" 2>/dev/null | awk '{print $2}')\n    \n    # Skip if either value is missing or empty\n    if [[ -z \"$memtotal\" || -z \"$memavail\" ]]; then\n        continue\n    fi\n    \n    # Calculate percentage available\n    percentage=$(awk \"BEGIN {printf \\\"%.2f\\\", ($memavail / $memtotal) * 100}\")\n    \n    # Check if less than 20%\n    is_low=$(awk \"BEGIN {print ($percentage < 20) ? 1 : 0}\")\n    \n    if [[ $is_low -eq 1 ]]; then\n        # Store for sorting: percentage, hostname, percentage_for_output\n        echo \"$percentage\\t$hostname\\t$percentage\" >> \"$TEMP_FILE\"\n    fi\ndone\n\n# Sort by percentage (ascending = worst first) and output hostname + percentage\nif [[ -s \"$TEMP_FILE\" ]]; then\n    sort -n \"$TEMP_FILE\" | awk -F'\\t' '{print $2 \"\\t\" $3}' > \"$OUTPUT\"\nfi\n\n# Clean up\nrm -f \"$TEMP_FILE\"\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "chmod +x process_memory.sh\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "./process_memory.sh\n",
+      "duration": 0.5
+    },
+    {
+      "keystrokes": "cat /home/user/low_memory_report.txt\n",
+      "duration": 0.1
+    }
+  ],
+  "task_complete": false
+}

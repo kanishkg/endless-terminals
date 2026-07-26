@@ -1,0 +1,49 @@
+New Terminal Output:
+
+user@e88682a67d3d:~/scheduler$ python3 << 'PYEOF'
+1:30 UTC to Berlin time!\n")
+
+print(f"Difference: {(berlin_dt_wrong.hour - berlin_dt_correct.hour)} hour(s)")
+PYEOF
+> import pytz
+> from datetime import datetime
+>
+> # The problematic meeting time: 2024-03-31T01:30:00 UTC
+> # This is during the DST transition in Europe/Berlin
+> utc_time_str = "2024-03-31T01:30:00"
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> # OLD (BUGGY) METHOD
+> print("OLD (BUGGY) METHOD:")
+> utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+> berlin_dt_wrong = BERLIN_TZ.localize(utc_dt)
+> print(f"  Parsed: {utc_dt} (naive)")
+> print(f"  Result: {berlin_dt_wrong.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"  This treats 01:30 as if it's already Berlin time!\n")
+>
+> # NEW (CORRECT) METHOD
+> print("NEW (CORRECT) METHOD:")
+> utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+> utc_dt_aware = UTC_TZ.localize(utc_dt)
+> berlin_dt_correct = utc_dt_aware.astimezone(BERLIN_TZ)
+> print(f"  Parsed: {utc_dt} (naive)")
+> print(f"  As UTC: {utc_dt_aware.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"  Result: {berlin_dt_correct.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"  Correctly converts 01:30 UTC to Berlin time!\n")
+>
+> print(f"Difference: {(berlin_dt_wrong.hour - berlin_dt_correct.hour)} hour(s)")
+> PYEOF
+OLD (BUGGY) METHOD:
+  Parsed: 2024-03-31 01:30:00 (naive)
+  Result: 2024-03-31 01:30:00 CET+0100
+  This treats 01:30 as if it's already Berlin time!
+
+NEW (CORRECT) METHOD:
+  Parsed: 2024-03-31 01:30:00 (naive)
+  As UTC: 2024-03-31 01:30:00 UTC+0000
+  Result: 2024-03-31 03:30:00 CEST+0200
+  Correctly converts 01:30 UTC to Berlin time!
+
+Difference: -2 hour(s)
+user@e88682a67d3d:~/scheduler$

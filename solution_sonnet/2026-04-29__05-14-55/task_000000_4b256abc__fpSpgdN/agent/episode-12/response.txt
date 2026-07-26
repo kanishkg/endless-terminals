@@ -1,0 +1,15 @@
+{
+  "analysis": "FOUND THE BUG! In render.py, the merge order is incorrect. The legacy file is being loaded AFTER the environment-specific override, which means it's clobbering the staging settings. The current order is: base → env → svc → LEGACY → override. But the legacy file has db-prod.internal, which overrides the db-staging.internal from the env layer. Then the staging override doesn't set database.host, so the legacy value persists. The legacy layer should either be loaded earlier (before env) or not at all. The comment even hints at this: 'This is where staging breaks: there's a hidden file being loaded'.",
+  "plan": "Fix the render.py script by moving the legacy layer to load BEFORE the environment layer, or better yet, remove it entirely since it's in a .legacy directory and shouldn't be active. I'll move it to load before the environment layer so it can be properly overridden. Then test the fix.",
+  "commands": [
+    {
+      "keystrokes": "cp render.py render.py.backup\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat > render.py << 'EOF'\n#!/usr/bin/env python3\nimport sys\nimport yaml\nfrom pathlib import Path\n\ndef deep_merge(base, override):\n    \"\"\"Recursively merge override into base.\"\"\"\n    if not isinstance(base, dict) or not isinstance(override, dict):\n        return override\n    result = base.copy()\n    for key, value in override.items():\n        if key in result:\n            result[key] = deep_merge(result[key], value)\n        else:\n            result[key] = value\n    return result\n\ndef load_yaml(path):\n    if path.exists():\n        with open(path) as f:\n            return yaml.safe_load(f) or {}\n    return {}\n\ndef render_config(environment, service):\n    base_dir = Path(__file__).parent\n\n    # Load layers\n    base = load_yaml(base_dir / \"base\" / \"defaults.yaml\")\n    env = load_yaml(base_dir / \"environments\" / f\"{environment}.yaml\")\n    svc = load_yaml(base_dir / \"services\" / f\"{service}.yaml\")\n    override = load_yaml(base_dir / \"overrides\" / environment / f\"{service}.yaml\")\n\n    # Merge in order: base → legacy → env → svc → override\n    # FIX: Move legacy layer before environment so it can be properly overridden\n    config = deep_merge(base, {})\n    \n    # Check for legacy compatibility layer (load early so it can be overridden)\n    legacy_path = base_dir / \"overrides\" / \".legacy\" / f\"{service}.yaml\"\n    if legacy_path.exists():\n        legacy = load_yaml(legacy_path)\n        config = deep_merge(config, legacy)\n    \n    config = deep_merge(config, env)\n    config = deep_merge(config, svc)\n    config = deep_merge(config, override)\n\n    return config\n\nif __name__ == \"__main__\":\n    if len(sys.argv) != 3:\n        print(\"Usage: render.py <environment> <service>\", file=sys.stderr)\n        sys.exit(1)\n\n    env, svc = sys.argv[1], sys.argv[2]\n    config = render_config(env, svc)\n    print(yaml.dump(config, default_flow_style=False))\nEOF\n",
+      "duration": 0.1
+    }
+  ],
+  "task_complete": false
+}

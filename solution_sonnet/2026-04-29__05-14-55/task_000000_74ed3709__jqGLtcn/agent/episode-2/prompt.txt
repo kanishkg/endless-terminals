@@ -1,0 +1,58 @@
+New Terminal Output:
+
+root@c63941574f44:~/scraper# curl -s localhost:8080 | head -20
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Directory listing for /</title>
+</head>
+<body>
+<h1>Directory listing for /</h1>
+<hr>
+<ul>
+<li><a href="access.log">access.log</a></li>
+<li><a href="products.html">products.html</a></li>
+<li><a href="server.py">server.py</a></li>
+</ul>
+<hr>
+</body>
+</html>
+root@c63941574f44:~/scraper# cat scrape.py
+#!/usr/bin/env python3
+import asyncio
+import json
+import os
+from pyppeteer import launch
+
+async def scrape_prices():
+    browser = await launch(
+        headless=False,
+        args=['--no-sandbox']
+    )
+
+    page = await browser.newPage()
+    await page.goto('http://localhost:8080/products')
+
+    await page.waitForSelector('.product', timeout=5000)
+
+    products = await page.evaluate('''() => {
+        const items = document.querySelectorAll('.product');
+        return Array.from(items).map(item => ({
+            name: item.querySelector('.name').textContent,
+            price: item.querySelector('.price').textContent
+        }));
+    }''')
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.join(script_dir, 'prices.json')
+
+    with open(output_path, 'w') as f:
+        json.dump(products, f, indent=2)
+
+    await browser.close()
+    print(f"Scraped {len(products)} products to {output_path}")
+
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(scrape_prices())
+root@c63941574f44:~/scraper#

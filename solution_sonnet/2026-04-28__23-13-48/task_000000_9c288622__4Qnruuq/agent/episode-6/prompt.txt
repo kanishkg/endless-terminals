@@ -1,0 +1,99 @@
+New Terminal Output:
+
+user@e09899677ebe:~/scheduler$ python3 app.py
+No upcoming meetings in the next 15-75 minutes.
+user@e09899677ebe:~/scheduler$ cat > demonstrate_bug.py << 'EOF'
+ST offset (+2 hours).")
+print()
+print("=" * 70)
+EOF
+> #!/usr/bin/env python3
+> """Demonstrate the bug that was fixed."""
+>
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def old_buggy_convert(utc_time_str):
+>     """The OLD buggy conversion method."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     # BUG: This treats the UTC time as if it's already Berlin time
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)
+>     return berlin_dt
+>
+> def new_correct_convert(utc_time_str):
+>     """The NEW correct conversion method."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     # FIX: First localize as UTC, then convert to Berlin
+>     utc_dt_aware = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt_aware.astimezone(BERLIN_TZ)
+>     return berlin_dt
+>
+> print("=" * 70)
+> print("DEMONSTRATION: Bug vs Fix for DST Transition")
+> print("=" * 70)
+> print()
+> print("The Maintenance Window meeting is scheduled for:")
+> print("  UTC: 2024-03-31T01:30:00")
+> print("  (This is during the DST transition on March 31, 2024)")
+> print()
+>
+> utc_time = '2024-03-31T01:30:00'
+>
+> print("OLD BUGGY METHOD:")
+> buggy_result = old_buggy_convert(utc_time)
+> print(f"  Result: {buggy_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"  ❌ WRONG! Shows 02:30 CET, but 2am-3am doesn't exist on DST day!")
+> print()
+>
+> print("NEW CORRECT METHOD:")
+> correct_result = new_correct_convert(utc_time)
+> print(f"  Result: {correct_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"  ✓ CORRECT! Shows 03:30 CEST (clocks jumped from 2am to 3am)")
+> print()
+>
+> print("EXPLANATION:")
+> print("  On March 31, 2024, Europe/Berlin switched to DST at 2:00am.")
+> print("  Clocks jumped forward: 01:59:59 CET → 03:00:00 CEST")
+> print("  The hour from 2:00-2:59 doesn't exist!")
+> print("  ")
+> print("  The bug: localize() on a naive datetime assumes it's already")
+> print("           in that timezone, so 01:30 UTC became 01:30 CET.")
+> print("  ")
+> print("  The fix: First mark as UTC, then convert to Berlin timezone,")
+> print("           which properly adds the DST offset (+2 hours).")
+> print()
+> print("=" * 70)
+> EOF
+user@e09899677ebe:~/scheduler$ python3 demonstrate_bug.py
+======================================================================
+DEMONSTRATION: Bug vs Fix for DST Transition
+======================================================================
+
+The Maintenance Window meeting is scheduled for:
+  UTC: 2024-03-31T01:30:00
+  (This is during the DST transition on March 31, 2024)
+
+OLD BUGGY METHOD:
+  Result: 2024-03-31 01:30:00 CET+0100
+  ❌ WRONG! Shows 02:30 CET, but 2am-3am doesn't exist on DST day!
+
+NEW CORRECT METHOD:
+  Result: 2024-03-31 03:30:00 CEST+0200
+  ✓ CORRECT! Shows 03:30 CEST (clocks jumped from 2am to 3am)
+
+EXPLANATION:
+  On March 31, 2024, Europe/Berlin switched to DST at 2:00am.
+  Clocks jumped forward: 01:59:59 CET → 03:00:00 CEST
+  The hour from 2:00-2:59 doesn't exist!
+
+  The bug: localize() on a naive datetime assumes it's already
+           in that timezone, so 01:30 UTC became 01:30 CET.
+
+  The fix: First mark as UTC, then convert to Berlin timezone,
+           which properly adds the DST offset (+2 hours).
+
+======================================================================
+user@e09899677ebe:~/scheduler$

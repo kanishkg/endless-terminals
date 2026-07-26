@@ -1,0 +1,179 @@
+New Terminal Output:
+
+user@6a530118e4bf:~/inventory$ cat > process_assets.py << 'EOF'
+> import csv
+/home/user/inventory/assets.csv', 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+
+        for row_num, row in enumerate(reader, start=2):
+            asset, error = process_row(row, row_num)
+
+            if error:
+                rejected.append({
+                    'original_row': dict(row),
+                    'reason': error,
+                    'row_number': row_num
+                })
+            else:
+                asset_id = asset['id']
+
+                # Handle duplicates - keep the one with latest purchase date
+                if asset_id in assets_by_id:
+                    existing = assets_by_id[asset_id]
+                    if asset['purchase_date'] > existing['purchase_date']:
+                        assets_by_id[asset_id] = asset
+                else:
+                    assets_by_id[asset_id] = asset
+
+    # Convert to list and sort by ID
+    assets_list = sorted(assets_by_id.values(), key=lambda x: x['id'])
+
+    # Write assets.json
+    with open('/home/user/inventory/assets> import json
+> import re
+> from datetime import datetime
+> from collections import defaultdict
+>
+> def parse_date(date_str):
+>     """Parse date from multiple formats to ISO 8601"""
+>     if not date_str or not date_str.strip():
+>         return None
+>
+>     date_str = date_str.strip()
+>     formats = [
+>         '%Y-%m-%d',      # YYYY-MM-DD
+>         '%m/%d/%Y',      # MM/DD/YYYY
+>         '%d.%m.%Y',      # DD.MM.YYYY
+>     ]
+>
+>     for fmt in formats:
+>         try:
+>             dt = datetime.strptime(date_str, fmt)
+>             return dt.strftime('%Y-%m-%d')
+>         except ValueError:
+>             continue
+>
+>     return None
+>
+> def parse_price(price_str):
+>     """Parse price to cents (integer)"""
+>     if not price_str or not isinstance(price_str, str):
+>         if isinstance(price_str, (int, float)):
+>             price_str = str(price_str)
+>         else:
+>             return None
+>
+>     # Remove dollar signs, commas, and whitespace
+>     price_str = price_str.strip().replace('$', '').replace(',', '')
+>
+>     try:
+>         price_float = float(price_str)
+>         price_cents = int(round(price_float * 100))
+>         return price_cents if price_cents > 0 else None
+>     except (ValueError, OverflowError):
+>         return None
+>
+> def is_serial_format(s):
+>     """Check if string looks like a serial number (starts with SN-)"""
+>     return s and s.strip().startswith('SN-')
+>
+> def process_row(row, row_num):
+>     """Process a single row and return (asset_dict, error_message)"""
+>     try:
+>         # Handle missing or empty ID
+>         asset_id = row.get('id', '').strip()
+>         if not asset_id:
+>             return None, "Missing asset ID"
+>
+>         name = row.get('name', '').strip()
+>         serial = row.get('serial', '').strip()
+>
+>         # Check if serial and name are swapped
+>         if not is_serial_format(serial) and is_serial_format(name):
+>             name, serial = serial, name
+>
+>         # Validate serial format
+>         if not is_serial_format(serial):
+>             return None, f"Invalid serial format: {serial}"
+>
+>         # Parse date
+>         date_str = row.get('purchase_date', '').strip()
+>         purchase_date = parse_date(date_str)
+>         if not purchase_date:
+>             return None, f"Invalid date format: {date_str}"
+>
+>         # Parse price
+>         price_str = row.get('price', '').strip()
+>         price_cents = parse_price(price_str)
+>         if price_cents is None:
+>             return None, f"Invalid price: {price_str}"
+>
+>         location = row.get('location', '').strip()
+>         if not location:
+>             return None, "Missing location"
+>
+>         asset = {
+>             'id': asset_id,
+>             'name': name,
+>             'serial': serial,
+>             'purchase_date': purchase_date,
+>             'price_cents': price_cents,
+>             'location': location
+>         }
+>
+>         return asset, None
+>
+>     except Exception as e:
+>         return None, f"Processing error: {str(e)}"
+>
+> def main():
+>     assets_by_id = {}
+>     rejected = []
+>
+>     # Read CSV
+>     with open('/home/user/inventory/assets.csv', 'r', encoding='utf-8') as f:
+>         reader = csv.DictReader(f)
+>
+>         for row_num, row in enumerate(reader, start=2):
+>             asset, error = process_row(row, row_num)
+>
+>             if error:
+>                 rejected.append({
+>                     'original_row': dict(row),
+>                     'reason': error,
+>                     'row_number': row_num
+>                 })
+>             else:
+>                 asset_id = asset['id']
+>
+>                 # Handle duplicates - keep the one with latest purchase date
+>                 if asset_id in assets_by_id:
+>                     existing = assets_by_id[asset_id]
+>                     if asset['purchase_date'] > existing['purchase_date']:
+>                         assets_by_id[asset_id] = asset
+>                 else:
+>                     assets_by_id[asset_id] = asset
+>
+>     # Convert to list and sort by ID
+>     assets_list = sorted(assets_by_id.values(), key=lambda x: x['id'])
+>
+>     # Write assets.json
+>     with open('/home/user/inventory/assets.json', 'w', encoding='utf-8') as f:
+>         json.dump(assets_list, f, indent=2)
+>
+>     # Write rejected.json
+>     with open('/home/user/inventory/rejected.json', 'w', encoding='utf-8') as f:
+>         json.dump(rejected, f, indent=2)
+>
+>     print(f"Processed {len(assets_list)} valid assets")
+>     print(f"Rejected {len(rejected)} invalid records")
+>     print(f"Deduplicated {len(assets_by_id)} unique asset IDs")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+user@6a530118e4bf:~/inventory$ python3 process_assets.py
+Processed 809 valid assets
+Rejected 16 invalid records
+Deduplicated 809 unique asset IDs
+user@6a530118e4bf:~/inventory$

@@ -1,0 +1,156 @@
+New Terminal Output:
+
+user@f9dfc4982767:~/inventory$ cat > process_assets.py << 'EOF'
+> import csv
+> import json
+.sort(key=lambda x: x['id'])
+
+    # Write outputs
+ > import re
+> from datetime import datetime
+> from collections import defaultdict
+>
+> def parse_date(date_str):
+>     """Parse date from multiple formats to ISO 8601"""
+>     date_str = date_str.strip()
+>
+>     # Try YYYY-MM-DD (ISO format)
+>     try:
+>         dt = datetime.strptime(date_str, '%Y-%m-%d')
+>         return dt.strftime('%Y-%m-%d')
+>     except ValueError:
+>         pass
+>
+>     # Try MM/DD/YYYY (US format)
+>     try:
+>         dt = datetime.strptime(date_str, '%m/%d/%Y')
+>         return dt.strftime('%Y-%m-%d')
+>     except ValueError:
+>         pass
+>
+>     # Try DD.MM.YYYY (European format)
+>     try:
+>         dt = datetime.strptime(date_str, '%d.%m.%Y')
+>         return dt.strftime('%Y-%m-%d')
+>     except ValueError:
+>         pass
+>
+>     return None
+>
+> def parse_price(price_str):
+>     """Parse price and convert to cents (positive integer)"""
+>     try:
+>         # Remove dollar signs, commas, and whitespace
+>         cleaned = re.sub(r'[$,\s]', '', price_str.strip())
+>
+>         # Convert to float then to cents
+>         price_float = float(cleaned)
+>
+>         # Check if positive
+>         if price_float <= 0:
+>             return None
+>
+>         # Convert to cents (integer)
+>         price_cents = int(round(price_float * 100))
+>         return price_cents
+>     except (ValueError, AttributeError):
+>         return None
+>
+> def is_serial_format(text):
+>     """Check if text looks like a serial number (SN-XXX-XXXXX format)"""
+>     return bool(re.match(r'^SN-[A-Z]+-\d+$', text.strip()))
+>
+> def process_row(row, row_num):
+>     """Process a single row and return (record, error) tuple"""
+>     try:
+>         asset_id = row['id'].strip()
+>         name = row['name'].strip()
+>         serial = row['serial'].strip()
+>         purchase_date_raw = row['purchase_date'].strip()
+>         price_raw = row['price'].strip()
+>         location = row['location'].strip()
+>
+>         # Check for swapped serial and name
+>         if is_serial_format(name) and not is_serial_format(serial):
+>             # Swap them
+>             name, serial = serial, name
+>
+>         # Validate and parse date
+>         purchase_date = parse_date(purchase_date_raw)
+>         if not purchase_date:
+>             return None, f"Invalid date format: {purchase_date_raw}"
+>
+>         # Validate and parse price
+>         price_cents = parse_price(price_raw)
+>         if price_cents is None:
+>             return None, f"Invalid price: {price_raw}"
+>
+>         # Basic validation
+>         if not asset_id or not name or not serial or not location:
+>             return None, "Missing required fields"
+>
+>         record = {
+>             'id': asset_id,
+>             'name': name,
+>             'serial': serial,
+>             'purchase_date': purchase_date,
+>             'price_cents': price_cents,
+>             'location': location
+>         }
+>
+>         return record, None
+>
+>     except Exception as e:
+>         return None, f"Processing error: {str(e)}"
+>
+> def main():
+>     valid_records = defaultdict(list)  # id -> list of records
+>     rejected = []
+>
+>     # Read CSV
+>     with open('/home/user/inventory/assets.csv', 'r') as f:
+>         reader = csv.DictReader(f)
+>         for row_num, row in enumerate(reader, start=2):  # start at 2 (after header)
+>             record, error = process_row(row, row_num)
+>
+>             if error:
+>                 rejected.append({
+>                     'original_row': dict(row),
+>                     'reason': error
+>                 })
+>             else:
+>                 # Group by ID for deduplication
+>                 valid_records[record['id']].append(record)
+>
+>     # Deduplicate: keep the one with the latest purchase date
+>     final_records = []
+>     for asset_id, records in valid_records.items():
+>         if len(records) == 1:
+>             final_records.append(records[0])
+>         else:
+>             # Sort by date and keep the latest
+>             sorted_records = sorted(records, key=lambda x: x['purchase_date'], reverse=True)
+>             final_records.append(sorted_records[0])
+>
+>     # Sort by ID for consistent output
+>     final_records.sort(key=lambda x: x['id'])
+>
+>     # Write outputs
+>     with open('/home/user/inventory/assets.json', 'w') as f:
+>         json.dump(final_records, f, indent=2)
+>
+>     with open('/home/user/inventory/rejected.json', 'w') as f:
+>         json.dump(rejected, f, indent=2)
+>
+>     print(f"Processed {len(final_records)} valid records")
+>     print(f"Rejected {len(rejected)} records")
+>     print(f"Deduplicated {sum(len(v) for v in valid_records.values()) - len(final_records)} duplicate records")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+user@f9dfc4982767:~/inventory$ python3 process_assets.py
+Processed 809 valid records
+Rejected 16 records
+Deduplicated 21 duplicate records
+user@f9dfc4982767:~/inventory$

@@ -1,0 +1,40 @@
+New Terminal Output:
+
+user@18e6f422c9a0:~$ cat > /tmp/analyze_memory.sh << 'EOF'
+> #!/bin/bash
+>
+> # Temporary file to store results
+> tmp_file=$(mktemp)
+>
+> # Process each host file
+> for i in {01..08}; do
+>     file="/home/user/memstats/host${i}.txt"
+>     hostname="host${i}"
+>
+>     # Extract MemTotal and MemAvailable
+>     mem_total=$(grep -E '^MemTotal:' "$file" 2>/dev/null | awk '{print $2}')
+>     mem_available=$(grep -E '^MemAvailable:' "$file" 2>/dev/null | awk '{print $2}')
+>
+>     # Check if both values exist (handle corrupted files)
+>     if [[ -n "$mem_total" && -n "$mem_available" ]]; then
+>         # Calculate percentage available
+>         percentage=$(awk "BEGIN {printf \"%.2f\", ($mem_available / $mem_total) * 100}")
+>
+>         # Check if less than 20%
+>         is_low=$(awk "BEGIN {print ($percentage < 20) ? 1 : 0}")
+>
+>         if [[ $is_low -eq 1 ]]; then
+>             echo -e "${hostname}\t${percentage}" >> "$tmp_file"
+>         fi
+>     fi
+> done
+>
+> # Sort by percentage (ascending = worst first) and output to report
+> sort -t$'\t' -k2 -n "$tmp_file" > /home/user/low_memory_report.txt
+>
+> # Clean up
+> rm -f "$tmp_file"
+> EOF
+user@18e6f422c9a0:~$ chmod +x /tmp/analyze_memory.sh
+user@18e6f422c9a0:~$ /tmp/analyze_memory.sh
+user@18e6f422c9a0:~$

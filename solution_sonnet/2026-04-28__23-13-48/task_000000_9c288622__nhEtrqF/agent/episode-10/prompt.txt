@@ -1,0 +1,43 @@
+New Terminal Output:
+
+user@e88682a67d3d:~/scheduler$ python3 << 'PYEOF'
+s reminders will be sent at the correct time!")
+PYEOF
+> import json
+> import pytz
+> from datetime import datetime
+>
+> # Load the actual meetings file
+> with open('/home/user/scheduler/meetings.json', 'r') as f:
+>     meetings = json.load(f)
+>
+> # Find the Maintenance Window Prep meeting
+> maintenance_meeting = [m for m in meetings if 'Maintenance' in m['title']][0]
+> print(f"Testing: {maintenance_meeting['title']}")
+> print(f"UTC Time: {maintenance_meeting['utc_time']}\n")
+>
+> # Use the FIXED conversion logic
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> utc_dt = datetime.strptime(maintenance_meeting['utc_time'], '%Y-%m-%dT%H:%M:%S')
+> utc_dt_aware = UTC_TZ.localize(utc_dt)
+> berlin_dt = utc_dt_aware.astimezone(BERLIN_TZ)
+>
+> print(f"Converted to Berlin time: {berlin_dt.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+> print(f"\nThis meeting is at {berlin_dt.strftime('%H:%M')} Berlin time.")
+> print(f"On March 31, 2024, DST transition happens at 2am (clock jumps to 3am).")
+> print(f"01:30 UTC correctly converts to 03:30 CEST (after the transition).")
+> print(f"\nThe fix ensures reminders will be sent at the correct time!")
+> PYEOF
+Testing: Maintenance Window Prep
+UTC Time: 2024-03-31T01:30:00
+
+Converted to Berlin time: 2024-03-31 03:30:00 CEST+0200
+
+This meeting is at 03:30 Berlin time.
+On March 31, 2024, DST transition happens at 2am (clock jumps to 3am).
+01:30 UTC correctly converts to 03:30 CEST (after the transition).
+
+The fix ensures reminders will be sent at the correct time!
+user@e88682a67d3d:~/scheduler$

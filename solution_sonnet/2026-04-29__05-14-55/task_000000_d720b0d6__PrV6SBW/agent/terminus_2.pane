@@ -1,0 +1,436 @@
+[?2004hroot@7e48eccb5004:/# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@7e48eccb5004:/# clear
+[?2004l[H[J[?2004hroot@7e48eccb5004:/# cd /home/user/admin
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 29 06:17 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:17 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:17 [34;42mdata[0m
+-rwxrwxrwx 1 root root 3030 Apr 29 06:17 [01;32mexport_users.sh[0m
+[?2004hroot@7e48eccb5004:/home/user/admin# cat export_users.sh
+[?2004l#!/bin/bash
+# export_users.sh - Export user data to CSV format
+# Combines data from multiple source files
+
+DATA_DIR="/home/user/admin/data"
+OUTPUT_FILE="/home/user/admin/export.csv"
+
+# Source files
+USERS_DAT="$DATA_DIR/users.dat"
+EMAILS_DAT="$DATA_DIR/emails.dat"
+GROUPS_DAT="$DATA_DIR/groups.dat"
+MEMBERSHIPS_DAT="$DATA_DIR/memberships.dat"
+
+# Create temporary directory
+TMPDIR=$(mktemp -d)
+trap "rm -rf $TMPDIR" EXIT
+
+# Write header
+echo "username,uid,primary_group,email,shell,supplementary_groups" > "$OUTPUT_FILE"
+
+# Extract and sort user data (sorted alphabetically by username)
+sort -t'|' -k1,1 "$USERS_DAT" > "$TMPDIR/users_sorted.tmp"
+
+# Extract emails - BUG 1: using space delimiter instead of tab
+# emails.dat is tab-delimited but we use cut -d' ' (space)
+cut -d' ' -f1 "$EMAILS_DAT" | sort -n > "$TMPDIR/email_uids.tmp"
+cut -d' ' -f2 "$EMAILS_DAT" | sort -n > "$TMPDIR/emails.tmp"
+
+# BUG 2: Sorting mismatch - users are sorted alphabetically, but we're pasting
+# with emails sorted by UID numerically. The paste will combine wrong lines.
+# We sort users by username but emails by uid, so line N of users doesn't
+# correspond to line N of emails.
+
+# Extract uid from users for joining
+awk -F'|' '{print $2}' "$TMPDIR/users_sorted.tmp" > "$TMPDIR/user_uids.tmp"
+
+# Create email lookup by uid (but this still has the delimiter bug)
+sort -t' ' -k1,1n "$EMAILS_DAT" > "$TMPDIR/emails_sorted.tmp"
+
+# Process each user
+while IFS='|' read -r username uid gid gecos homedir shell; do
+    # Get email for this uid - BUG 1 manifests here: the cut with wrong delimiter
+    # causes the whole "uid<TAB>email" to be treated as field 1
+    email=$(grep "^${uid}" "$TMPDIR/emails_sorted.tmp" | cut -d' ' -f2)
+
+    # If email is empty (because cut -d' ' failed), fall back to the broken paste method
+    if [ -z "$email" ]; then
+        # This creates even more chaos - just use a placeholder
+        email=$(awk -v u="$uid" '$1 == u {print $2}' "$EMAILS_DAT")
+    fi
+
+    # Resolve primary group name - BUG 3: awk uses wrong field separator
+    # groups.dat is colon-delimited but awk defaults to space/tab
+    # so the whole "gid:groupname:description" becomes $1
+    primary_group=$(awk -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT")
+
+    # If group resolution failed, just use the gid
+    if [ -z "$primary_group" ]; then
+        primary_group="$gid"
+    fi
+
+    # Get supplementary groups for this uid
+    supp_gids=$(grep "^${uid} " "$MEMBERSHIPS_DAT" | cut -d' ' -f2-)
+
+    # Resolve supplementary group names - BUG 3 again: wrong FS in awk
+    supp_names=""
+    for sgid in $supp_gids; do
+        gname=$(awk -v g="$sgid" '$1 == g {print $2}' "$GROUPS_DAT")
+        if [ -z "$gname" ]; then
+            gname="$sgid"
+        fi
+        if [ -z "$supp_names" ]; then
+            supp_names="$gname"
+        else
+            supp_names="$supp_names;$gname"
+        fi
+    done
+
+    # Output CSV line
+    echo "$username,$uid,$primary_group,$email,$shell,$supp_names"
+
+done < "$TMPDIR/users_sorted.tmp" >> "$OUTPUT_FILE"
+
+exit 0
+[?2004hroot@7e48eccb5004:/home/user/admin# cd data
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin/data# ls -la
+[?2004ltotal 100
+drwxrwxrwx 1 root root  4096 Apr 29 06:17 [0m[34;42m.[0m
+drwxrwxrwx 1 root root  4096 Apr 29 06:17 [34;42m..[0m
+-rwxrwxrwx 1 root root 20905 Apr 29 06:17 [01;32memails.dat[0m
+-rwxrwxrwx 1 root root  1584 Apr 29 06:17 [01;32mgroups.dat[0m
+-rwxrwxrwx 1 root root 16090 Apr 29 06:17 [01;32mmemberships.dat[0m
+-rwxrwxrwx 1 root root 47959 Apr 29 06:17 [01;32musers.dat[0m
+[?2004hroot@7e48eccb5004:/home/user/admin/data# head -5 users.dat
+[?2004laadams|1482|1001|Sharon Davis|/home/aadams|/bin/sh
+aconner|1042|1001|Evelyn Sullivan|/home/aconner|/bin/bash
+adiaz|1781|1005|Anthony Brooks|/home/adiaz|/bin/bash
+agonzales|1329|1004|Larry Cruz|/home/agonzales|/bin/sh
+ajackson|1210|1001|John Sanchez|/home/ajackson|/bin/bash
+[?2004hroot@7e48eccb5004:/home/user/admin/data# head -5 emails.dat
+[?2004l1001	rgomez@corp.local
+1002	sharon45@corp.local
+1003	larryp@corp.local
+1004	wardl@corp.local
+1005	mfisher@corp.local
+[?2004hroot@7e48eccb5004:/home/user/admin/data# head -5 groups.dat
+[?2004l1001:engineering:Engineering Department
+1002:sales:Sales Department
+1003:research:Research Department
+1004:hr:Human Resources
+1005:devops:DevOps Team
+[?2004hroot@7e48eccb5004:/home/user/admin/data# head -5 memberships.dat
+[?2004l1001 1006 1007 1025 1044
+1002 1010 1028
+1003 1002
+1004 1009 1020 1043 1050
+1005 1008
+[?2004hroot@7e48eccb5004:/home/user/admin/data# cd /home/user/admin
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# ./export_users.sh
+[?2004lhead -10 export.csv
+head -10 export.csv
+[?2004hroot@7e48eccb5004:/home/user/admin# head -10 export.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,1001,1482	aadams@corp.local,/bin/sh,1001;1018;1035
+aconner,1042,1001,1042	aconner@corp.local,/bin/bash,1001;1005;1012
+adiaz,1781,1005,1781	adiaz@corp.local,/bin/bash,1005;1010;1024;1038;1041
+agonzales,1329,1004,1329	agonzales@corp.local,/bin/sh,1004;1035;1042;1048
+ajackson,1210,1001,1210	ajackson@corp.local,/bin/bash,1001;1013;1033;1041
+aking,1381,1001,1381	aking@corp.local,/usr/bin/fish,1001;1047
+alex31,1322,1007,1322	alex31@corp.local,/bin/bash,1001;1007;1014
+alex_castillo,1425,1009,1425	alex_castillo@corp.local,/bin/sh,1009
+alexr,1048,1005,1048	alexr@corp.local,/bin/bash,1005
+[?2004hroot@7e48eccb5004:/home/user/admin# head -10 export.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,1001,1482	aadams@corp.local,/bin/sh,1001;1018;1035
+aconner,1042,1001,1042	aconner@corp.local,/bin/bash,1001;1005;1012
+adiaz,1781,1005,1781	adiaz@corp.local,/bin/bash,1005;1010;1024;1038;1041
+agonzales,1329,1004,1329	agonzales@corp.local,/bin/sh,1004;1035;1042;1048
+ajackson,1210,1001,1210	ajackson@corp.local,/bin/bash,1001;1013;1033;1041
+aking,1381,1001,1381	aking@corp.local,/usr/bin/fish,1001;1047
+alex31,1322,1007,1322	alex31@corp.local,/bin/bash,1001;1007;1014
+alex_castillo,1425,1009,1425	alex_castillo@corp.local,/bin/sh,1009
+alexr,1048,1005,1048	alexr@corp.local,/bin/bash,1005
+[?2004hroot@7e48eccb5004:/home/user/admin# 
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# cp export_users.sh export_users.sh.backup
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# cat > export_users.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> # export_users.sh - Export user data to CSV format
+[?2004l[?2004h> # Combines data from multiple source files
+[?2004l[?2004h> 
+[?2004l[?2004h> DATA_DIR="/home/user/admin/data"
+[?2004l[?2004h> OUTPUT_FILE="/home/user/admin/export.csv"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Source files
+[?2004l[?2004h> USERS_DAT="$DATA_DIR/users.dat"
+[?2004l[?2004h> EMAILS_DAT="$DATA_DIR/emails.dat"
+[?2004l[?2004h> GROUPS_DAT="$DATA_DIR/groups.dat"
+[?2004l[?2004h> MEMBERSHIPS_DAT="$DATA_DIR/memberships.dat"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Create temporary directory
+[?2004l[?2004h> TMPDIR=$(mktemp -d)
+[?2004l[?2004h> trap "rm -rf $TMPDIR" EXIT
+[?2004l[?2004h> 
+[?2004l[?2004h> # Write header
+[?2004l[?2004h> echo "username,uid,primary_group,email,shell,supplementary_groups" > "$OUTPUT_FILE"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Extract and sort user data (sorted alphabetically by username)
+[?2004l[?2004h> sort -t'|' -k1,1 "$USERS_DAT" > "$TMPDIR/users_sorted.tmp"
+[?2004l[?2004h> 
+[?2004l[?2004h> # FIX 1: Use tab delimiter for emails.dat
+[?2004l[?2004h> # Sort emails by UID numerically for lookup
+[?2004l[?2004h> sort -t$'\t' -k1,1n "$EMAILS_DAT" > "$TMPDIR/emails_sorted.tmp"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process each user
+[?2004l[?2004h> while IFS='|' read -r username uid gid gecos homedir shell; do
+[?2004l[?2004h>     # FIX 1: Get email for this uid using tab delimiter
+[?2004l[?2004h>     email=$(awk -F$'\t' -v u="$uid" '$1 == u {print $2}' "$TMPDIR/emails_sorted.tmp")
+[?2004l[?2004h> 
+[?2004l[?2004h>     # If email is empty, use placeholder
+[?2004l[?2004h>     if [ -z "$email" ]; then
+[?2004l[?2004h>         email="no-email@corp.local"
+[?2004l[?2004h>     fi
+[?2004l[?2004h> 
+[?2004l[?2004h>     # FIX 3: Resolve primary group name using colon delimiter
+[?2004l[?2004h>     primary_group=$(awk -F':' -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT")
+[?2004l[?2004h> 
+[?2004l[?2004h>     # If group resolution failed, just use the gid
+[?2004l[?2004h>     if [ -z "$primary_group" ]; then
+[?2004l[?2004h>         primary_group="$gid"
+[?2004l[?2004h>     fi
+[?2004l[?2004h> 
+[?2004l[?2004h>     # Get supplementary groups for this uid
+[?2004l[?2004h>     supp_gids=$(grep "^${uid} " "$MEMBERSHIPS_DAT" | cut -d' ' -f2-)
+[?2004l[?2004h> 
+[?2004l[?2004h>     # FIX 3: Resolve supplementary group names using colon delimiter
+[?2004l[?2004h>     supp_names=""
+[?2004l[?2004h>     for sgid in $supp_gids; do
+[?2004l[?2004h>         gname=$(awk -F':' -v g="$sgid" '$1 == g {print $2}' "$GROUPS_DAT")
+[?2004l[?2004h>         if [ -z "$gname" ]; then
+[?2004l[?2004h>             gname="$sgid"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>         if [ -z "$supp_names" ]; then
+[?2004l[?2004h>             supp_names="$gname"
+[?2004l[?2004h>         else
+[?2004l[?2004h>             supp_names="$supp_names;$gname"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     done
+[?2004l[?2004h> 
+[?2004l[?2004h>     # Output CSV line
+[?2004l[?2004h>     echo "$username,$uid,$primary_group,$email,$shell,$supp_names"
+[?2004l[?2004h> 
+[?2004l[?2004h> done < "$TMPDIR/users_sorted.tmp" >> "$OUTPUT_FILE"
+[?2004l[?2004h> 
+[?2004l[?2004h> exit 0
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# chmod +x export_users.sh
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# ./export_users.sh
+[?2004lhead -10 export.csv
+
+[?2004hroot@7e48eccb5004:/home/user/admin# head -10 export.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,engineering,aadams@corp.local,/bin/sh,engineering;analytics;database
+aconner,1042,engineering,aconner@corp.local,/bin/bash,engineering;devops;contractors
+adiaz,1781,devops,adiaz@corp.local,/bin/bash,devops;support;partnerships;automation;localization
+agonzales,1329,hr,agonzales@corp.local,/bin/sh,hr;database;accessibility;api
+ajackson,1210,engineering,ajackson@corp.local,/bin/bash,engineering;executives;backend;localization
+aking,1381,engineering,aking@corp.local,/usr/bin/fish,engineering;integrations
+alex31,1322,marketing,alex31@corp.local,/bin/bash,engineering;marketing;facilities
+alex_castillo,1425,security,alex_castillo@corp.local,/bin/sh,security
+alexr,1048,devops,alexr@corp.local,/bin/bash,devops
+[?2004hroot@7e48eccb5004:/home/user/admin# 
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# wc -l export.csv
+[?2004l801 export.csv
+[?2004hroot@7e48eccb5004:/home/user/admin# wc -l data/users.dat
+[?2004l800 data/users.dat
+[?2004hroot@7e48eccb5004:/home/user/admin# tail -10 export.csv
+[?2004lwilsond,1172,hr,wilsond@corp.local,/bin/bash,hr;qa;product;mobile;architecture
+wkelly,1046,devops,wkelly@corp.local,/bin/bash,devops;backend
+wnguyen,1116,marketing,wnguyen@corp.local,/bin/bash,finance;marketing;database;accessibility;performance
+woodb,1556,finance,woodb@corp.local,/bin/bash,finance;data_science;mobile
+woods,1623,finance,woods@corp.local,/bin/bash,finance
+woodt,1589,devops,woodt@corp.local,/bin/tcsh,devops;support;legal;procurement
+yangg,1352,support,yangg@corp.local,/bin/zsh,support;design;database
+yangm,1043,devops,yangm@corp.local,/bin/bash,hr;devops;training;automation
+youngm,1246,interns,youngm@corp.local,/bin/zsh,research;devops;marketing;interns;frontend
+zyang,1799,research,zyang@corp.local,/bin/zsh,research;interns
+[?2004hroot@7e48eccb5004:/home/user/admin# grep 'aadams' data/users.dat
+[?2004l[01;31m[Kaadams[m[K|1482|1001|Sharon Davis|/home/[01;31m[Kaadams[m[K|/bin/sh
+[?2004hroot@7e48eccb5004:/home/user/admin# grep '^1482' data/emails.dat
+[?2004l[01;31m[K1482[m[K	aadams@corp.local
+[?2004hroot@7e48eccb5004:/home/user/admin# grep '^1482 ' data/memberships.dat
+[?2004l[01;31m[K1482 [m[K1001 1018 1035
+[?2004hroot@7e48eccb5004:/home/user/admin# grep -E '^(1001|1018|1035):' data/groups.dat
+[?2004l[01;31m[K1001:[m[Kengineering:Engineering Department
+[01;31m[K1018:[m[Kanalytics:Data Analytics
+[01;31m[K1035:[m[Kdatabase:Database Administration
+[?2004hroot@7e48eccb5004:/home/user/admin# grep 'aadams' export.csv
+[?2004l[01;31m[Kaadams[m[K,1482,engineering,[01;31m[Kaadams[m[K@corp.local,/bin/sh,engineering;analytics;database
+[?2004hroot@7e48eccb5004:/home/user/admin# cat > FIXES_APPLIED.txt << 'EOF'
+[?2004l[?2004h> EXPORT SCRIPT FIXES - Applied on $(date)
+[?2004l[?2004h> ================================================
+[?2004l[?2004h> 
+[?2004l[?2004h> Problem: export_users.sh was producing garbled CSV output after migration
+[?2004l[?2004h> to multi-file format. Symptoms included:
+[?2004l[?2004h> - UIDs appearing in email column
+[?2004l[?2004h> - GIDs showing instead of group names
+[?2004l[?2004h> - Incorrect data alignment
+[?2004l[?2004h> 
+[?2004l[?2004h> Root Causes Identified:
+[?2004l[?2004h> 
+[?2004l[?2004h> 1. WRONG DELIMITER FOR emails.dat
+[?2004l[?2004h>    - File uses TAB delimiter but script used space delimiter
+[?2004l[?2004h>    - Caused entire "uid<TAB>email" to be treated as single field
+[?2004l[?2004h>    - Fix: Changed cut -d' ' to awk -F$'\t' for proper tab handling
+[?2004l[?2004h> 
+[?2004l[?2004h> 2. SORTING MISMATCH (noted but already handled via awk lookup)
+[?2004l[?2004h>    - Users sorted alphabetically, emails sorted numerically
+[?2004l[?2004h>    - Fixed by using awk lookup instead of paste/join
+[?2004l[?2004h> 
+[?2004l[?2004h> 3. WRONG FIELD SEPARATOR FOR groups.dat
+[?2004l[?2004h>    - File uses colon delimiter (gid:name:description)
+[?2004l[?2004h>    - Script used awk default (space/tab) so whole line became $1
+[?2004l[?2004h>    - Fix: Added -F':' to all awk commands processing groups.dat
+[?2004l[?2004h> 
+[?2004l[?2004h> Results:
+[?2004l[?2004h> - All 800 users exported successfully
+[?2004l[?2004h> - Clean CSV with proper field separation
+[?2004l[?2004h> - Group names resolved correctly (primary and supplementary)
+[?2004l[?2004h> - Emails clean without UID prefixes
+[?2004l[?2004h> 
+[?2004l[?2004h> Backup of original script: export_users.sh.backup
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# cat FIXES_APPLIED.txt
+[?2004lEXPORT SCRIPT FIXES - Applied on $(date)
+================================================
+
+Problem: export_users.sh was producing garbled CSV output after migration
+to multi-file format. Symptoms included:
+- UIDs appearing in email column
+- GIDs showing instead of group names
+- Incorrect data alignment
+
+Root Causes Identified:
+
+1. WRONG DELIMITER FOR emails.dat
+   - File uses TAB delimiter but script used space delimiter
+   - Caused entire "uid<TAB>email" to be treated as single field
+   - Fix: Changed cut -d' ' to awk -F$'\t' for proper tab handling
+
+2. SORTING MISMATCH (noted but already handled via awk lookup)
+   - Users sorted alphabetically, emails sorted numerically
+   - Fixed by using awk lookup instead of paste/join
+
+3. WRONG FIELD SEPARATOR FOR groups.dat
+   - File uses colon delimiter (gid:name:description)
+   - Script used awk default (space/tab) so whole line became $1
+   - Fix: Added -F':' to all awk commands processing groups.dat
+
+Results:
+- All 800 users exported successfully
+- Clean CSV with proper field separation
+- Group names resolved correctly (primary and supplementary)
+- Emails clean without UID prefixes
+
+Backup of original script: export_users.sh.backup
+[?2004hroot@7e48eccb5004:/home/user/admin# ls -lh export.csv export_users.sh export_users.sh.backup FIXES_APPLIED.txt
+[?2004l-rw-r--r-- 1 root root 1.2K Apr 29 06:19 FIXES_APPLIED.txt
+-rw-r--r-- 1 root root  64K Apr 29 06:18 export.csv
+-rwxrwxrwx 1 root root 2.1K Apr 29 06:18 [0m[01;32mexport_users.sh[0m
+-rwxr-xr-x 1 root root 3.0K Apr 29 06:18 [01;32mexport_users.sh.backup[0m
+[?2004hroot@7e48eccb5004:/home/user/admin# grep -c ',' export.csv
+[?2004l801
+[?2004hroot@7e48eccb5004:/home/user/admin# awk -F',' 'NR>1 {print NF}' export.csv | sort -u
+[?2004l6
+[?2004hroot@7e48eccb5004:/home/user/admin# grep 'woods,' export.csv
+[?2004l[01;31m[Kwoods,[m[K1623,finance,woods@corp.local,/bin/bash,finance
+[?2004hroot@7e48eccb5004:/home/user/admin# grep '^1623' data/memberships.dat
+[?2004l[01;31m[K1623[m[K 1006
+[?2004hroot@7e48eccb5004:/home/user/admin# head -20 data/memberships.dat | cat
+[?2004l1001 1006 1007 1025 1044
+1002 1010 1028
+1003 1002
+1004 1009 1020 1043 1050
+1005 1008
+1006 1008
+1007 1005 1015 1021 1042 1050
+1008 1006 1009 1015
+1009 1009 1016 1033
+1010 1005 1047
+1011 1008
+1012 1006 1009 1023 1046
+1013 1009
+1014 1009 1024 1028
+1015 1007 1014
+1016 1008 1037 1048
+1017 1001 1002
+1018 1001 1031 1032
+1019 1003 1010 1027 1029 1035
+1020 1001 1003
+[?2004hroot@7e48eccb5004:/home/user/admin# grep '^1100' data/users.dat
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# grep '^1100' data/memberships.dat
+[?2004l[01;31m[K1100[m[K 1005 1009 1015 1023
+[?2004hroot@7e48eccb5004:/home/user/admin# grep ',1100,' export.csv
+[?2004lcharles.mendoza[01;31m[K,1100,[m[Ksecurity,charles.mendoza@corp.local,/bin/zsh,devops;security;it;product
+[?2004hroot@7e48eccb5004:/home/user/admin# awk -F'|' '{print $2}' data/users.dat | sort -n > /tmp/all_uids.txt
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# awk '{print $1}' data/memberships.dat | sort -n > /tmp/member_uids.txt
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# comm -23 /tmp/all_uids.txt /tmp/member_uids.txt | head -5
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# ./export_users.sh.backup 2>/dev/null
+[?2004lmv export.csv export_fixed.csv
+./export_users.sh.backup
+echo '=== BEFORE (BROKEN) ==='
+head -5 export.csv
+echo '\n=== AFTER (FIXED) ==='
+head -5 export_fixed.csv
+mv export_fixed.csv export.csv
+[?2004hroot@7e48eccb5004:/home/user/admin# mv export.csv export_fixed.csv
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# ./export_users.sh.backup
+[?2004l
+[?2004hroot@7e48eccb5004:/home/user/admin# echo '=== BEFORE (BROKEN) ==='
+[?2004l=== BEFORE (BROKEN) ===
+[?2004hroot@7e48eccb5004:/home/user/admin# head -5 export.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,1001,1482	aadams@corp.local,/bin/sh,1001;1018;1035
+aconner,1042,1001,1042	aconner@corp.local,/bin/bash,1001;1005;1012
+adiaz,1781,1005,1781	adiaz@corp.local,/bin/bash,1005;1010;1024;1038;1041
+agonzales,1329,1004,1329	agonzales@corp.local,/bin/sh,1004;1035;1042;1048
+[?2004hroot@7e48eccb5004:/home/user/admin# echo '\n=== AFTER (FIXED) ==='
+[?2004l\n=== AFTER (FIXED) ===
+[?2004hroot@7e48eccb5004:/home/user/admin# head -5 export_fixed.csv
+[?2004lusername,uid,primary_group,email,shell,supplementary_groups
+aadams,1482,1001,1482	aadams@corp.local,/bin/sh,1001;1018;1035
+aconner,1042,1001,1042	aconner@corp.local,/bin/bash,1001;1005;1012
+adiaz,1781,1005,1781	adiaz@corp.local,/bin/bash,1005;1010;1024;1038;1041
+agonzales,1329,1004,1329	agonzales@corp.local,/bin/sh,1004;1035;1042;1048
+[?2004hroot@7e48eccb5004:/home/user/admin# mv export_fixed.csv export.csv
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# 
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# ./export_users.sh
+[?2004lecho '=== BROKEN (backup script) ==='
+head -3 export.csv | tail -2
+./export_users.sh
+echo '=== FIXED (current script) ==='
+head -3 export.csv | tail -2
+[?2004hroot@7e48eccb5004:/home/user/admin# echo '=== BROKEN (backup script) ==='
+[?2004l=== BROKEN (backup script) ===
+[?2004hroot@7e48eccb5004:/home/user/admin# head -3 export.csv | tail -2
+[?2004laadams,1482,engineering,aadams@corp.local,/bin/sh,engineering;analytics;database
+aconner,1042,engineering,aconner@corp.local,/bin/bash,engineering;devops;contractors
+[?2004hroot@7e48eccb5004:/home/user/admin# ./export_users.sh
+[?2004l[?2004hroot@7e48eccb5004:/home/user/admin# echo '=== FIXED (current script) ==='
+[?2004l=== FIXED (current script) ===
+[?2004hroot@7e48eccb5004:/home/user/admin# head -3 export.csv | tail -2
+[?2004laadams,1482,engineering,aadams@corp.local,/bin/sh,engineering;analytics;database
+aconner,1042,engineering,aconner@corp.local,/bin/bash,engineering;devops;contractors
+[?2004hroot@7e48eccb5004:/home/user/admin# wc -l export.csv
+[?2004l801 export.csv
+[?2004hroot@7e48eccb5004:/home/user/admin# tail -3 export.csv
+[?2004lyangm,1043,devops,yangm@corp.local,/bin/bash,hr;devops;training;automation
+youngm,1246,interns,youngm@corp.local,/bin/zsh,research;devops;marketing;interns;frontend
+zyang,1799,research,zyang@corp.local,/bin/zsh,research;interns
+[?2004hroot@7e48eccb5004:/home/user/admin# awk -F',' 'NR>1 && NF!=6 {print "Line " NR " has " NF " fields"}' export.csv | wc -l
+[?2004l0
+[?2004hroot@7e48eccb5004:/home/user/admin# echo 'Export script fixed successfully. All 800 users exported with clean CSV format.'
+[?2004lExport script fixed successfully. All 800 users exported with clean CSV format.
+[?2004hroot@7e48eccb5004:/home/user/admin# 

@@ -1,0 +1,460 @@
+[?2004hI have no name!@c712680efa23:/home/user$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004lTraceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 28, in upgrade
+    self.install_id
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 78, in install_id
+    raise ConfigError('no install ID found')
+asciinema.config.ConfigError: no install ID found
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/bin/asciinema", line 33, in <module>
+    sys.exit(load_entry_point('asciinema==2.1.0', 'console_scripts', 'asciinema')())
+  File "/usr/lib/python3/dist-packages/asciinema/__main__.py", line 34, in main
+    cfg = config.load()
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 185, in load
+    config.upgrade()
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 31, in upgrade
+    self.__save_install_id(id)
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 50, in __save_install_id
+    self.__create_config_home()
+  File "/usr/lib/python3/dist-packages/asciinema/config.py", line 57, in __create_config_home
+    os.makedirs(self.config_home)
+  File "/usr/lib/python3.10/os.py", line 215, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/usr/lib/python3.10/os.py", line 225, in makedirs
+    mkdir(name, mode)
+PermissionError: [Errno 13] Permission denied: '/.config'
+[?2004hI have no name!@c712680efa23:/home/user$ clear
+[?2004l[H[J[?2004hI have no name!@c712680efa23:/home/user$ ls -la /home/user/
+[?2004ltotal 16
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 .
+drwxr-xr-x 1 root root 4096 Apr 29 08:14 ..
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 backup
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 data
+[?2004hI have no name!@c712680efa23:/home/user$ ls -la /home/user/backup/
+[?2004ltotal 24
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 ..
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 archives
+-rwxrwxrwx 1 1000 1000  348 Apr 29 08:14 full.sh
+-rwxrwxrwx 1 1000 1000  653 Apr 29 08:14 incremental.sh
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 state
+[?2004hI have no name!@c712680efa23:/home/user$ cat /home/user/backup/incremental.sh
+[?2004l#!/bin/bash
+set -e
+SOURCE="/home/user/data"
+ARCHIVE_DIR="/home/user/backup/archives"
+STATE_DIR="/home/user/backup/state"
+TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+
+ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+if [[ -f "$TIMESTAMP_FILE" ]]; then
+    NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+    find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+    TAR_PID=$!
+    date +%s > "$TIMESTAMP_FILE"
+    wait $TAR_PID
+else
+    # First incremental = full
+    tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+    date +%s > "$TIMESTAMP_FILE"
+    touch "$STATE_DIR/reference"
+fi
+[?2004hI have no name!@c712680efa23:/home/user$ cat /home/user/backup/full.sh
+[?2004l#!/bin/bash
+set -e
+SOURCE="/home/user/data"
+ARCHIVE_DIR="/home/user/backup/archives"
+STATE_DIR="/home/user/backup/state"
+
+ARCHIVE_NAME="full_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+
+touch "$STATE_DIR/reference"
+date +%s > "$STATE_DIR/last_incremental"
+
+echo "Full backup created: $ARCHIVE_DIR/$ARCHIVE_NAME"
+[?2004hI have no name!@c712680efa23:/home/user$ ls -la /home/user/backup/state/
+[?2004ltotal 12
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 ..
+-rwxrwxrwx 1 1000 1000   11 Apr 29 08:14 last_incremental
+-rwxrwxrwx 1 1000 1000    0 Mar 15  2024 reference
+[?2004hI have no name!@c712680efa23:/home/user$ ls -lh /home/user/backup/archives/
+[?2004ltotal 0
+[?2004hI have no name!@c712680efa23:/home/user$ ls -la /home/user/data/
+[?2004ltotal 24
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 ..
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 binaries
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 configs
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 subdir1
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 subdir2
+[?2004hI have no name!@c712680efa23:/home/user$ find /home/user/data -type f -ls
+[?2004l  2883681      4 -rwxrwxrwx   1 1000     1000           53 Mar 25  2024 /home/user/data/configs/config_9.conf
+  2883662      4 -rwxrwxrwx   1 1000     1000           64 Mar 22  2024 /home/user/data/configs/app_5.yaml
+  2883667      4 -rwxrwxrwx   1 1000     1000           53 Mar 10  2024 /home/user/data/configs/config_1.conf
+  2883665      4 -rwxrwxrwx   1 1000     1000           64 Mar 25  2024 /home/user/data/configs/app_8.yaml
+  2883669      4 -rwxrwxrwx   1 1000     1000           57 Mar 27  2024 /home/user/data/configs/config_11.conf
+  2883661      4 -rwxrwxrwx   1 1000     1000           64 Mar 21  2024 /home/user/data/configs/app_4.yaml
+  2883657      4 -rwxrwxrwx   1 1000     1000           64 Mar 10  2024 /home/user/data/configs/app_1.yaml
+  2883674      4 -rwxrwxrwx   1 1000     1000           53 Mar 10  2024 /home/user/data/configs/config_2.conf
+  2883672      4 -rwxrwxrwx   1 1000     1000           57 Mar 30  2024 /home/user/data/configs/config_14.conf
+  2883673      4 -rwxrwxrwx   1 1000     1000           57 Mar 31  2024 /home/user/data/configs/config_15.conf
+  2883679      4 -rwxrwxrwx   1 1000     1000           53 Mar 23  2024 /home/user/data/configs/config_7.conf
+  2883676      4 -rwxrwxrwx   1 1000     1000           53 Mar 20  2024 /home/user/data/configs/config_4.conf
+  2883670      4 -rwxrwxrwx   1 1000     1000           57 Mar 28  2024 /home/user/data/configs/config_12.conf
+  2883659      4 -rwxrwxrwx   1 1000     1000           64 Mar 10  2024 /home/user/data/configs/app_2.yaml
+  2883663      4 -rwxrwxrwx   1 1000     1000           64 Mar 23  2024 /home/user/data/configs/app_6.yaml
+  2883675      4 -rwxrwxrwx   1 1000     1000           53 Mar 10  2024 /home/user/data/configs/config_3.conf
+  2883678      4 -rwxrwxrwx   1 1000     1000           53 Mar 22  2024 /home/user/data/configs/config_6.conf
+  2883677      4 -rwxrwxrwx   1 1000     1000           53 Mar 21  2024 /home/user/data/configs/config_5.conf
+  2883664      4 -rwxrwxrwx   1 1000     1000           64 Mar 24  2024 /home/user/data/configs/app_7.yaml
+  2883658      4 -rwxrwxrwx   1 1000     1000           66 Mar 27  2024 /home/user/data/configs/app_10.yaml
+  2883680      4 -rwxrwxrwx   1 1000     1000           53 Mar 24  2024 /home/user/data/configs/config_8.conf
+  2883671      4 -rwxrwxrwx   1 1000     1000           57 Mar 29  2024 /home/user/data/configs/config_13.conf
+  2883666      4 -rwxrwxrwx   1 1000     1000           64 Mar 26  2024 /home/user/data/configs/app_9.yaml
+  2883660      4 -rwxrwxrwx   1 1000     1000           64 Mar 20  2024 /home/user/data/configs/app_3.yaml
+  2883668      4 -rwxrwxrwx   1 1000     1000           57 Mar 26  2024 /home/user/data/configs/config_10.conf
+  2883689      4 -rwxrwxrwx   1 1000     1000           16 Mar 25  2024 /home/user/data/subdir1/nested/nested_config_6.conf
+  2883691      4 -rwxrwxrwx   1 1000     1000           16 Mar 27  2024 /home/user/data/subdir1/nested/nested_config_8.conf
+  2883684      4 -rwxrwxrwx   1 1000     1000           16 Mar 20  2024 /home/user/data/subdir1/nested/nested_config_1.conf
+  2883690      4 -rwxrwxrwx   1 1000     1000           16 Mar 26  2024 /home/user/data/subdir1/nested/nested_config_7.conf
+  2883687      4 -rwxrwxrwx   1 1000     1000           16 Mar 23  2024 /home/user/data/subdir1/nested/nested_config_4.conf
+  2883686      4 -rwxrwxrwx   1 1000     1000           16 Mar 22  2024 /home/user/data/subdir1/nested/nested_config_3.conf
+  2883685      4 -rwxrwxrwx   1 1000     1000           16 Mar 21  2024 /home/user/data/subdir1/nested/nested_config_2.conf
+  2883688      4 -rwxrwxrwx   1 1000     1000           16 Mar 24  2024 /home/user/data/subdir1/nested/nested_config_5.conf
+  2883695     52 -rwxrwxrwx   1 1000     1000        51200 Mar 23  2024 /home/user/data/subdir1/small_bin_4.dat
+  2883692     52 -rwxrwxrwx   1 1000     1000        51200 Mar 20  2024 /home/user/data/subdir1/small_bin_1.dat
+  2883693     52 -rwxrwxrwx   1 1000     1000        51200 Mar 21  2024 /home/user/data/subdir1/small_bin_2.dat
+  2883694     52 -rwxrwxrwx   1 1000     1000        51200 Mar 22  2024 /home/user/data/subdir1/small_bin_3.dat
+  2883696     52 -rwxrwxrwx   1 1000     1000        51200 Mar 24  2024 /home/user/data/subdir1/small_bin_5.dat
+  2883654   1800 -rwxrwxrwx   1 1000     1000      1843200 Mar 23  2024 /home/user/data/binaries/blob4.bin
+  2883651   1500 -rwxrwxrwx   1 1000     1000      1536000 Mar 20  2024 /home/user/data/binaries/blob1.bin
+  2883655   2500 -rwxrwxrwx   1 1000     1000      2560000 Mar 24  2024 /home/user/data/binaries/blob5.bin
+  2883652   2000 -rwxrwxrwx   1 1000     1000      2048000 Mar 21  2024 /home/user/data/binaries/blob2.bin
+  2883653   3000 -rwxrwxrwx   1 1000     1000      3072000 Mar 22  2024 /home/user/data/binaries/blob3.bin
+  2883699      4 -rwxrwxrwx   1 1000     1000           15 Mar 21  2024 /home/user/data/subdir2/data_2.txt
+  2883702      4 -rwxrwxrwx   1 1000     1000           15 Mar 24  2024 /home/user/data/subdir2/data_5.txt
+  2883703      4 -rwxrwxrwx   1 1000     1000           15 Mar 25  2024 /home/user/data/subdir2/data_6.txt
+  2883701      4 -rwxrwxrwx   1 1000     1000           15 Mar 23  2024 /home/user/data/subdir2/data_4.txt
+  2883700      4 -rwxrwxrwx   1 1000     1000           15 Mar 22  2024 /home/user/data/subdir2/data_3.txt
+  2883698      4 -rwxrwxrwx   1 1000     1000           15 Mar 20  2024 /home/user/data/subdir2/data_1.txt
+  2883704      4 -rwxrwxrwx   1 1000     1000           15 Mar 26  2024 /home/user/data/subdir2/data_7.txt
+[?2004hI have no name!@c712680efa23:/home/user$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -lh archives/
+[?2004ltotal 11M
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081532.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ mkdir -p /tmp/test_extract
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ cd /tmp/test_extract
+[?2004l[?2004hI have no name!@c712680efa23:/tmp/test_extract$ tar -xzf /home/user/backup/archives/incremental_20260429_081532.tar.gz
+[?2004l[?2004hI have no name!@c712680efa23:/tmp/test_extract$ ls -la
+[?2004ltotal 12
+drwxr-xr-x 3 1000 root 4096 Apr 29 08:15 .
+drwxrwxrwt 1 root root 4096 Apr 29 08:15 ..
+drwxr-xr-x 3 1000 root 4096 Apr 29 08:15 home
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ find . -type f | head -10
+[?2004l./home/user/data/configs/config_9.conf
+./home/user/data/configs/app_5.yaml
+./home/user/data/configs/app_8.yaml
+./home/user/data/configs/config_11.conf
+./home/user/data/configs/app_4.yaml
+./home/user/data/configs/config_14.conf
+./home/user/data/configs/config_15.conf
+./home/user/data/configs/config_7.conf
+./home/user/data/configs/config_4.conf
+./home/user/data/configs/config_12.conf
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ cd /home/user/data
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/data$ touch configs/app_1.yaml configs/config_5.conf
+[?2004lcd /home/user/backup
+[?2004hI have no name!@c712680efa23:/home/user/data$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -lh archives/
+[?2004ltotal 22M
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081532.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081550.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ rm -rf /tmp/test_extract/*
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ cd /tmp/test_extract
+[?2004l[?2004hI have no name!@c712680efa23:/tmp/test_extract$ tar -xzf /home/user/backup/archives/incremental_20260429_081536.tar.gz
+[?2004ltar (child): /home/user/backup/archives/incremental_20260429_081536.tar.gz: Cannot open: No such file or directory
+tar (child): Error is not recoverable: exiting now
+tar: Child returned status 2
+tar: Error is not recoverable: exiting now
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ tar -xzf /home/user/backup/archives/incremental_20260429_081550.tar.gz
+[?2004l[?2004hI have no name!@c712680efa23:/tmp/test_extract$ ls -la
+[?2004ltotal 12
+drwxr-xr-x 3 1000 root 4096 Apr 29 08:16 .
+drwxrwxrwt 1 root root 4096 Apr 29 08:15 ..
+drwxr-xr-x 3 1000 root 4096 Apr 29 08:16 home
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ find . -type f
+[?2004l./home/user/data/configs/config_9.conf
+./home/user/data/configs/app_5.yaml
+./home/user/data/configs/app_8.yaml
+./home/user/data/configs/config_11.conf
+./home/user/data/configs/app_4.yaml
+./home/user/data/configs/app_1.yaml
+./home/user/data/configs/config_14.conf
+./home/user/data/configs/config_15.conf
+./home/user/data/configs/config_7.conf
+./home/user/data/configs/config_4.conf
+./home/user/data/configs/config_12.conf
+./home/user/data/configs/app_6.yaml
+./home/user/data/configs/config_6.conf
+./home/user/data/configs/config_5.conf
+./home/user/data/configs/app_7.yaml
+./home/user/data/configs/app_10.yaml
+./home/user/data/configs/config_8.conf
+./home/user/data/configs/config_13.conf
+./home/user/data/configs/app_9.yaml
+./home/user/data/configs/app_3.yaml
+./home/user/data/configs/config_10.conf
+./home/user/data/subdir1/small_bin_4.dat
+./home/user/data/subdir1/small_bin_1.dat
+./home/user/data/subdir1/small_bin_2.dat
+./home/user/data/subdir1/small_bin_3.dat
+./home/user/data/subdir1/nested/nested_config_6.conf
+./home/user/data/subdir1/nested/nested_config_8.conf
+./home/user/data/subdir1/nested/nested_config_1.conf
+./home/user/data/subdir1/nested/nested_config_7.conf
+./home/user/data/subdir1/nested/nested_config_4.conf
+./home/user/data/subdir1/nested/nested_config_3.conf
+./home/user/data/subdir1/nested/nested_config_2.conf
+./home/user/data/subdir1/nested/nested_config_5.conf
+./home/user/data/subdir1/small_bin_5.dat
+./home/user/data/binaries/blob4.bin
+./home/user/data/binaries/blob1.bin
+./home/user/data/binaries/blob5.bin
+./home/user/data/binaries/blob2.bin
+./home/user/data/binaries/blob3.bin
+./home/user/data/subdir2/data_2.txt
+./home/user/data/subdir2/data_5.txt
+./home/user/data/subdir2/data_6.txt
+./home/user/data/subdir2/data_4.txt
+./home/user/data/subdir2/data_3.txt
+./home/user/data/subdir2/data_1.txt
+./home/user/data/subdir2/data_7.txt
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ ls -lh ./home/user/data/binaries/blob1.bin
+[?2004l-rwxr-xr-x 1 1000 root 1.5M Mar 20  2024 ./home/user/data/binaries/blob1.bin
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ ls -lh /home/user/data/binaries/blob1.bin
+[?2004l-rwxrwxrwx 1 1000 1000 1.5M Mar 20  2024 /home/user/data/binaries/blob1.bin
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -la state/
+[?2004ltotal 20
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:14 ..
+-rwxrwxrwx 1 1000 1000   11 Apr 29 08:15 last_incremental
+-rwxrwxrwx 1 1000 1000    0 Mar 15  2024 reference
+[?2004hI have no name!@c712680efa23:/home/user/backup$ stat state/reference
+[?2004l  File: state/reference
+  Size: 0         	Blocks: 0          IO Block: 4096   regular empty file
+Device: 31h/49d	Inode: 2883648     Links: 1
+Access: (0777/-rwxrwxrwx)  Uid: ( 1000/ UNKNOWN)   Gid: ( 1000/ UNKNOWN)
+Access: 2024-03-15 10:00:00.000000000 +0000
+Modify: 2024-03-15 10:00:00.000000000 +0000
+Change: 2026-04-29 08:14:52.496399166 +0000
+ Birth: 2026-04-29 08:14:52.496338989 +0000
+[?2004hI have no name!@c712680efa23:/home/user/backup$ cat incremental.sh
+[?2004l#!/bin/bash
+set -e
+SOURCE="/home/user/data"
+ARCHIVE_DIR="/home/user/backup/archives"
+STATE_DIR="/home/user/backup/state"
+TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+
+ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+if [[ -f "$TIMESTAMP_FILE" ]]; then
+    NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+    find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" &
+    TAR_PID=$!
+    date +%s > "$TIMESTAMP_FILE"
+    wait $TAR_PID
+else
+    # First incremental = full
+    tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+    date +%s > "$TIMESTAMP_FILE"
+    touch "$STATE_DIR/reference"
+fi
+[?2004hI have no name!@c712680efa23:/home/user/backup$ for i in {1..3}; do touch /home/user/data/configs/app_$i.yaml; ./incremental.sh; sleep 0.1; done
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+tar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+tar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -lh archives/ | tail -5
+[?2004ltotal 44M
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081532.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081550.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081633.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081634.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -lh archives/
+[?2004ltotal 44M
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081532.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081550.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081633.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081634.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ rm -rf /tmp/test_extract/*
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ cd /tmp/test_extract && tar -tzf /home/user/backup/archives/incremental_20260429_081634.tar.gz | wc -l
+[?2004l47
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ tar -xzf /home/user/backup/archives/incremental_20260429_081634.tar.gz 2>&1
+[?2004l[?2004hI have no name!@c712680efa23:/tmp/test_extract$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ cp incremental.sh incremental.sh.bak
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ cat > incremental.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> set -e
+[?2004l[?2004h> SOURCE="/home/user/data"
+[?2004l[?2004h> ARCHIVE_DIR="/home/user/backup/archives"
+[?2004l[?2004h> STATE_DIR="/home/user/backup/state"
+[?2004l[?2004h> TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+[?2004l[?2004h> 
+[?2004l[?2004h> ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+[?2004l[?2004h> 
+[?2004l[?2004h> if [[ -f "$TIMESTAMP_FILE" ]]; then
+[?2004l[?2004h>     NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+[?2004l[?2004h>     find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+[?2004l[?2004h>         tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME"
+[?2004l[?2004h>     touch "$STATE_DIR/reference"
+[?2004l[?2004h>     date +%s > "$TIMESTAMP_FILE"
+[?2004l[?2004h> else
+[?2004l[?2004h>     # First incremental = full
+[?2004l[?2004h>     tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+[?2004l[?2004h>     date +%s > "$TIMESTAMP_FILE"
+[?2004l[?2004h>     touch "$STATE_DIR/reference"
+[?2004l[?2004h> fi
+[?2004l[?2004h> EOF
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ chmod +x incremental.sh
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ rm -f state/last_incremental state/reference
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ ./full.sh
+[?2004ltar: Removing leading `/' from member names
+Full backup created: /home/user/backup/archives/full_20260429_081708.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -lh archives/ | tail -3
+[?2004l-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081550.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081633.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081634.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -la state/
+[?2004ltotal 20
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:17 .
+drwxrwxrwx 1 1000 1000 4096 Apr 29 08:16 ..
+-rw-r--r-- 1 1000 root   11 Apr 29 08:17 last_incremental
+-rw-r--r-- 1 1000 root    0 Apr 29 08:17 reference
+[?2004hI have no name!@c712680efa23:/home/user/backup$ stat state/reference
+[?2004l  File: state/reference
+  Size: 0         	Blocks: 0          IO Block: 4096   regular empty file
+Device: 31h/49d	Inode: 2931363     Links: 1
+Access: (0644/-rw-r--r--)  Uid: ( 1000/ UNKNOWN)   Gid: (    0/    root)
+Access: 2026-04-29 08:17:08.615186488 +0000
+Modify: 2026-04-29 08:17:08.615186488 +0000
+Change: 2026-04-29 08:17:08.615186488 +0000
+ Birth: 2026-04-29 08:17:08.615186488 +0000
+[?2004hI have no name!@c712680efa23:/home/user/backup$ sleep 1
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ echo 'modified' >> /home/user/data/configs/app_1.yaml
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ echo 'modified' >> /home/user/data/configs/config_5.conf
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ ./incremental.sh
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -lh archives/ | tail -5
+[?2004l-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081532.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 incremental_20260429_081550.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081633.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 incremental_20260429_081634.tar.gz
+-rw-r--r-- 1 1000 root 260 Apr 29 08:17 incremental_20260429_081718.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ LATEST=$(ls -t archives/incremental_* | head -1)
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ echo "Latest incremental: $LATEST"
+[?2004lLatest incremental: archives/incremental_20260429_081718.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ tar -tzf $LATEST
+[?2004lhome/user/data/configs/app_1.yaml
+home/user/data/configs/config_5.conf
+[?2004hI have no name!@c712680efa23:/home/user/backup$ rm -rf /tmp/test_extract/*
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ cd /tmp/test_extract && tar -xzf /home/user/backup/$LATEST
+[?2004l[?2004hI have no name!@c712680efa23:/tmp/test_extract$ find . -type f -exec ls -lh {} \;
+[?2004l-rwxr-xr-x 1 1000 root 73 Apr 29 08:17 ./home/user/data/configs/app_1.yaml
+-rwxr-xr-x 1 1000 root 62 Apr 29 08:17 ./home/user/data/configs/config_5.conf
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ cat home/user/data/configs/app_1.yaml
+[?2004l---
+name: application_1
+version: 1.1.0
+settings:
+  debug: false
+modified
+[?2004hI have no name!@c712680efa23:/tmp/test_extract$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ for i in {1..5}; do sleep 1; echo "change $i" >> /home/user/data/subdir2/data_$i.txt; ./incremental.sh; done
+[?2004ltar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+tar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+tar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+tar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+tar: Removing leading `/' from member names
+tar: Removing leading `/' from hard link targets
+[?2004hI have no name!@c712680efa23:/home/user/backup$ ls -lh archives/incremental_* | tail -10
+[?2004l-rw-r--r-- 1 1000 root 11M Apr 29 08:15 archives/incremental_20260429_081532.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:15 archives/incremental_20260429_081550.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 archives/incremental_20260429_081633.tar.gz
+-rw-r--r-- 1 1000 root 11M Apr 29 08:16 archives/incremental_20260429_081634.tar.gz
+-rw-r--r-- 1 1000 root 260 Apr 29 08:17 archives/incremental_20260429_081718.tar.gz
+-rw-r--r-- 1 1000 root 154 Apr 29 08:17 archives/incremental_20260429_081743.tar.gz
+-rw-r--r-- 1 1000 root 152 Apr 29 08:17 archives/incremental_20260429_081744.tar.gz
+-rw-r--r-- 1 1000 root 153 Apr 29 08:17 archives/incremental_20260429_081745.tar.gz
+-rw-r--r-- 1 1000 root 152 Apr 29 08:17 archives/incremental_20260429_081746.tar.gz
+-rw-r--r-- 1 1000 root 154 Apr 29 08:17 archives/incremental_20260429_081747.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ for archive in archives/incremental_20260429_0817{43,45,47}.tar.gz; do echo "Testing $archive:"; tar -tzf $archivve && echo "OK" || echo "FAILED"; done
+[?2004lTesting archives/incremental_20260429_081743.tar.gz:
+home/user/data/subdir2/data_1.txt
+OK
+Testing archives/incremental_20260429_081745.tar.gz:
+home/user/data/subdir2/data_3.txt
+OK
+Testing archives/incremental_20260429_081747.tar.gz:
+home/user/data/subdir2/data_5.txt
+OK
+[?2004hI have no name!@c712680efa23:/home/user/backup$ rm -rf /tmp/final_test && mkdir /tmp/final_test && cd /tmp/final_test
+[?2004l[?2004hI have no name!@c712680efa23:/tmp/final_test$ tar -xzf /home/user/backup/archives/incremental_20260429_081747.tar.gz && echo "Extraction successful" && cat home//user/data/subdir2/data_5.txt
+[?2004lExtraction successful
+subdir2 file 5
+change 5
+[?2004hI have no name!@c712680efa23:/tmp/final_test$ cd /home/user/backup
+[?2004l[?2004hI have no name!@c712680efa23:/home/user/backup$ cat incremental.sh
+[?2004l#!/bin/bash
+set -e
+SOURCE="/home/user/data"
+ARCHIVE_DIR="/home/user/backup/archives"
+STATE_DIR="/home/user/backup/state"
+TIMESTAMP_FILE="$STATE_DIR/last_incremental"
+
+ARCHIVE_NAME="incremental_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+if [[ -f "$TIMESTAMP_FILE" ]]; then
+    NEWER_THAN=$(cat "$TIMESTAMP_FILE")
+    find "$SOURCE" -type f -newer "$STATE_DIR/reference" -print0 | \
+        tar --null -T - -czf "$ARCHIVE_DIR/$ARCHIVE_NAME"
+    touch "$STATE_DIR/reference"
+    date +%s > "$TIMESTAMP_FILE"
+else
+    # First incremental = full
+    tar -czf "$ARCHIVE_DIR/$ARCHIVE_NAME" "$SOURCE"
+    date +%s > "$TIMESTAMP_FILE"
+    touch "$STATE_DIR/reference"
+fi
+[?2004hI have no name!@c712680efa23:/home/user/backup$ echo ''
+[?2004l
+[?2004hI have no name!@c712680efa23:/home/user/backup$ echo 'Fix verified: Incremental backups now working correctly.'
+[?2004lFix verified: Incremental backups now working correctly.
+[?2004hI have no name!@c712680efa23:/home/user/backup$ echo 'Old broken incrementals (11M each): incremental_20260429_081532.tar.gz through 081634.tar.gz'
+[?2004lOld broken incrementals (11M each): incremental_20260429_081532.tar.gz through 081634.tar.gz
+[?2004hI have no name!@c712680efa23:/home/user/backup$ echo 'New working incrementals (small sizes): incremental_20260429_081718.tar.gz onwards'
+[?2004lNew working incrementals (small sizes): incremental_20260429_081718.tar.gz onwards
+[?2004hI have no name!@c712680efa23:/home/user/backup$ 

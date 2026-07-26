@@ -1,0 +1,209 @@
+New Terminal Output:
+
+user@c864f994c26f:~/inventory$ cat > normalize_assets.py << 'EOF'
+('name', '').strip()
+            serial = row.get('serial', '').strip()
+            purchase_date_str = row.get('purchase_date', '').strip()
+            price_str = row.get('price', '').strip()
+            location = row.get('location', '').strip()
+
+            # Check for swapped name and serial
+            if is_serial_format(name) and not is_serial_format(serial):
+                name, serial = serial, name
+
+            # Validate asset ID
+            if not asset_id:
+                reject_reasons.append("missing asset ID")
+
+            # Validate and parse date
+            iso_date, dt_obj = parse_date(purchase_date_str)
+            if iso_date is None:
+                reject_reasons.append(f"invalid date format: {purchase_date_str}")
+
+            # Validate and parse price
+            price_cents, price_error = parse_price(price_str)
+            if price_cents is None:
+                reject_reasons.append(price_error or "invalid price")
+
+            # Validate other required fields
+            if not name:
+                reject_reasons.append("missing name")
+            if not serial:
+                reject_reasons.append("missing serial")
+            if not location:
+                reject_reasons.append("missing location")
+
+            # If any validation failed, reject the record
+            if reject_reasons:
+                rejected_records.append({
+                    "original_row": original_row,
+                    "reason": "; ".join(reject_reasons)
+                })
+                continue
+
+            # Create valid record
+            record = {
+                "id": asset_id,
+                "name": name,
+                "serial": serial,
+                "purchase_date": iso_date,
+                "price_cents": price_cents,
+                "location": location
+            }
+
+            # Handle duplicates - keep the one with latest purchase date
+            if asset_id in valid_records:
+                existing_dt = datetime.strp> import csv
+> import json
+> import re
+> from datetime import datetime
+> from collections import defaultdict
+>
+> def parse_date(date_str):
+>     """Parse multiple date formats and return ISO 8601 string."""
+>     date_str = date_str.strip()
+>
+>     # Try YYYY-MM-DD
+>     try:
+>         dt = datetime.strptime(date_str, '%Y-%m-%d')
+>         return dt.strftime('%Y-%m-%d'), dt
+>     except ValueError:
+>         pass
+>
+>     # Try MM/DD/YYYY
+>     try:
+>         dt = datetime.strptime(date_str, '%m/%d/%Y')
+>         return dt.strftime('%Y-%m-%d'), dt
+>     except ValueError:
+>         pass
+>
+>     # Try DD.MM.YYYY
+>     try:
+>         dt = datetime.strptime(date_str, '%d.%m.%Y')
+>         return dt.strftime('%Y-%m-%d'), dt
+>     except ValueError:
+>         pass
+>
+>     return None, None
+>
+> def parse_price(price_str):
+>     """Parse price and convert to cents (integer)."""
+>     price_str = str(price_str).strip()
+>
+>     # Remove dollar signs and commas
+>     price_str = price_str.replace('$', '').replace(',', '')
+>
+>     try:
+>         price_float = float(price_str)
+>
+>         # Check if negative
+>         if price_float < 0:
+>             return None, "negative price"
+>
+>         # Convert to cents
+>         price_cents = int(round(price_float * 100))
+>
+>         if price_cents <= 0:
+>             return None, "non-positive price"
+>
+>         return price_cents, None
+>     except (ValueError, TypeError):
+>         return None, "invalid price format"
+>
+> def is_serial_format(value):
+>     """Check if value looks like a serial number (starts with SN-)."""
+>     return isinstance(value, str) and value.startswith('SN-')
+>
+> def process_csv():
+>     valid_records = {}
+>     rejected_records = []
+>
+>     with open('/home/user/inventory/assets.csv', 'r') as f:
+>         reader = csv.DictReader(f)
+>
+>         for row_num, row in enumerate(reader, start=2):
+>             original_row = dict(row)
+>             reject_reasons = []
+>
+>             # Extract fields
+>             asset_id = row.get('id', '').strip()
+>             name = row.get('name', '').strip()
+>             serial = row.get('serial', '').strip()
+>             purchase_date_str = row.get('purchase_date', '').strip()
+>             price_str = row.get('price', '').strip()
+>             location = row.get('location', '').strip()
+>
+>             # Check for swapped name and serial
+>             if is_serial_format(name) and not is_serial_format(serial):
+>                 name, serial = serial, name
+>
+>             # Validate asset ID
+>             if not asset_id:
+>                 reject_reasons.append("missing asset ID")
+>
+>             # Validate and parse date
+>             iso_date, dt_obj = parse_date(purchase_date_str)
+>             if iso_date is None:
+>                 reject_reasons.append(f"invalid date format: {purchase_date_str}")
+>
+>             # Validate and parse price
+>             price_cents, price_error = parse_price(price_str)
+>             if price_cents is None:
+>                 reject_reasons.append(price_error or "invalid price")
+>
+>             # Validate other required fields
+>             if not name:
+>                 reject_reasons.append("missing name")
+>             if not serial:
+>                 reject_reasons.append("missing serial")
+>             if not location:
+>                 reject_reasons.append("missing location")
+>
+>             # If any validation failed, reject the record
+>             if reject_reasons:
+>                 rejected_records.append({
+>                     "original_row": original_row,
+>                     "reason": "; ".join(reject_reasons)
+>                 })
+>                 continue
+>
+>             # Create valid record
+>             record = {
+>                 "id": asset_id,
+>                 "name": name,
+>                 "serial": serial,
+>                 "purchase_date": iso_date,
+>                 "price_cents": price_cents,
+>                 "location": location
+>             }
+>
+>             # Handle duplicates - keep the one with latest purchase date
+>             if asset_id in valid_records:
+>                 existing_dt = datetime.strptime(valid_records[asset_id]['purchase_date'], '%Y-%m-%d')
+>                 if dt_obj > existing_dt:
+>                     valid_records[asset_id] = record
+>             else:
+>                 valid_records[asset_id] = record
+>
+>     # Convert to list
+>     valid_list = list(valid_records.values())
+>
+>     # Write outputs
+>     with open('/home/user/inventory/assets.json', 'w') as f:
+>         json.dump(valid_list, f, indent=2)
+>
+>     with open('/home/user/inventory/rejected.json', 'w') as f:
+>         json.dump(rejected_records, f, indent=2)
+>
+>     print(f"Processed {len(valid_list)} valid records")
+>     print(f"Rejected {len(rejected_records)} records")
+>     print(f"Deduplicated {len(valid_records)} unique asset IDs")
+>
+> if __name__ == '__main__':
+>     process_csv()
+> EOF
+user@c864f994c26f:~/inventory$ python3 normalize_assets.py
+Processed 809 valid records
+Rejected 16 records
+Deduplicated 809 unique asset IDs
+user@c864f994c26f:~/inventory$

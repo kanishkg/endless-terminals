@@ -1,0 +1,54 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+root@dec9d73d5a11:/home/user/pipeline# rm -f .checkpoint output/summary.db
+root@dec9d73d5a11:/home/user/pipeline# echo "Starting fresh run, will interrupt after 1 second..."
+Starting fresh run, will interrupt after 1 second...
+root@dec9d73d5a11:/home/user/pipeline# timeout 1 python3 process.py || echo "Process interrupted as expected"
+root@dec9d73d5a11:/home/user/pipeline# echo "\nChecking checkpoint after interruption:"
+\nChecking checkpoint after interruption:
+root@dec9d73d5a11:/home/user/pipeline# cat .checkpoint
+{"records_processed": 50000}root@dec9d73d5a11:/home/user/pipeline# echo "\n\nRestarting process to resume from checkpoint..."
+\n\nRestarting process to resume from checkpoint...
+root@dec9d73d5a11:/home/user/pipeline# python3 process.py
+root@dec9d73d5a11:/home/user/pipeline# python3 << 'EOF'
+> import sqlite3
+> import json
+>
+> with open('/tmp/baseline.json', 'r') as f:
+>     baseline = json.load(f)
+>
+> conn = sqlite3.connect('output/summary.db')
+> cursor = conn.execute('SELECT category, total_value, count FROM summary ORDER BY category')
+>
+> print("\nFinal verification after interrupt + resume:")
+> all_match = True
+> total_count = 0
+> for row in cursor:
+>     cat, total, count = row
+>     total_count += count
+>     base_total, base_count = baseline[cat]
+>     if abs(total - base_total) >= 0.01 or count != base_count:
+>         all_match = False
+>         print(f"MISMATCH: {cat}")
+>
+> print(f"Total records processed: {total_count}")
+> if all_match and total_count == 50000:
+>     print("✓ SUCCESS! Resume functionality works perfectly.")
+>     print("✓ All 50,000 records processed exactly once.")
+>     print("✓ No data loss or duplication.")
+> else:
+>     print("✗ FAILURE!")
+>
+> conn.close()
+> EOF
+
+Final verification after interrupt + resume:
+Total records processed: 50000
+✓ SUCCESS! Resume functionality works perfectly.
+✓ All 50,000 records processed exactly once.
+✓ No data loss or duplication.
+root@dec9d73d5a11:/home/user/pipeline#

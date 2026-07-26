@@ -1,0 +1,107 @@
+New Terminal Output:
+
+root@b08a66563ed6:/home/user/archive-validator# cat src/main.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <archive.h>
+#include <archive_entry.h>
+
+extern int verify_checksum(const char *data, size_t len, const char *expected);
+
+void print_usage(const char *prog) {
+    printf("Usage: %s <archive.tar.gz>\n", prog);
+    printf("\nArchive Validator Tool - validates tar.gz backup archives\n");
+    printf("Options:\n");
+    printf("  --help    Show this help message\n");
+}
+
+int validate_archive(const char *filename) {
+    struct archive *a;
+    struct archive_entry *entry;
+    int r;
+
+    a = archive_read_new();
+    archive_read_support_filter_all(a);
+    archive_read_support_format_all(a);
+
+    r = archive_read_open_filename(a, filename, 10240);
+    if (r != ARCHIVE_OK) {
+        fprintf(stderr, "Error opening archive: %s\n", archive_error_string(a));
+        archive_read_free(a);
+        return 1;
+    }
+
+    printf("Validating archive: %s\n", filename);
+    int entry_count = 0;
+
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        printf("  Entry: %s\n", archive_entry_pathname(entry));
+        entry_count++;
+        archive_read_data_skip(a);
+    }
+
+    printf("Total entries: %d\n", entry_count);
+    printf("Archive validation complete.\n");
+
+    archive_read_free(a);
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
+    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
+    return validate_archive(argv[1]);
+}
+root@b08a66563ed6:/home/user/archive-validator# cat src/checksum.c
+#include <stdio.h>
+#include <string.h>
+#include <openssl/evp.h>
+
+int verify_checksum(const char *data, size_t len, const char *expected) {
+    EVP_MD_CTX *ctx;
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len;
+    char hex_hash[EVP_MAX_MD_SIZE * 2 + 1];
+
+    ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        return -1;
+    }
+
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    if (EVP_DigestUpdate(ctx, data, len) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    if (EVP_DigestFinal_ex(ctx, hash, &hash_len) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return -1;
+    }
+
+    EVP_MD_CTX_free(ctx);
+
+    for (unsigned int i = 0; i < hash_len; i++) {
+        sprintf(hex_hash + (i * 2), "%02x", hash[i]);
+    }
+    hex_hash[hash_len * 2] = '\0';
+
+    return strcmp(hex_hash, expected) == 0 ? 0 : 1;
+}
+root@b08a66563ed6:/home/user/archive-validator# dpkg -l | grep libssl
+ii  libssl-dev:amd64            3.0.2-0ubuntu1.23                       amd64        Secure Sockets Layer toolkit - development files
+ii  libssl3:amd64               3.0.2-0ubuntu1.23                       amd64        Secure Sockets Layer toolkit - shared libraries
+root@b08a66563ed6:/home/user/archive-validator#

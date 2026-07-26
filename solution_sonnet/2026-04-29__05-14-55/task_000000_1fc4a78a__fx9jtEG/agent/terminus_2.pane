@@ -1,0 +1,129 @@
+[?2004hroot@77de44ec2b89:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@77de44ec2b89:/home/user# clear
+[?2004l[H[J[?2004hroot@77de44ec2b89:/home/user# cd /home/user/monitoring
+[?2004l[?2004hroot@77de44ec2b89:/home/user/monitoring# ls -la
+[?2004ltotal 20
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [34;42malerts[0m
+-rwxrwxrwx 1 root root  304 Apr 29 10:12 [01;32mcheck_yaml.py[0m
+-rwxrwxrwx 1 root root  125 Apr 29 10:12 [01;32mvalidate_alerts.sh[0m
+[?2004hroot@77de44ec2b89:/home/user/monitoring# cat validate_alerts.sh
+[?2004l#!/bin/bash
+find /home/user/monitoring/alerts -maxdepth 1 -name "*.yaml" | xargs python3 /home/user/monitoring/check_yaml.py
+[?2004hroot@77de44ec2b89:/home/user/monitoring# cat check_yaml.py
+[?2004l#!/usr/bin/env python3
+import sys
+import yaml
+
+for path in sys.argv[1:]:
+    try:
+        with open(path) as f:
+            yaml.safe_load(f)
+        print(f"OK: {path}")
+    except yaml.YAMLError as e:
+        print(f"ERROR: {path}: {e}")
+    except Exception as e:
+        print(f"ERROR: {path}: {e}")
+[?2004hroot@77de44ec2b89:/home/user/monitoring# ls -la alerts/
+[?2004ltotal 20
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [34;42mapp[0m
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [34;42minfra[0m
+drwxrwxrwx 1 root root 4096 Apr 29 10:12 [34;42mplatform[0m
+[?2004hroot@77de44ec2b89:/home/user/monitoring# find alerts/ -name '*.yaml' | head -20
+[?2004lalerts/platform/cpu_high.yaml
+alerts/platform/memory_critical.yaml
+alerts/infra/disk_full.yaml
+alerts/infra/network_down.yaml
+alerts/app/latency_spike.yaml
+alerts/app/queue_depth.yaml
+alerts/app/error_rate.yaml
+[?2004hroot@77de44ec2b89:/home/user/monitoring# ./validate_alerts.sh
+[?2004l[?2004hroot@77de44ec2b89:/home/user/monitoring# echo "Exit code: $?"
+[?2004lExit code: 0
+[?2004hroot@77de44ec2b89:/home/user/monitoring# cat alerts/platform/cpu_high.yaml
+[?2004lname: cpu_high
+description: Alert when CPU usage exceeds threshold
+threshold: 90
+severity: warning
+team: platform
+[?2004hroot@77de44ec2b89:/home/user/monitoring# cat alerts/app/error_rate.yaml
+[?2004lname: error_rate
+severity: warning
+description: Alert when error rate is too high
+severity: critical
+threshold_percent: 5
+team: app
+[?2004hroot@77de44ec2b89:/home/user/monitoring# cp validate_alerts.sh validate_alerts.sh.bak
+[?2004l[?2004hroot@77de44ec2b89:/home/user/monitoring# cp check_yaml.py check_yaml.py.bak
+[?2004l[?2004hroot@77de44ec2b89:/home/user/monitoring# cat > validate_alerts.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> find /home/user/monitoring/alerts -name "*.yaml" | xargs python3 /home/user/monitoring/check_yaml.py
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@77de44ec2b89:/home/user/monitoring# cat > check_yaml.py << 'EOF'
+[?2004l[?2004h> #!/usr/bin/env python3
+[?2004l[?2004h> import sys
+[?2004l[?2004h> import yaml
+[?2004l[?2004h> from yaml.constructor import ConstructorError
+[?2004l[?2004h> 
+[?2004l[?2004h> class DuplicateKeysLoader(yaml.SafeLoader):
+[?2004l[?2004h>     def construct_mapping(self, node, deep=False):
+[?2004l[?2004h>         if not isinstance(node, yaml.MappingNode):
+[?2004l[?2004h>             raise ConstructorError(None, None,
+[?2004l[?2004h>                 "expected a mapping node, but found %s" % node.id,
+[?2004l[?2004h>                 node.start_mark)
+[?2004l[?2004h>         mapping = {}
+[?2004l[?2004h>         for key_node, value_node in node.value:
+[?2004l[?2004h>             key = self.construct_object(key_node, deep=deep)
+[?2004l[?2004h>             if not isinstance(key, (str, int, float, bool, tuple, type(None))):
+[?2004l[?2004h>                 raise ConstructorError("while constructing a mapping", node.start_mark,
+[?2004l[?2004h>                     "found unhashable key", key_node.start_mark)
+[?2004l[?2004h>             if key in mapping:
+[?2004l[?2004h>                 raise ConstructorError("while constructing a mapping", node.start_mark,
+[?2004l[?2004h>                     f"found duplicate key: {key}", key_node.start_mark)
+[?2004l[?2004h>             value = self.construct_object(value_node, deep=deep)
+[?2004l[?2004h>             mapping[key] = value
+[?2004l[?2004h>         return mapping
+[?2004l[?2004h> 
+[?2004l[?2004h> for path in sys.argv[1:]:
+[?2004l[?2004h>     try:
+[?2004l[?2004h>         with open(path) as f:
+[?2004l[?2004h>             yaml.load(f, Loader=DuplicateKeysLoader)
+[?2004l[?2004h>         print(f"OK: {path}")
+[?2004l[?2004h>     except yaml.YAMLError as e:
+[?2004l[?2004h>         print(f"ERROR: {path}: {e}")
+[?2004l[?2004h>     except Exception as e:
+[?2004l[?2004h>         print(f"ERROR: {path}: {e}")
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@77de44ec2b89:/home/user/monitoring# ./validate_alerts.sh
+[?2004lOK: /home/user/monitoring/alerts/platform/cpu_high.yaml
+OK: /home/user/monitoring/alerts/platform/memory_critical.yaml
+ERROR: /home/user/monitoring/alerts/infra/disk_full.yaml: while constructing a mapping
+  in "/home/user/monitoring/alerts/infra/disk_full.yaml", line 1, column 1
+found duplicate key: threshold
+  in "/home/user/monitoring/alerts/infra/disk_full.yaml", line 5, column 1
+OK: /home/user/monitoring/alerts/infra/network_down.yaml
+OK: /home/user/monitoring/alerts/app/latency_spike.yaml
+OK: /home/user/monitoring/alerts/app/queue_depth.yaml
+ERROR: /home/user/monitoring/alerts/app/error_rate.yaml: while constructing a mapping
+  in "/home/user/monitoring/alerts/app/error_rate.yaml", line 1, column 1
+found duplicate key: severity
+  in "/home/user/monitoring/alerts/app/error_rate.yaml", line 4, column 1
+[?2004hroot@77de44ec2b89:/home/user/monitoring# echo "Exit code: $?"
+[?2004lExit code: 0
+[?2004hroot@77de44ec2b89:/home/user/monitoring# cat alerts/infra/disk_full.yaml
+[?2004lname: disk_full
+description: Alert when disk is nearly full
+threshold: 85
+severity: warning
+threshold: 90
+team: infra
+[?2004hroot@77de44ec2b89:/home/user/monitoring# ./validate_alerts.sh 2>&1 | grep -E '(OK|ERROR)' | wc -l
+[?2004l7
+[?2004hroot@77de44ec2b89:/home/user/monitoring# echo "\nValidation complete. Found $(find alerts/ -name '*.yaml' | wc -l) yaml files across subdirectories."
+[?2004l\nValidation complete. Found 7 yaml files across subdirectories.
+[?2004hroot@77de44ec2b89:/home/user/monitoring# 

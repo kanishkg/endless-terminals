@@ -1,0 +1,80 @@
+[?2004huser@6b830a3b6c15:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@6b830a3b6c15:~$ clear
+[?2004l[H[J[?2004huser@6b830a3b6c15:~$ ls -lh /var/log/app/access.log
+[?2004l-rw-r--r-- 1 root root 5.7M Apr 29 06:24 /var/log/app/access.log
+[?2004huser@6b830a3b6c15:~$ head -5 /var/log/app/access.log
+[?2004l10.225.100.20 - - [05/Dec/2024:10:07:16 +0000] "PUT /ready HTTP/1.1" 204 7092 "-" "ELB-HealthChecker/2.0"
+34.28.48.212 - - [05/May/2024:10:23:56 +0000] "PATCH /api/v1/public/data HTTP/1.1" 400 5873 "-" "Python-urllib/3.9"
+10.86.51.19 - - [27/Aug/2024:10:40:43 +0000] "GET /ready HTTP/1.1" 204 2407 "-" "ELB-HealthChecker/2.0"
+185.20.75.68 - - [06/Apr/2024:01:43:41 +0000] "DELETE /favicon.ico HTTP/1.1" 200 9411 "-" "curl/7.68.0"
+52.65.148.145 - - [09/May/2024:16:00:38 +0000] "GET /api/v1/public/data HTTP/1.1" 400 6066 "-" "Python-urllib/3.9"
+[?2004huser@6b830a3b6c15:~$ grep -E '/api/v[0-9]+/internal/' /var/log/app/access.log | head -3
+[?2004l192.168.32.122 - - [23/Aug/2024:03:38:50 +0000] "PATCH /api/v1/internal/status HTTP/1.1" 401 5184 "-" "Python-urllib/3.9"
+198.170.22.163 - - [04/Apr/2024:08:16:59 +0000] "PATCH /api/v1/internal/status HTTP/1.1" 404 8876 "-" "PostmanRuntime/7.29.0"
+52.190.55.116 - - [19/Jan/2024:12:49:14 +0000] "DELETE /api/v2/internal/users HTTP/1.1" 403 7811 "-" "WebhookClient/1.0"
+grep: write error: Broken pipe
+[?2004huser@6b830a3b6c15:~$ awk '
+[?2004l[?2004h> /\/api\/v[0-9]+\/internal\// {
+[?2004l[?2004h>   # Check if this is a 10.x.x.x health check to exclude
+[?2004l[?2004h>   if ($1 ~ /^10\./ && ($7 ~ /\/(health|ready)/)) {
+[?2004l[?2004h>     next
+[?2004l[?2004h>   }
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Extract and convert timestamp
+[?2004l[?2004h>   match($0, /\[([0-9]{2})\/([A-Za-z]{3})\/([0-9]{4}):([0-9]{2}):([0-9]{2}):([0-9]{2})/, ts)
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Month conversion
+[?2004l[?2004h>   months["Jan"]="01"; months["Feb"]="02"; months["Mar"]="03"; months["Apr"]="04"
+[?2004l[?2004h>   months["May"]="05"; months["Jun"]="06"; months["Jul"]="07"; months["Aug"]="08"
+[?2004l[?2004h>   months["Sep"]="09"; months["Oct"]="10"; months["Nov"]="11"; months["Dec"]="12"
+[?2004l[?2004h>   
+[?2004l[?2004h>   iso_timestamp = ts[3] "-" months[ts[2]] "-" ts[1] "T" ts[4]":" ts[5]":" ts[6]
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Replace timestamp in original line
+[?2004l[?2004h>   sub(/\[[^\]]+\]/, iso_timestamp)
+[?2004l[?2004h>   print
+[?2004l[?2004h> }
+[?2004l[?2004h> ' /var/log/app/access.log > /home/user/internal_hits.log
+[?2004l[?2004huser@6b830a3b6c15:~$ ls -lh /home/user/internal_hits.log
+[?2004l-rw-r--r-- 1 user user 588K Apr 29 06:25 /home/user/internal_hits.log
+[?2004huser@6b830a3b6c15:~$ wc -l /home/user/internal_hits.log
+[?2004l5000 /home/user/internal_hits.log
+[?2004huser@6b830a3b6c15:~$ head -10 /home/user/internal_hits.log
+[?2004l192.168.32.122 - - 2024-08-23T03:38:50 "PATCH /api/v1/internal/status HTTP/1.1" 401 5184 "-" "Python-urllib/3.9"
+198.170.22.163 - - 2024-04-04T08:16:59 "PATCH /api/v1/internal/status HTTP/1.1" 404 8876 "-" "PostmanRuntime/7.29.0"
+52.190.55.116 - - 2024-01-19T12:49:14 "DELETE /api/v2/internal/users HTTP/1.1" 403 7811 "-" "WebhookClient/1.0"
+192.168.40.82 - - 2024-04-11T23:59:11 "PUT /api/v1/internal/status HTTP/1.1" 401 7211 "-" "PostmanRuntime/7.29.0"
+10.239.32.97 - - 2024-11-07T19:13:45 "GET /api/v3/internal/webhook HTTP/1.1" 400 2172 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+192.168.82.145 - - 2024-05-11T12:43:33 "DELETE /api/v1/internal/config HTTP/1.1" 204 7387 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+52.144.229.29 - - 2024-08-27T17:16:02 "GET /api/v3/internal/sync HTTP/1.1" 200 2535 "-" "Python-urllib/3.9"
+185.104.73.76 - - 2024-11-01T20:48:26 "GET /api/v1/internal/users HTTP/1.1" 403 7617 "-" "axios/0.21.1"
+185.148.164.245 - - 2024-04-10T00:00:29 "PUT /api/v2/internal/metrics HTTP/1.1" 403 7384 "-" "PostmanRuntime/7.29.0"
+52.67.156.153 - - 2024-03-11T21:33:39 "POST /api/v1/internal/status HTTP/1.1" 204 8361 "-" "curl/7.68.0"
+[?2004huser@6b830a3b6c15:~$ grep -E '^10\.' /home/user/internal_hits.log | grep -E '/(health|ready)' | wc -l
+[?2004l0
+[?2004huser@6b830a3b6c15:~$ grep -E '^10\.' /home/user/internal_hits.log | head -3
+[?2004l10.239.32.97 - - 2024-11-07T19:13:45 "GET /api/v3/internal/webhook HTTP/1.1" 400 2172 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+10.67.29.14 - - 2024-11-11T07:02:17 "DELETE /api/v1/internal/config HTTP/1.1" 500 5060 "-" "curl/7.68.0"
+10.100.16.81 - - 2024-04-22T23:27:06 "PUT /api/v1/internal/config HTTP/1.1" 201 7080 "-" "axios/0.21.1"
+grep: write error: Broken pipe
+[?2004huser@6b830a3b6c15:~$ tail -5 /home/user/internal_hits.log
+[?2004l52.251.242.36 - - 2024-04-07T01:26:48 "GET /api/v1/internal/config HTTP/1.1" 401 6767 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+192.168.9.56 - - 2024-07-28T17:22:30 "PUT /api/v3/internal/webhook HTTP/1.1" 400 9594 "-" "axios/0.21.1"
+172.27.215.155 - - 2024-12-15T00:48:03 "POST /api/v2/internal/audit HTTP/1.1" 500 2229 "-" "curl/7.68.0"
+10.0.53.181 - - 2024-03-06T00:19:12 "DELETE /api/v3/internal/webhook HTTP/1.1" 500 2046 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+10.167.75.76 - - 2024-09-01T16:57:35 "PATCH /api/v3/internal/webhook HTTP/1.1" 403 9435 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+[?2004huser@6b830a3b6c15:~$ echo "Task Summary:"
+[?2004lTask Summary:
+[?2004huser@6b830a3b6c15:~$ echo "- Source: /var/log/app/access.log ($(wc -l < /var/log/app/access.log) lines)"
+[?2004l- Source: /var/log/app/access.log (50000 lines)
+[?2004huser@6b830a3b6c15:~$ echo "- Output: /home/user/internal_hits.log ($(wc -l < /home/user/internal_hits.log) lines)"
+[?2004l- Output: /home/user/internal_hits.log (5000 lines)
+[?2004huser@6b830a3b6c15:~$ echo "- Filtered for: /api/v[0-9]+/internal/ endpoints"
+[?2004l- Filtered for: /api/v[0-9]+/internal/ endpoints
+[?2004huser@6b830a3b6c15:~$ echo "- Excluded: 10.x.x.x health checks to /health or /ready"
+[?2004l- Excluded: 10.x.x.x health checks to /health or /ready
+[?2004huser@6b830a3b6c15:~$ echo "- Timestamps converted: Apache format -> ISO 8601"
+[?2004l- Timestamps converted: Apache format -> ISO 8601
+[?2004huser@6b830a3b6c15:~$ 

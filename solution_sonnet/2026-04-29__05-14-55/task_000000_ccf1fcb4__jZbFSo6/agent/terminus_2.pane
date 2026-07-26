@@ -1,0 +1,163 @@
+[?2004hroot@a5a84c81b4b6:/# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@a5a84c81b4b6:/# clear
+[?2004l[H[J[?2004hroot@a5a84c81b4b6:/# cd /home/user/labeler
+[?2004l[?2004hroot@a5a84c81b4b6:/home/user/labeler# ls -la
+[?2004ltotal 28
+drwxrwxrwx 1 root root 4096 Apr 29 11:03 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 11:03 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 11:03 [34;42mapp[0m
+drwxrwxrwx 1 root root 4096 Apr 29 11:03 [34;42mconfig[0m
+-rwxrwxrwx 1 root root   28 Apr 29 11:03 [01;32mrequirements.txt[0m
+-rwxrwxrwx 1 root root  158 Apr 29 11:03 [01;32mstart.sh[0m
+drwxrwxrwx 1 root root 4096 Apr 29 11:03 [34;42mvenv[0m
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# cat start.sh
+[?2004l#!/bin/bash
+echo "Starting labeler service..."
+cd /home/user/labeler
+source venv/bin/activate
+gunicorn -c config/gunicorn.conf.py "app:create_app()" --daemon
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# cat config/gunicorn.conf.py
+[?2004limport configparser
+import os
+
+# Read configuration from settings.ini
+config = configparser.ConfigParser()
+config_path = os.path.join(os.path.dirname(__file__), 'settings.ini')
+config.read(config_path)
+
+# Get settings with fallbacks
+host = config.get('server', 'host', fallback='127.0.0.1')
+port = config.get('server', 'port', fallback='8000')
+workers_count = config.get('server', 'workers', fallback='2')
+
+# Gunicorn configuration
+bind = f"{host}:{port}"
+workers = int(workers_count)
+daemon = False
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# cat config/settings.ini
+[?2004l[sevrer]
+host=127.0.0.1
+port=5000
+workers=2
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# sed -i 's/\[sevrer\]/[server]/' config/settings.ini
+[?2004l[?2004hroot@a5a84c81b4b6:/home/user/labeler# cat config/settings.ini
+[?2004l[server]
+host=127.0.0.1
+port=5000
+workers=2
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# ps aux | grep gunicorn
+[?2004lroot         534  0.0  0.0   3856  2056 pts/0    S+   11:04   0:00 grep --color=auto [01;31m[Kgunicorn[m[K
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# ls -la app/
+[?2004ltotal 20
+drwxrwxrwx 1 root root 4096 Apr 29 11:03 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 11:03 [34;42m..[0m
+-rwxrwxrwx 1 root root  150 Apr 29 11:03 [01;32m__init__.py[0m
+-rwxrwxrwx 1 root root  191 Apr 29 11:03 [01;32mroutes.py[0m
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# cat app/__init__.py
+[?2004lfrom flask import Flask
+
+
+def create_app():
+    app = Flask(__name__)
+
+    from . import routes
+    app.register_blueprint(routes.bp)
+
+    return app
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# ./start.sh
+[?2004lStarting labeler service...
+Invalid value for config: <configparser.ConfigParser object at 0x7175d91d3a50>
+
+
+Error: Not a string: <configparser.ConfigParser object at 0x7175d91d3a50>
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# ps aux | grep gunicorn
+[?2004lroot         600  0.0  0.0   3856  2092 pts/0    S+   11:05   0:00 grep --color=auto [01;31m[Kgunicorn[m[K
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# cat > config/gunicorn.conf.py << 'EOF'
+[?2004l[?2004h> import configparser
+[?2004l[?2004h> import os
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read configuration from settings.ini
+[?2004l[?2004h> config = configparser.ConfigParser()
+[?2004l[?2004h> config_path = os.path.join(os.path.dirname(__file__), 'settings.ini')
+[?2004l[?2004h> config.read(config_path)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Get settings with fallbacks
+[?2004l[?2004h> if config.has_section('server'):
+[?2004l[?2004h>     host = config.get('server', 'host') if config.has_option('server', 'host') else '127.0.0.1'
+[?2004l[?2004h>     port = config.get('server', 'port') if config.has_option('server', 'port') else '8000'
+[?2004l[?2004h>     workers_count = config.get('server', 'workers') if config.has_option('server', 'workers') else '2'
+[?2004l[?2004h> else:
+[?2004l[?2004h>     host = '127.0.0.1'
+[?2004l[?2004h>     port = '8000'
+[?2004l[?2004h>     workers_count = '2'
+[?2004l[?2004h> 
+[?2004l[?2004h> # Gunicorn configuration
+[?2004l[?2004h> bind = f"{host}:{port}"
+[?2004l[?2004h> workers = int(workers_count)
+[?2004l[?2004h> daemon = False
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@a5a84c81b4b6:/home/user/labeler# ./start.sh
+[?2004lStarting labeler service...
+Invalid value for config: <configparser.ConfigParser object at 0x7b07238b7b50>
+
+
+Error: Not a string: <configparser.ConfigParser object at 0x7b07238b7b50>
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# ps aux | grep gunicorn | grep -v grep
+[?2004l[?2004hroot@a5a84c81b4b6:/home/user/labeler# python3 -c "import sys; sys.path.insert(0, '/home/user/labeler'); exec(open('config/gunicorn.conf.py').read()); print(f'bind={bind}, workers={workers}')"
+[?2004lTraceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "<string>", line 6, in <module>
+NameError: name '__file__' is not defined. Did you mean: '__name__'?
+[?2004hroot@a5a84c81b4b6:/home/user/labeler# source venv/bin/activate
+[?2004l[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# gunicorn -c config/gunicorn.conf.py "app:create_app()"
+[?2004lInvalid value for config: <configparser.ConfigParser object at 0x70d09862f2d0>
+
+
+Error: Not a string: <configparser.ConfigParser object at 0x70d09862f2d0>
+[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# cat > config/gunicorn.conf.py << 'EOF'
+[?2004l[?2004h> import configparser
+[?2004l[?2004h> import os
+[?2004l[?2004h> 
+[?2004l[?2004h> # Read configuration from settings.ini
+[?2004l[?2004h> cfg = configparser.ConfigParser()
+[?2004l[?2004h> config_path = os.path.join(os.path.dirname(__file__), 'settings.ini')
+[?2004l[?2004h> cfg.read(config_path)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Get settings with fallbacks
+[?2004l[?2004h> if cfg.has_section('server'):
+[?2004l[?2004h>     host = cfg.get('server', 'host') if cfg.has_option('server', 'host') else '127.0.0.1'
+[?2004l[?2004h>     port = cfg.get('server', 'port') if cfg.has_option('server', 'port') else '8000'
+[?2004l[?2004h>     workers_count = cfg.get('server', 'workers') if cfg.has_option('server', 'workers') else '2'
+[?2004l[?2004h> else:
+[?2004l[?2004h>     host = '127.0.0.1'
+[?2004l[?2004h>     port = '8000'
+[?2004l[?2004h>     workers_count = '2'
+[?2004l[?2004h> 
+[?2004l[?2004h> # Gunicorn configuration
+[?2004l[?2004h> bind = f"{host}:{port}"
+[?2004l[?2004h> workers = int(workers_count)
+[?2004l[?2004h> daemon = False
+[?2004l[?2004h> EOF
+[?2004l[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# gunicorn -c config/gunicorn.conf.py "app:create_app()"
+[?2004l[2026-04-29 11:05:47 +0000] [730] [INFO] Starting gunicorn 25.3.0
+[2026-04-29 11:05:47 +0000] [730] [INFO] Listening at: http://127.0.0.1:5000 (730)
+[2026-04-29 11:05:47 +0000] [730] [INFO] Using worker: sync
+[2026-04-29 11:05:47 +0000] [731] [INFO] Booting worker with pid: 731
+[2026-04-29 11:05:47 +0000] [732] [INFO] Booting worker with pid: 732
+[2026-04-29 11:05:47 +0000] [730] [INFO] Control socket listening at /root/.gunicorn/gunicorn.ctl
+^C[2026-04-29 11:05:54 +0000] [730] [INFO] Handling signal: int
+[2026-04-29 11:05:54 +0000] [731] [INFO] Worker exiting (pid: 731)
+[2026-04-29 11:05:54 +0000] [732] [INFO] Worker exiting (pid: 732)
+[2026-04-29 11:05:54 +0000] [730] [INFO] Shutting down: Master
+[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# ./start.sh
+[?2004lStarting labeler service...
+[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# ps aux | grep gunicorn | grep -v grep
+[?2004lroot         761  1.0  0.0 105984 22012 ?        Sl   11:05   0:00 /home/user/labeler/venv/bin/python3.11 /home/user/labeler/venv/bin/gunicorn -c config/gunicorn.conf.py app:create_app() --daemon
+root         762  3.0  0.0  38684 29592 ?        S    11:05   0:00 /home/user/labeler/venv/bin/python3.11 /home/user/labeler/venv/bin/gunicorn -c config/gunicorn.conf.py app:create_app() --daemon
+root         763  3.5  0.0  38684 29592 ?        S    11:05   0:00 /home/user/labeler/venv/bin/python3.11 /home/user/labeler/venv/bin/gunicorn -c config/gunicorn.conf.py app:create_app() --daemon
+[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# curl localhost:5000
+[?2004lLabeler v2.1 running[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# echo 'Service is now running successfully on port 5000!'
+[?2004lService is now running successfully on port 5000!
+[?2004h(venv) root@a5a84c81b4b6:/home/user/labeler# 

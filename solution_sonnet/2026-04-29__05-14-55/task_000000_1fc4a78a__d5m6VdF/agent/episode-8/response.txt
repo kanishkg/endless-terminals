@@ -1,0 +1,14 @@
+{
+  "analysis": "Found another corrupted file! The error_rate.yaml file has duplicate 'severity' keys (warning and critical). So we have at least two files with duplicate keys: disk_full.yaml (duplicate 'threshold') and error_rate.yaml (duplicate 'severity'). The current check_yaml.py is not detecting these duplicates. I need to enhance it to properly catch duplicate keys.",
+  "plan": "I'll update check_yaml.py to detect duplicate keys by using a custom YAML constructor that raises an error when duplicates are found. This will make the validator properly surface these corruption issues.",
+  "commands": [
+    {
+      "keystrokes": "cp check_yaml.py check_yaml.py.bak\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat > check_yaml.py << 'EOF'\n#!/usr/bin/env python3\nimport sys\nimport yaml\n\ndef no_duplicates_constructor(loader, node, deep=False):\n    \"\"\"Check for duplicate keys while constructing mapping.\"\"\"\n    mapping = {}\n    for key_node, value_node in node.value:\n        key = loader.construct_object(key_node, deep=deep)\n        value = loader.construct_object(value_node, deep=deep)\n        if key in mapping:\n            raise yaml.constructor.ConstructorError(\n                \"while constructing a mapping\",\n                node.start_mark,\n                f\"found duplicate key: {key}\",\n                key_node.start_mark\n            )\n        mapping[key] = value\n    return mapping\n\nclass SafeLoaderWithDuplicateCheck(yaml.SafeLoader):\n    pass\n\nSafeLoaderWithDuplicateCheck.add_constructor(\n    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,\n    no_duplicates_constructor\n)\n\nfor path in sys.argv[1:]:\n    try:\n        with open(path) as f:\n            yaml.load(f, Loader=SafeLoaderWithDuplicateCheck)\n        print(f\"OK: {path}\")\n    except yaml.YAMLError as e:\n        print(f\"ERROR: {path}: {e}\")\n    except Exception as e:\n        print(f\"ERROR: {path}: {e}\")\nEOF\n",
+      "duration": 0.1
+    }
+  ]
+}

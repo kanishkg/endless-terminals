@@ -1,0 +1,106 @@
+New Terminal Output:
+
+user@d9abd51ef7b1:~/scheduler$ cat > BUGFIX_SUMMARY.md << 'EOF'
+> # Bug Fix Summary: Meeting Reminder DST Issue
+>
+> ## Problem
+> The meeting reminder system was sending reminders at incorrect times for meetings between 2am-3am local time (Europe/Berlin), with times off by exactly one ho
+ur. This only affected meetings during or around DST (Daylight Saving Time) transitions.
+>
+> ## Root Cause
+> In `app.py`, the `convert_to_berlin()` function had a critical bug on line 27:
+>
+> ```python
+> # BUGGY CODE:
+> berlin_dt = BERLIN_TZ.localize(utc_dt)
+> ```
+>
+> This incorrectly treated the naive UTC datetime as if it were already in Berlin timezone, rather than converting FROM UTC TO Berlin timezone.
+>
+> ## The Fix
+> Changed the `convert_to_berlin()` function to properly convert from UTC to Berlin:
+>
+> ```python
+> # FIXED CODE:
+> utc_dt = UTC_TZ.localize(utc_dt)      # First, mark it as UTC
+> berlin_dt = utc_dt.astimezone(BERLIN_TZ)  # Then convert to Berlin
+> ```
+>
+> ## Impact
+> For the "Maintenance Window Prep" meeting at 01:30:00 UTC on March 31, 2024 (DST transition day):
+> - **Before fix**: Incorrectly showed as 01:30:00 CET+0100 (wrong timezone offset)
+> - **After fix**: Correctly shows as 03:30:00 CEST+0200 (proper DST handling)
+>
+> The fix ensures that:
+> 1. UTC times are properly interpreted as UTC (not Berlin time)
+> 2. DST transitions are handled correctly by pytz
+> 3. The Monday 2:30am maintenance window reminder will be sent at the correct time
+>
+> ## Files Modified
+> - `/home/user/scheduler/app.py` - Fixed timezone conversion logic
+> - Backup created: `/home/user/scheduler/app.py.backup`
+>
+> ## Testing
+> Ran test_dst_fix.py which confirmed:
+> - Old code had 1-hour offset during DST transition
+> - New code correctly handles DST transitions
+> - All timezone conversions now work properly
+>
+> ## Crontab
+> No changes needed to crontab - it will automatically use the fixed app.py:
+> ```
+> 0 * * * * cd /home/user/scheduler && python3 app.py >> /home/user/scheduler/output.log 2>&1
+> ```
+> EOF
+user@d9abd51ef7b1:~/scheduler$ cat BUGFIX_SUMMARY.md
+# Bug Fix Summary: Meeting Reminder DST Issue
+
+## Problem
+The meeting reminder system was sending reminders at incorrect times for meetings between 2am-3am local time (Europe/Berlin), with times off by exactly one hour
+. This only affected meetings during or around DST (Daylight Saving Time) transitions.
+
+## Root Cause
+In `app.py`, the `convert_to_berlin()` function had a critical bug on line 27:
+
+```python
+# BUGGY CODE:
+berlin_dt = BERLIN_TZ.localize(utc_dt)
+```
+
+This incorrectly treated the naive UTC datetime as if it were already in Berlin timezone, rather than converting FROM UTC TO Berlin timezone.
+
+## The Fix
+Changed the `convert_to_berlin()` function to properly convert from UTC to Berlin:
+
+```python
+# FIXED CODE:
+utc_dt = UTC_TZ.localize(utc_dt)      # First, mark it as UTC
+berlin_dt = utc_dt.astimezone(BERLIN_TZ)  # Then convert to Berlin
+```
+
+## Impact
+For the "Maintenance Window Prep" meeting at 01:30:00 UTC on March 31, 2024 (DST transition day):
+- **Before fix**: Incorrectly showed as 01:30:00 CET+0100 (wrong timezone offset)
+- **After fix**: Correctly shows as 03:30:00 CEST+0200 (proper DST handling)
+
+The fix ensures that:
+1. UTC times are properly interpreted as UTC (not Berlin time)
+2. DST transitions are handled correctly by pytz
+3. The Monday 2:30am maintenance window reminder will be sent at the correct time
+
+## Files Modified
+- `/home/user/scheduler/app.py` - Fixed timezone conversion logic
+- Backup created: `/home/user/scheduler/app.py.backup`
+
+## Testing
+Ran test_dst_fix.py which confirmed:
+- Old code had 1-hour offset during DST transition
+- New code correctly handles DST transitions
+- All timezone conversions now work properly
+
+## Crontab
+No changes needed to crontab - it will automatically use the fixed app.py:
+```
+0 * * * * cd /home/user/scheduler && python3 app.py >> /home/user/scheduler/output.log 2>&1
+```
+user@d9abd51ef7b1:~/scheduler$

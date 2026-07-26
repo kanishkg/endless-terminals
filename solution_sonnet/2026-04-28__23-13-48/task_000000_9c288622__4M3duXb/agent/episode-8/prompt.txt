@@ -1,0 +1,102 @@
+New Terminal Output:
+
+user@d34482275169:~/scheduler$ cat > FIX_SUMMARY.md << 'EOF'
+> # Scheduler Bug Fix Summary
+>
+> ## Problem
+> The meeting reminder application was sending reminders at incorrect times for meetings between 2am-3am local time (Europe/Berlin), with exactly 1 hour offset.
+>
+> ## Root Cause
+> In `app.py`, the `convert_to_berlin()` function had a critical bug:
+>
+> ```python
+> # BUGGY CODE (line 28):
+> utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+> berlin_dt = BERLIN_TZ.localize(utc_dt)  # WRONG!
+> ```
+>
+> This code treated the parsed UTC datetime as if it were already in Berlin timezone, rather than converting FROM UTC TO Berlin.
+>
+> ## The Fix
+> ```python
+> # FIXED CODE:
+> utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+> utc_dt = UTC_TZ.localize(utc_dt)        # Mark as UTC first
+> berlin_dt = utc_dt.astimezone(BERLIN_TZ) # Then convert to Berlin
+> ```
+>
+> ## Why It Only Affected 2am-3am Times
+> The bug manifested specifically during DST (Daylight Saving Time) transitions:
+> - In Europe/Berlin, DST starts on the last Sunday of March at 2:00am (clocks jump to 3:00am)
+> - The old code would incorrectly handle UTC times that should convert to this transition window
+> - For example: UTC 01:30 on March 31, 2024 should be 03:30 CEST, but the buggy code treated it as 01:30 CET - exactly 1 hour off!
+>
+> ## Impact
+> - The Monday 2:30am maintenance window reminder (stored as UTC 01:30:00) was being calculated incorrectly
+> - The bug caused reminders to be sent at the wrong time, potentially missing the window
+>
+> ## Verification
+> Tested with multiple scenarios including DST transition dates:
+> - ✓ Summer time (CEST, UTC+2) conversions correct
+> - ✓ Winter time (CET, UTC+1) conversions correct
+> - ✓ DST transition times handled properly
+> - ✓ Application runs without errors
+> - ✓ Crontab properly installed
+>
+> ## Files Modified
+> - `/home/user/scheduler/app.py` - Fixed the `convert_to_berlin()` function
+> - Backup saved as: `/home/user/scheduler/app.py.backup`
+>
+> ## Status
+> ✓ **FIXED** - Ready for Monday 2:30am maintenance window reminder
+> EOF
+user@d34482275169:~/scheduler$ cat FIX_SUMMARY.md
+# Scheduler Bug Fix Summary
+
+## Problem
+The meeting reminder application was sending reminders at incorrect times for meetings between 2am-3am local time (Europe/Berlin), with exactly 1 hour offset.
+
+## Root Cause
+In `app.py`, the `convert_to_berlin()` function had a critical bug:
+
+```python
+# BUGGY CODE (line 28):
+utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+berlin_dt = BERLIN_TZ.localize(utc_dt)  # WRONG!
+```
+
+This code treated the parsed UTC datetime as if it were already in Berlin timezone, rather than converting FROM UTC TO Berlin.
+
+## The Fix
+```python
+# FIXED CODE:
+utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+utc_dt = UTC_TZ.localize(utc_dt)        # Mark as UTC first
+berlin_dt = utc_dt.astimezone(BERLIN_TZ) # Then convert to Berlin
+```
+
+## Why It Only Affected 2am-3am Times
+The bug manifested specifically during DST (Daylight Saving Time) transitions:
+- In Europe/Berlin, DST starts on the last Sunday of March at 2:00am (clocks jump to 3:00am)
+- The old code would incorrectly handle UTC times that should convert to this transition window
+- For example: UTC 01:30 on March 31, 2024 should be 03:30 CEST, but the buggy code treated it as 01:30 CET - exactly 1 hour off!
+
+## Impact
+- The Monday 2:30am maintenance window reminder (stored as UTC 01:30:00) was being calculated incorrectly
+- The bug caused reminders to be sent at the wrong time, potentially missing the window
+
+## Verification
+Tested with multiple scenarios including DST transition dates:
+- ✓ Summer time (CEST, UTC+2) conversions correct
+- ✓ Winter time (CET, UTC+1) conversions correct
+- ✓ DST transition times handled properly
+- ✓ Application runs without errors
+- ✓ Crontab properly installed
+
+## Files Modified
+- `/home/user/scheduler/app.py` - Fixed the `convert_to_berlin()` function
+- Backup saved as: `/home/user/scheduler/app.py.backup`
+
+## Status
+✓ **FIXED** - Ready for Monday 2:30am maintenance window reminder
+user@d34482275169:~/scheduler$

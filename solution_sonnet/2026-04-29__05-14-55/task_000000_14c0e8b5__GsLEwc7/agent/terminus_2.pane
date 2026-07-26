@@ -1,0 +1,283 @@
+[?2004hroot@2213dce70a41:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@2213dce70a41:/home/user# clear
+[?2004l[H[J[?2004hroot@2213dce70a41:/home/user# cd /home/user/audit
+[?2004l[?2004hroot@2213dce70a41:/home/user/audit# ls -la
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 29 07:47 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 07:47 [34;42m..[0m
+-rw-r--r-- 1 root root  559 Apr 29 07:47 connections.csv
+-rw-r--r-- 1 root root  559 Apr 29 07:47 firewall_rules.json
+[?2004hroot@2213dce70a41:/home/user/audit# cat firewall_rules.json
+[?2004l{
+  "rules": [
+    {"id": 1, "action": "allow", "source_cidr": "10.0.0.0/8", "dest_port": "443"},
+    {"id": 2, "action": "allow", "source_cidr": "10.1.0.0/16", "dest_port": "8000-9000"},
+    {"id": 3, "action": "deny", "source_cidr": "10.1.5.0/24", "dest_port": "8443"},
+    {"id": 4, "action": "allow", "source_cidr": "192.168.1.0/24", "dest_port": "22"},
+    {"id": 5, "action": "allow", "source_cidr": "0.0.0.0/0", "dest_port": "80"},
+    {"id": 6, "action": "allow", "source_cidr": "172.16.0.0/12", "dest_port": "3306"}
+  ],
+  "default_action": "deny"
+}
+[?2004hroot@2213dce70a41:/home/user/audit# cat connections.csv
+[?2004ltimestamp,src_ip,src_port,dest_ip,dest_port,proto
+2024-01-15T10:00:00Z,10.1.5.17,49152,10.100.1.1,8443,tcp
+2024-01-15T10:00:01Z,10.1.2.33,51000,10.100.1.1,8500,tcp
+2024-01-15T10:00:02Z,192.168.1.50,52000,10.100.1.1,22,tcp
+2024-01-15T10:00:03Z,192.168.2.10,53000,10.100.1.1,22,tcp
+2024-01-15T10:00:04Z,10.0.50.1,54000,10.100.1.1,443,tcp
+2024-01-15T10:00:05Z,10.1.5.200,55000,10.100.1.1,8080,tcp
+2024-01-15T10:00:06Z,172.16.5.5,56000,10.100.1.1,3306,tcp
+2024-01-15T10:00:07Z,8.8.8.8,57000,10.100.1.1,80,tcp
+2024-01-15T10:00:08Z,8.8.8.8,58000,10.100.1.1,443,tcp
+[?2004hroot@2213dce70a41:/home/user/audit# cat > check.py << 'EOF'
+[?2004l_network(r['source_cidr']).prefixlen, reverse=True)
+    
+    for rule in sorted_rules:
+        network = ipaddress.ip_network(rule['source_cidr'])
+        if ip_obj in network:
+            # IP matches this CIDR, now check port
+            port_range = parse_port_range(rule['dest_port'])
+            if port_in_range(dest_port, port_range):
+                return rule
+    
+    return None
+
+def main():
+    # Load firewall rules
+    with open('/home/user/audit/firewall_rules.json', 'r') as f:
+        firewall_data = json.load(f)
+    
+    rules = firewall_data['rules']
+    default_action = firewall_data.get('default_action', 'deny')
+    
+    # Load connections
+    with open('/home/user/audit/connections.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        connections = list(reader)
+    
+    # Check each connection
+    for conn in connections:
+        src_ip = conn['src_ip']
+        dest_port = int(conn['dest_port'])
+        
+        # Find the most specific matching rule
+        matching_rule = find_matching_rule(src_ip, dest_port, rules)
+        
+        if matching_rule:
+            if matching_rule['action'] == 'deny':
+                # Explicit deny rule
+                print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {matching_rule['source_cidr']}")
+        else:
+            # No matching rule found, apply default deny
+            # Find the most specific CIDR that matches the IP (for reporting)
+            ip_obj = ipaddress.ip_address(src_ip)
+            matching_cidrs = []
+            for rule in rules:
+                network = ipaddress.ip_network(rule['source_cidr'])
+                if ip_obj in network:
+                    matching_cidrs.append((network.prefixlen, rule['source_cidr']))
+            
+            if matching_cidrs:
+                # Report with the most specific CIDR that matches
+                matching_cidrs.sort(reverse=True)
+                cidr = matching_cidrs[0][1]
+            else:
+                # No CIDR matches, use 0.0.0.0/0 as default
+                cidr = "0.0.0.0/0"
+            
+            print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {cidr}")
+
+if __name__ == '__main__':
+    main()
+EOF
+[?2004h> #!/usr/bin/env python3
+[?2004l[?2004h> import json
+[?2004l[?2004h> import csv
+[?2004l[?2004h> import ipaddress
+[?2004l[?2004h> import sys
+[?2004l[?2004h> 
+[?2004l[?2004h> def parse_port_range(port_str):
+[?2004l[?2004h>     """Parse a port string into a set of allowed ports.
+[?2004l[?2004h>     Returns a tuple (min_port, max_port) for range checking.
+[?2004l[?2004h>     """
+[?2004l[?2004h>     port_str = str(port_str).strip()
+[?2004l[?2004h>     if '-' in port_str:
+[?2004l[?2004h>         start, end = port_str.split('-')
+[?2004l[?2004h>         return (int(start), int(end))
+[?2004l[?2004h>     else:
+[?2004l[?2004h>         port = int(port_str)
+[?2004l[?2004h>         return (port, port)
+[?2004l[?2004h> 
+[?2004l[?2004h> def port_in_range(port, port_range):
+[?2004l[?2004h>     """Check if a port is within the given range."""
+[?2004l[?2004h>     min_port, max_port = port_range
+[?2004l[?2004h>     return min_port <= port <= max_port
+[?2004l[?2004h> 
+[?2004l[?2004h> def find_matching_rule(src_ip, dest_port, rules):
+[?2004l[?2004h>     """Find the most specific matching rule for a given IP and port.
+[?2004l[?2004h>     Returns the matching rule or None.
+[?2004l[?2004h>     """
+[?2004l[?2004h>     ip_obj = ipaddress.ip_address(src_ip)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Sort rules by prefix length (most specific first)
+[?2004l[?2004h>     # More specific CIDR (larger prefix) should be checked first
+[?2004l[?2004h>     sorted_rules = sorted(rules, key=lambda r: ipaddress.ip_network(r['source_cidr']).prefixlen, reverse=True)
+[?2004l[?2004h>     
+[?2004l[?2004h>     for rule in sorted_rules:
+[?2004l[?2004h>         network = ipaddress.ip_network(rule['source_cidr'])
+[?2004l[?2004h>         if ip_obj in network:
+[?2004l[?2004h>             # IP matches this CIDR, now check port
+[?2004l[?2004h>             port_range = parse_port_range(rule['dest_port'])
+[?2004l[?2004h>             if port_in_range(dest_port, port_range):
+[?2004l[?2004h>                 return rule
+[?2004l[?2004h>     
+[?2004l[?2004h>     return None
+[?2004l[?2004h> 
+[?2004l[?2004h> def main():
+[?2004l[?2004h>     # Load firewall rules
+[?2004l[?2004h>     with open('/home/user/audit/firewall_rules.json', 'r') as f:
+[?2004l[?2004h>         firewall_data = json.load(f)
+[?2004l[?2004h>     
+[?2004l[?2004h>     rules = firewall_data['rules']
+[?2004l[?2004h>     default_action = firewall_data.get('default_action', 'deny')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Load connections
+[?2004l[?2004h>     with open('/home/user/audit/connections.csv', 'r') as f:
+[?2004l[?2004h>         reader = csv.DictReader(f)
+[?2004l[?2004h>         connections = list(reader)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check each connection
+[?2004l[?2004h>     for conn in connections:
+[?2004l[?2004h>         src_ip = conn['src_ip']
+[?2004l[?2004h>         dest_port = int(conn['dest_port'])
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Find the most specific matching rule
+[?2004l[?2004h>         matching_rule = find_matching_rule(src_ip, dest_port, rules)
+[?2004l[?2004h>         
+[?2004l[?2004h>         if matching_rule:
+[?2004l[?2004h>             if matching_rule['action'] == 'deny':
+[?2004l[?2004h>                 # Explicit deny rule
+[?2004l[?2004h>                 print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {matching_rule['source_cidr']}")
+[?2004l[?2004h>         else:
+[?2004l[?2004h>             # No matching rule found, apply default deny
+[?2004l[?2004h>             # Find the most specific CIDR that matches the IP (for reporting)
+[?2004l[?2004h>             ip_obj = ipaddress.ip_address(src_ip)
+[?2004l[?2004h>             matching_cidrs = []
+[?2004l[?2004h>             for rule in rules:
+[?2004l[?2004h>                 network = ipaddress.ip_network(rule['source_cidr'])
+[?2004l[?2004h>                 if ip_obj in network:
+[?2004l[?2004h>                     matching_cidrs.append((network.prefixlen, rule['source_cidr']))
+[?2004l[?2004h>             
+[?2004l[?2004h>             if matching_cidrs:
+[?2004l[?2004h>                 # Report with the most specific CIDR that matches
+[?2004l[?2004h>                 matching_cidrs.sort(reverse=True)
+[?2004l[?2004h>                 cidr = matching_cidrs[0][1]
+[?2004l[?2004h>             else:
+[?2004l[?2004h>                 # No CIDR matches, use 0.0.0.0/0 as default
+[?2004l[?2004h>                 cidr = "0.0.0.0/0"
+[?2004l[?2004h>             
+[?2004l[?2004h>             print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {cidr}")
+[?2004l[?2004h> 
+[?2004l[?2004h> if __name__ == '__main__':
+[?2004l[?2004h>     main()
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@2213dce70a41:/home/user/audit# head -20 check.py
+[?2004l#!/usr/bin/env python3
+import json
+import csv
+import ipaddress
+import sys
+
+def parse_port_range(port_str):
+    """Parse a port string into a set of allowed ports.
+    Returns a tuple (min_port, max_port) for range checking.
+    """
+    port_str = str(port_str).strip()
+    if '-' in port_str:
+        start, end = port_str.split('-')
+        return (int(start), int(end))
+    else:
+        port = int(port_str)
+        return (port, port)
+
+def port_in_range(port, port_range):
+    """Check if a port is within the given range."""
+[?2004hroot@2213dce70a41:/home/user/audit# wc -l check.py
+[?2004l90 check.py
+[?2004hroot@2213dce70a41:/home/user/audit# tail -10 check.py
+[?2004l                matching_cidrs.sort(reverse=True)
+                cidr = matching_cidrs[0][1]
+            else:
+                # No CIDR matches, use 0.0.0.0/0 as default
+                cidr = "0.0.0.0/0"
+            
+            print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {cidr}")
+
+if __name__ == '__main__':
+    main()
+[?2004hroot@2213dce70a41:/home/user/audit# chmod +x check.py
+[?2004l[?2004hroot@2213dce70a41:/home/user/audit# python3 check.py
+[?2004lBLOCKED: 10.1.5.17:8443 not allowed from 10.1.5.0/24
+BLOCKED: 192.168.2.10:22 not allowed from 0.0.0.0/0
+BLOCKED: 8.8.8.8:443 not allowed from 0.0.0.0/0
+[?2004hroot@2213dce70a41:/home/user/audit# ./check.py
+[?2004lBLOCKED: 10.1.5.17:8443 not allowed from 10.1.5.0/24
+BLOCKED: 192.168.2.10:22 not allowed from 0.0.0.0/0
+BLOCKED: 8.8.8.8:443 not allowed from 0.0.0.0/0
+[?2004hroot@2213dce70a41:/home/user/audit# grep '10.1.5.200' connections.csv
+[?2004l2024-01-15T10:00:05Z,[01;31m[K10.1.5.200[m[K,55000,10.100.1.1,8080,tcp
+[?2004hroot@2213dce70a41:/home/user/audit# python3 -c "import ipaddress; ip = ipaddress.ip_address('10.1.5.200'); print('In 10.1.0.0/16:', ip in ipaddress.ip_network('10.1.0.0/16')); print('In 10.1.5.0/24:', ip in ipaddress.ip_network('10.1.5.0/24'))"
+[?2004lIn 10.1.0.0/16: True
+In 10.1.5.0/24: True
+[?2004hroot@2213dce70a41:/home/user/audit# python3 << 'PYTEST'
+[?2004l{port_matches}")
+        if port_matches:
+            print(f"    -> This rule applies: {rule['action'].upper()}")
+            break
+PYTEST
+[?2004h> import json
+[?2004l[?2004h> import ipaddress
+[?2004l[?2004h> 
+[?2004l[?2004h> # Load rules
+[?2004l[?2004h> with open('firewall_rules.json') as f:
+[?2004l[?2004h>     data = json.load(f)
+[?2004l[?2004h> 
+[?2004l[?2004h> rules = data['rules']
+[?2004l[?2004h> 
+[?2004l[?2004h> # Test case: 10.1.5.200:8080
+[?2004l[?2004h> test_ip = '10.1.5.200'
+[?2004l[?2004h> test_port = 8080
+[?2004l[?2004h> 
+[?2004l[?2004h> print(f"Testing {test_ip}:{test_port}")
+[?2004l[?2004h> print("\nRules sorted by prefix length (most specific first):")
+[?2004l[?2004h> sorted_rules = sorted(rules, key=lambda r: ipaddress.ip_network(r['source_cidr']).prefixlen, reverse=True)
+[?2004l[?2004h> 
+[?2004l[?2004h> for rule in sorted_rules:
+[?2004l[?2004h>     net = ipaddress.ip_network(rule['source_cidr'])
+[?2004l[?2004h>     ip_obj = ipaddress.ip_address(test_ip)
+[?2004l[?2004h>     if ip_obj in net:
+[?2004l[?2004h>         print(f"  Rule {rule['id']}: {rule['source_cidr']} (/{net.prefixlen}) - {rule['action']} port {rule['dest_port']}")
+[?2004l[?2004h>         # Check if port matches
+[?2004l[?2004h>         port_str = rule['dest_port']
+[?2004l[?2004h>         if '-' in port_str:
+[?2004l[?2004h>             start, end = port_str.split('-')
+[?2004l[?2004h>             port_matches = int(start) <= test_port <= int(end)
+[?2004l[?2004h>         else:
+[?2004l[?2004h>             port_matches = int(port_str) == test_port
+[?2004l[?2004h>         print(f"    IP matches: True, Port matches: {port_matches}")
+[?2004l[?2004h>         if port_matches:
+[?2004l[?2004h>             print(f"    -> This rule applies: {rule['action'].upper()}")
+[?2004l[?2004h>             break
+[?2004l[?2004h> PYTEST
+[?2004lTesting 10.1.5.200:8080
+
+Rules sorted by prefix length (most specific first):
+  Rule 3: 10.1.5.0/24 (/24) - deny port 8443
+    IP matches: True, Port matches: False
+  Rule 2: 10.1.0.0/16 (/16) - allow port 8000-9000
+    IP matches: True, Port matches: True
+    -> This rule applies: ALLOW
+[?2004hroot@2213dce70a41:/home/user/audit# 

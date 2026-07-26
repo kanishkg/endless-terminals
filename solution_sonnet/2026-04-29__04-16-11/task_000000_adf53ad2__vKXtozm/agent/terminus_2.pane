@@ -1,0 +1,85 @@
+[?2004huser@7b781266145c:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@7b781266145c:~$ clear
+[?2004l[H[J[?2004huser@7b781266145c:~$ cd /home/user/project
+[?2004l[?2004huser@7b781266145c:~/project$ pwd
+[?2004l/home/user/project
+[?2004huser@7b781266145c:~/project$ ls -la
+[?2004ltotal 52
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 .
+drwxrwxrwx 1 root root 4096 Apr 29 04:28 ..
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 .git
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file1.txt
+-rw-r--r-- 1 user user   22 Apr 29 04:27 file10.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file2.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file3.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file4.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file5.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file6.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file7.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file8.txt
+-rw-r--r-- 1 user user   21 Apr 29 04:27 file9.txt
+[?2004huser@7b781266145c:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+cd /srv/repos/project
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@7b781266145c:~/project$ cat .git/config
+[?2004l[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = /home/user/project.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[?2004huser@7b781266145c:~/project$ ls -la .git/ | head -20
+[?2004ltotal 48
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 .
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 ..
+-rw-r--r-- 1 user user   17 Apr 29 04:27 COMMIT_EDITMSG
+-rw-r--r-- 1 user user   21 Apr 29 04:27 HEAD
+-rw-r--r-- 1 user user  185 Apr 29 04:27 config
+-rw-r--r-- 1 user user   73 Apr 29 04:27 description
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 hooks
+-rw-r--r-- 1 user user  794 Apr 29 04:27 index
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 info
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 logs
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 objects
+drwxr-xr-x 1 user user 4096 Apr 29 04:27 refs
+[?2004huser@7b781266145c:~/project$ cat > .git/hooks/pre-push << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> HASH=$(git rev-parse --verify HEAD)
+[?2004l[?2004h> echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+[?2004l[?2004h> exit 0
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@7b781266145c:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@7b781266145c:~/project$ chmod +x .git/hooks/pre-push
+[?2004l[?2004huser@7b781266145c:~/project$ bash .git/hooks/pre-push
+[?2004l[?2004huser@7b781266145c:~/project$ git status
+[?2004lOn branch main
+nothing to commit, working tree clean
+[?2004huser@7b781266145c:~/project$ git push origin master 2>&1
+[?2004lerror: src refspec master does not match any
+[31merror: failed to push some refs to '/home/user/project.git'
+[m[?2004huser@7b781266145c:~/project$ git push origin main 2>&1
+[?2004lEverything up-to-date
+[?2004huser@7b781266145c:~/project$ sudo cat /var/log/git-hooks.log 2>&1 || cat /var/log/git-hooks.log 2>&1
+[?2004lbash: sudo: command not found
+Wed Apr 29 04:29:02 UTC 2026: push verified, HEAD=b9f9ece5db1e5c75926dca84e2c8ce162e3725c4
+Wed Apr 29 04:29:09 UTC 2026: push verified, HEAD=b9f9ece5db1e5c75926dca84e2c8ce162e3725c4
+[?2004huser@7b781266145c:~/project$ echo '=== Issue Resolved ==='
+[?2004l=== Issue Resolved ===
+[?2004huser@7b781266145c:~/project$ echo 'The pre-push hook contained a hardcoded path: cd /srv/repos/project'
+[?2004lThe pre-push hook contained a hardcoded path: cd /srv/repos/project
+[?2004huser@7b781266145c:~/project$ echo 'This was removed since git hooks run from the repository root by default.'
+[?2004lThis was removed since git hooks run from the repository root by default.
+[?2004huser@7b781266145c:~/project$ echo 'Hook now works correctly during git push operations.'
+[?2004lHook now works correctly during git push operations.
+[?2004huser@7b781266145c:~/project$ 

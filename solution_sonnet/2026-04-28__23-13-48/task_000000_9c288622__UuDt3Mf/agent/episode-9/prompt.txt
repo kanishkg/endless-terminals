@@ -1,0 +1,45 @@
+New Terminal Output:
+
+user@dabf8146e4c9:~/scheduler$ echo "=== COMPARISON: OLD vs NEW CODE ==="
+=== COMPARISON: OLD vs NEW CODE ===
+user@dabf8146e4c9:~/scheduler$ echo "OLD (buggy) convert_to_berlin function:"
+OLD (buggy) convert_to_berlin function:
+user@dabf8146e4c9:~/scheduler$ grep -A 8 'def convert_to_berlin' app.py.backup
+def convert_to_berlin(utc_time_str):
+    """
+    Convert UTC time string to Berlin timezone.
+    """
+    # Parse the UTC time string
+    utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+
+    # Convert to Berlin time
+    # BUG: This incorrectly localizes the UTC datetime as if it were already Berlin time
+user@dabf8146e4c9:~/scheduler$ echo ""
+
+user@dabf8146e4c9:~/scheduler$ echo "NEW (fixed) convert_to_berlin function:"
+NEW (fixed) convert_to_berlin function:
+user@dabf8146e4c9:~/scheduler$ grep -A 10 'def convert_to_berlin' app.py
+def convert_to_berlin(utc_time_str):
+    """
+    Convert UTC time string to Berlin timezone.
+    """
+    # Parse the UTC time string
+    utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+
+    # First localize as UTC, then convert to Berlin time
+    utc_dt = UTC_TZ.localize(utc_dt)
+    berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+
+user@dabf8146e4c9:~/scheduler$ echo ""
+
+user@dabf8146e4c9:~/scheduler$ echo "=== FIX SUMMARY ==="
+=== FIX SUMMARY ===
+user@dabf8146e4c9:~/scheduler$ echo "Changed: BERLIN_TZ.localize(utc_dt)"
+Changed: BERLIN_TZ.localize(utc_dt)
+user@dabf8146e4c9:~/scheduler$ echo "To:      UTC_TZ.localize(utc_dt).astimezone(BERLIN_TZ)"
+To:      UTC_TZ.localize(utc_dt).astimezone(BERLIN_TZ)
+user@dabf8146e4c9:~/scheduler$ echo ""
+
+user@dabf8146e4c9:~/scheduler$ echo "The cron job at /home/user/scheduler/crontab is already installed and will use the fixed app.py"
+The cron job at /home/user/scheduler/crontab is already installed and will use the fixed app.py
+user@dabf8146e4c9:~/scheduler$

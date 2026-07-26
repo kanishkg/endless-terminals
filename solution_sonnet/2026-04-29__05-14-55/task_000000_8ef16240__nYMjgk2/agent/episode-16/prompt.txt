@@ -1,0 +1,26 @@
+New Terminal Output:
+
+root@e6879a171c79:/home/user/pipeline# rm -f .checkpoint output/summary.db
+root@e6879a171c79:/home/user/pipeline# timeout 3 python3 process_test.py || echo "Interrupted after 3 seconds"
+Starting from line: 0
+Processed batch 1, checkpoint at line 1000
+Processed batch 2, checkpoint at line 2000
+Processed batch 3, checkpoint at line 3000
+Processed batch 4, checkpoint at line 4000
+Processed batch 5, checkpoint at line 5000
+Processed batch 6, checkpoint at line 6000
+Interrupted after 3 seconds
+root@e6879a171c79:/home/user/pipeline# echo "Checkpoint after interruption:"
+Checkpoint after interruption:
+root@e6879a171c79:/home/user/pipeline# cat .checkpoint
+{"last_line": 6000}root@e6879a171c79:/home/user/pipeline# echo ""
+
+root@e6879a171c79:/home/user/pipeline# python3 << 'PYEOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) as total_records FROM summary').fetchone()
+> print(f"Records after interruption: {result[0]}")
+> conn.close()
+> PYEOF
+Records after interruption: 6000
+root@e6879a171c79:/home/user/pipeline#

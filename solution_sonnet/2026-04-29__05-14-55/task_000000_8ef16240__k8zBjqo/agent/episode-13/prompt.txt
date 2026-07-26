@@ -1,0 +1,76 @@
+New Terminal Output:
+
+root@2ee90a32ab77:/home/user/pipeline# cat > BUGFIX_SUMMARY.txt << 'EOF'
+> === CHECKPOINT/RESUME BUG FIXES ===
+>
+> PROBLEM: Batch job would not properly resume from checkpoint after being killed.
+> Checkpoint file existed but script would reprocess everything from the beginning.
+>
+> ROOT CAUSES IDENTIFIED AND FIXED:
+>
+> 1. BUFFER FLUSH BUG (Critical)
+>    - Original: save_checkpoint() used open() without context manager
+>    - Issue: Buffer not flushed to disk before crash, checkpoint file empty/incomplete
+>    - Fix: Added 'with' context manager, explicit f.flush() and os.fsync()
+>
+> 2. SEMANTIC MISMATCH BUG (Critical)
+>    - Original: Saved batch_num (0-49) but named it 'last_line'
+>    - Issue: Resume code skipped line_num < start_from, so batch 5 = skip 5 lines, not 5000
+>    - Fix: Changed to track actual line numbers (0-50000) consistently
+>
+> 3. DATA ACCUMULATION BUG (Critical)
+>    - Original: Used 'INSERT OR REPLACE' which overwrites existing data
+>    - Issue: On resume, previous progress was lost as categories were replaced
+>    - Fix: Changed to 'INSERT OR IGNORE' + 'UPDATE' to accumulate values
+>
+> ADDITIONAL IMPROVEMENTS:
+>    - Added conn.commit() after each batch (not just at end)
+>    - Ensures database is consistent at checkpoint boundaries
+>
+> TEST RESULTS:
+>    ✓ Full run: 50,000 records processed correctly
+>    ✓ Interrupted at 45,000 lines, resumed successfully
+>    ✓ Final totals match expected: 50,000 records, 2,494,808.87 total value
+>    ✓ No duplicate processing or data loss
+>
+> FILES MODIFIED:
+>    - process.py (fixed version)
+>    - process.py.bak (original backup)
+> EOF
+root@2ee90a32ab77:/home/user/pipeline# cat BUGFIX_SUMMARY.txt
+=== CHECKPOINT/RESUME BUG FIXES ===
+
+PROBLEM: Batch job would not properly resume from checkpoint after being killed.
+Checkpoint file existed but script would reprocess everything from the beginning.
+
+ROOT CAUSES IDENTIFIED AND FIXED:
+
+1. BUFFER FLUSH BUG (Critical)
+   - Original: save_checkpoint() used open() without context manager
+   - Issue: Buffer not flushed to disk before crash, checkpoint file empty/incomplete
+   - Fix: Added 'with' context manager, explicit f.flush() and os.fsync()
+
+2. SEMANTIC MISMATCH BUG (Critical)
+   - Original: Saved batch_num (0-49) but named it 'last_line'
+   - Issue: Resume code skipped line_num < start_from, so batch 5 = skip 5 lines, not 5000
+   - Fix: Changed to track actual line numbers (0-50000) consistently
+
+3. DATA ACCUMULATION BUG (Critical)
+   - Original: Used 'INSERT OR REPLACE' which overwrites existing data
+   - Issue: On resume, previous progress was lost as categories were replaced
+   - Fix: Changed to 'INSERT OR IGNORE' + 'UPDATE' to accumulate values
+
+ADDITIONAL IMPROVEMENTS:
+   - Added conn.commit() after each batch (not just at end)
+   - Ensures database is consistent at checkpoint boundaries
+
+TEST RESULTS:
+   ✓ Full run: 50,000 records processed correctly
+   ✓ Interrupted at 45,000 lines, resumed successfully
+   ✓ Final totals match expected: 50,000 records, 2,494,808.87 total value
+   ✓ No duplicate processing or data loss
+
+FILES MODIFIED:
+   - process.py (fixed version)
+   - process.py.bak (original backup)
+root@2ee90a32ab77:/home/user/pipeline#

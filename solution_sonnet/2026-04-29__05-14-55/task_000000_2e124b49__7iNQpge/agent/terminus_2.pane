@@ -1,0 +1,367 @@
+[?2004hroot@7487267fec5a:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@7487267fec5a:/home/user# clear
+[?2004l[H[J[?2004hroot@7487267fec5a:/home/user# cd /home/user/docs-site
+[?2004l[?2004hroot@7487267fec5a:/home/user/docs-site# ls -la
+[?2004ltotal 32
+drwxrwxrwx 1 root root 4096 Apr 29 05:11 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 05:11 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 05:11 [34;42m.git[0m
+-rwxrwxrwx 1 root root  464 Apr 29 05:11 [01;32mCHANGELOG.md[0m
+drwxrwxrwx 1 root root 4096 Apr 29 05:11 [34;42mnode_modules[0m
+-rwxrwxrwx 1 root root  205 Apr 29 05:11 [01;32mpackage-lock.json[0m
+-rwxrwxrwx 1 root root  224 Apr 29 05:11 [01;32mpackage.json[0m
+drwxrwxrwx 1 root root 4096 Apr 29 05:11 [34;42mscripts[0m
+[?2004hroot@7487267fec5a:/home/user/docs-site# cat package.json
+[?2004l{
+  "name": "docs-site",
+  "version": "0.7.2",
+  "description": "Documentation site",
+  "main": "index.js",
+  "scripts": {
+    "release": "node scripts/release.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}
+[?2004hroot@7487267fec5a:/home/user/docs-site# cat CHANGELOG.md
+[?2004l# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.7.2] - 2024-11-15
+
+### Fixed
+- Resolved mobile navigation collapse issue
+
+## [0.7.1] - 2024-11-01
+
+### Added
+- Dark mode support for documentation pages
+
+## [0.7.0] - October 28, 2024
+
+### Added
+- Initial search functionality
+- New getting started guide
+
+### Fixed
+- Typography inconsistencies in code blocks
+
+## [0.6.0] - 2024-10-15
+
+### Added
+- API reference documentation
+[?2004hroot@7487267fec5a:/home/user/docs-site# cat scripts/release.js
+[?2004lconst fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const rootDir = path.join(__dirname, '..');
+const packageJsonPath = path.join(rootDir, 'package.json');
+const changelogPath = path.join(rootDir, 'CHANGELOG.md');
+
+function getCommitsSinceTag(tag) {
+    try {
+        const output = execSync(`git log ${tag}..HEAD --pretty=format:"%s"`, {
+            cwd: rootDir,
+            encoding: 'utf-8'
+        });
+        return output.split('\n').filter(line => line.trim());
+    } catch (e) {
+        console.error('Failed to get commits since tag:', e.message);
+        return [];
+    }
+}
+
+function getLatestTag() {
+    try {
+        const output = execSync('git describe --tags --abbrev=0', {
+            cwd: rootDir,
+            encoding: 'utf-8'
+        });
+        return output.trim();
+    } catch (e) {
+        return null;
+    }
+}
+
+function parseVersion(version) {
+    const parts = version.replace(/^v/, '').split('.').map(Number);
+    return { major: parts[0], minor: parts[1], patch: parts[2] };
+}
+
+function determineVersionBump(commits) {
+    let hasFeature = false;
+    let hasFix = false;
+    let hasBreaking = false;
+
+    for (const commit of commits) {
+        if (commit.includes('BREAKING CHANGE') || commit.includes('!:')) {
+            hasBreaking = true;
+        }
+        if (commit.startsWith('feat')) {
+            hasFeature = true;
+        }
+        if (commit.startsWith('fix')) {
+            hasFix = true;
+        }
+    }
+
+    if (hasBreaking) return 'major';
+    if (hasFeature) return 'minor';
+    if (hasFix) return 'patch';
+    return 'patch';
+}
+
+function bumpVersion(currentVersion, bumpType) {
+    const v = parseVersion(currentVersion);
+    switch (bumpType) {
+        case 'major':
+            return `${v.major + 1}.0.0`;
+        case 'minor':
+            return `${v.major}.${v.minor + 1}.0`;
+        case 'patch':
+            return `${v.major}.${v.minor}.${v.patch + 1}`;
+        default:
+            return currentVersion;
+    }
+}
+
+function validateChangelog(content) {
+    const lines = content.split('\n');
+    const sectionHeaderRegex = /^## \[\d+\.\d+\.\d+\] - \d{4}-\d{2}-\d{2}$/;
+
+    for (const line of lines) {
+        if (line.startsWith('## [') && line.includes(']')) {
+            // This is a version section header, validate it
+            if (!sectionHeaderRegex.test(line)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+function generateChangelogSection(version, commits) {
+    const today = new Date().toISOString().split('T')[0];
+    let section = `## [${version}] - ${today}\n\n`;
+
+    const features = [];
+    const fixes = [];
+    const docs = [];
+    const other = [];
+
+    for (const commit of commits) {
+        // Remove the type prefix for display
+        let message = commit;
+        if (commit.startsWith('feat(')) {
+            const match = commit.match(/^feat\([^)]+\): (.+)$/);
+            if (match) {
+                features.push(match[1]);
+            } else {
+                features.push(commit.replace(/^feat\([^)]+\): /, ''));
+            }
+        } else if (commit.startsWith('feat:')) {
+            features.push(commit.replace(/^feat: /, ''));
+        } else if (commit.startsWith('fix(')) {
+            const match = commit.match(/^fix\([^)]+\): (.+)$/);
+            if (match) {
+                fixes.push(match[1]);
+            } else {
+                fixes.push(commit.replace(/^fix\([^)]+\): /, ''));
+            }
+        } else if (commit.startsWith('fix:')) {
+            fixes.push(commit.replace(/^fix: /, ''));
+        } else if (commit.startsWith('docs:')) {
+            docs.push(commit.replace(/^docs: /, ''));
+        } else {
+            other.push(commit);
+        }
+    }
+
+    if (features.length > 0) {
+        section += '### Added\n';
+        for (const f of features) {
+            section += `- ${f.charAt(0).toUpperCase() + f.slice(1)}\n`;
+        }
+        section += '\n';
+    }
+
+    if (fixes.length > 0) {
+        section += '### Fixed\n';
+        for (const f of fixes) {
+            section += `- ${f.charAt(0).toUpperCase() + f.slice(1)}\n`;
+        }
+        section += '\n';
+    }
+
+    if (docs.length > 0) {
+        section += '### Documentation\n';
+        for (const d of docs) {
+            section += `- ${d.charAt(0).toUpperCase() + d.slice(1)}\n`;
+        }
+        section += '\n';
+    }
+
+    return section;
+}
+
+function main() {
+    // Read package.json
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    const currentVersion = packageJson.version;
+
+    // Get latest tag
+    const latestTag = getLatestTag();
+    if (!latestTag) {
+        console.error('No tags found in repository');
+        process.exit(1);
+    }
+
+    // Get commits since tag
+    const commits = getCommitsSinceTag(latestTag);
+    if (commits.length === 0) {
+        console.error('No commits since last tag');
+        process.exit(1);
+    }
+
+    console.log(`Found ${commits.length} commits since ${latestTag}`);
+
+    // Read and validate changelog
+    const changelogContent = fs.readFileSync(changelogPath, 'utf-8');
+    if (!validateChangelog(changelogContent)) {
+        console.error('changelog validation failed');
+        process.exit(1);
+    }
+
+    // Determine version bump
+    const bumpType = determineVersionBump(commits);
+    const newVersion = bumpVersion(currentVersion, bumpType);
+    console.log(`Bumping version: ${currentVersion} -> ${newVersion} (${bumpType})`);
+
+    // Generate new changelog section
+    const newSection = generateChangelogSection(newVersion, commits);
+
+    // Insert new section after the header
+    const headerEnd = changelogContent.indexOf('\n\n## [');
+    let newChangelog;
+    if (headerEnd !== -1) {
+        const header = changelogContent.substring(0, headerEnd);
+        const rest = changelogContent.substring(headerEnd + 2);
+        newChangelog = header + '\n\n' + newSection + rest;
+    } else {
+        // No existing sections, append after header
+        const lines = changelogContent.split('\n');
+        let insertIndex = 0;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].startsWith('# ') || lines[i].trim() === '' || lines[i].startsWith('All notable')) {
+                insertIndex = i + 1;
+            } else {
+                break;
+            }
+        }
+        lines.splice(insertIndex, 0, '', newSection);
+        newChangelog = lines.join('\n');
+    }
+
+    // Update package.json
+    packageJson.version = newVersion;
+    fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+    console.log(`Updated package.json version to ${newVersion}`);
+
+    // Update changelog
+    fs.writeFileSync(changelogPath, newChangelog);
+    console.log('Updated CHANGELOG.md');
+
+    console.log('Release preparation complete!');
+    process.exit(0);
+}
+
+main();
+[?2004hroot@7487267fec5a:/home/user/docs-site# sed -i 's/^## \[0\.7\.0\] - October 28, 2024$/## [0.7.0] - 2024-10-28/' CHANGELOG.md
+[?2004l[?2004hroot@7487267fec5a:/home/user/docs-site# cat CHANGELOG.md
+[?2004l# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.7.2] - 2024-11-15
+
+### Fixed
+- Resolved mobile navigation collapse issue
+
+## [0.7.1] - 2024-11-01
+
+### Added
+- Dark mode support for documentation pages
+
+## [0.7.0] - 2024-10-28
+
+### Added
+- Initial search functionality
+- New getting started guide
+
+### Fixed
+- Typography inconsistencies in code blocks
+
+## [0.6.0] - 2024-10-15
+
+### Added
+- API reference documentation
+[?2004hroot@7487267fec5a:/home/user/docs-site# npm run release
+[?2004l
+> docs-site@0.7.2 release
+> node scripts/release.js
+
+[1G[0KFound 4 commits since v0.7.2
+Bumping version: 0.7.2 -> 0.8.0 (minor)
+Updated package.json version to 0.8.0
+Updated CHANGELOG.md
+Release preparation complete!
+[1G[0K⠙[1G[0K[?2004hroot@7487267fec5a:/home/user/docs-site# cat package.json
+[?2004l{
+  "name": "docs-site",
+  "version": "0.8.0",
+  "description": "Documentation site",
+  "main": "index.js",
+  "scripts": {
+    "release": "node scripts/release.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}
+[?2004hroot@7487267fec5a:/home/user/docs-site# head -30 CHANGELOG.md
+[?2004l# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.8.0] - 2026-04-29
+
+### Added
+- Implemented full-text search
+- Added new tutorial section for webhooks
+
+### Fixed
+- Corrected broken links in API reference
+
+### Documentation
+- Updated contribution guidelines
+
+## [0.7.2] - 2024-11-15
+
+### Fixed
+- Resolved mobile navigation collapse issue
+
+## [0.7.1] - 2024-11-01
+
+### Added
+- Dark mode support for documentation pages
+
+## [0.7.0] - 2024-10-28
+
+### Added
+- Initial search functionality
+[?2004hroot@7487267fec5a:/home/user/docs-site# 

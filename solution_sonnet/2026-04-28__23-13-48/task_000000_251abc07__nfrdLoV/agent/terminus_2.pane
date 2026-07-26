@@ -1,0 +1,80 @@
+[?2004huser@a73b32be3a5b:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@a73b32be3a5b:~$ clear
+[?2004l[H[J[?2004huser@a73b32be3a5b:~$ ls -lh /var/log/app/access.log
+[?2004l-rw-r--r-- 1 root root 5.7M Apr 28 23:22 /var/log/app/access.log
+[?2004huser@a73b32be3a5b:~$ head -5 /var/log/app/access.log
+[?2004l10.225.100.20 - - [05/Dec/2024:10:07:16 +0000] "PUT /ready HTTP/1.1" 204 7092 "-" "ELB-HealthChecker/2.0"
+34.28.48.212 - - [05/May/2024:10:23:56 +0000] "PATCH /api/v1/public/data HTTP/1.1" 400 5873 "-" "Python-urllib/3.9"
+10.86.51.19 - - [27/Aug/2024:10:40:43 +0000] "GET /ready HTTP/1.1" 204 2407 "-" "ELB-HealthChecker/2.0"
+185.20.75.68 - - [06/Apr/2024:01:43:41 +0000] "DELETE /favicon.ico HTTP/1.1" 200 9411 "-" "curl/7.68.0"
+52.65.148.145 - - [09/May/2024:16:00:38 +0000] "GET /api/v1/public/data HTTP/1.1" 400 6066 "-" "Python-urllib/3.9"
+[?2004huser@a73b32be3a5b:~$ grep -E '/api/v[0-9]+/internal/' /var/log/app/access.log | head -5
+[?2004l192.168.32.122 - - [23/Aug/2024:03:38:50 +0000] "PATCH /api/v1/internal/status HTTP/1.1" 401 5184 "-" "Python-urllib/3.9"
+198.170.22.163 - - [04/Apr/2024:08:16:59 +0000] "PATCH /api/v1/internal/status HTTP/1.1" 404 8876 "-" "PostmanRuntime/7.29.0"
+52.190.55.116 - - [19/Jan/2024:12:49:14 +0000] "DELETE /api/v2/internal/users HTTP/1.1" 403 7811 "-" "WebhookClient/1.0"
+192.168.40.82 - - [11/Apr/2024:23:59:11 +0000] "PUT /api/v1/internal/status HTTP/1.1" 401 7211 "-" "PostmanRuntime/7.29.0"
+10.239.32.97 - - [07/Nov/2024:19:13:45 +0000] "GET /api/v3/internal/webhook HTTP/1.1" 400 2172 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+grep: write error: Broken pipe
+[?2004huser@a73b32be3a5b:~$ awk '
+[?2004l[?2004h> /\/api\/v[0-9]+\/internal\// && $1 !~ /^10\./ {
+[?2004l[?2004h>   # Extract timestamp from brackets
+[?2004l[?2004h>   match($0, /\[([^]]+)\]/, ts)
+[?2004l[?2004h>   timestamp = ts[1]
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Parse: 23/Aug/2024:03:38:50 +0000
+[?2004l[?2004h>   split(timestamp, dt, /[\/:]/)
+[?2004l[?2004h>   day = dt[1]
+[?2004l[?2004h>   month = dt[2]
+[?2004l[?2004h>   year = dt[3]
+[?2004l[?2004h>   time = dt[4] ":" dt[5] ":" dt[6]
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Convert month name to number
+[?2004l[?2004h>   months["Jan"]="01"; months["Feb"]="02"; months["Mar"]="03"; months["Apr"]="04"
+[?2004l[?2004h>   months["May"]="05"; months["Jun"]="06"; months["Jul"]="07"; months["Aug"]="08"
+[?2004l[?2004h>   months["Sep"]="09"; months["Oct"]="10"; months["Nov"]="11"; months["Dec"]="12"
+[?2004l[?2004h>   
+[?2004l[?2004h>   iso_date = year "-" months[month] "-" sprintf("%02d", day) "T" time
+[?2004l[?2004h>   
+[?2004l[?2004h>   # Replace timestamp in original line
+[?2004l[?2004h>   sub(/\[[^]]+\]/, iso_date, $0)
+[?2004l[?2004h>   print
+[?2004l[?2004h> }' /var/log/app/access.log > /home/user/internal_hits.log
+[?2004l[?2004huser@a73b32be3a5b:~$ ls -lh /home/user/internal_hits.log
+[?2004l-rw-r--r-- 1 user user 593K Apr 28 23:35 /home/user/internal_hits.log
+[?2004huser@a73b32be3a5b:~$ wc -l /home/user/internal_hits.log
+[?2004l4800 /home/user/internal_hits.log
+[?2004huser@a73b32be3a5b:~$ head -10 /home/user/internal_hits.log
+[?2004l192.168.32.122 - - 2024-08-23T03:38:50 +0000 "PATCH /api/v1/internal/status HTTP/1.1" 401 5184 "-" "Python-urllib/3.9"
+198.170.22.163 - - 2024-04-04T08:16:59 +0000 "PATCH /api/v1/internal/status HTTP/1.1" 404 8876 "-" "PostmanRuntime/7.29.0"
+52.190.55.116 - - 2024-01-19T12:49:14 +0000 "DELETE /api/v2/internal/users HTTP/1.1" 403 7811 "-" "WebhookClient/1.0"
+192.168.40.82 - - 2024-04-11T23:59:11 +0000 "PUT /api/v1/internal/status HTTP/1.1" 401 7211 "-" "PostmanRuntime/7.29.0"
+192.168.82.145 - - 2024-05-11T12:43:33 +0000 "DELETE /api/v1/internal/config HTTP/1.1" 204 7387 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+52.144.229.29 - - 2024-08-27T17:16:02 +0000 "GET /api/v3/internal/sync HTTP/1.1" 200 2535 "-" "Python-urllib/3.9"
+185.104.73.76 - - 2024-11-01T20:48:26 +0000 "GET /api/v1/internal/users HTTP/1.1" 403 7617 "-" "axios/0.21.1"
+185.148.164.245 - - 2024-04-10T00:00:29 +0000 "PUT /api/v2/internal/metrics HTTP/1.1" 403 7384 "-" "PostmanRuntime/7.29.0"
+52.67.156.153 - - 2024-03-11T21:33:39 +0000 "POST /api/v1/internal/status HTTP/1.1" 204 8361 "-" "curl/7.68.0"
+185.142.46.191 - - 2024-02-24T04:33:19 +0000 "GET /api/v2/internal/users HTTP/1.1" 400 3728 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+[?2004huser@a73b32be3a5b:~$ grep -c '^10\.' /home/user/internal_hits.log
+[?2004l0
+[?2004huser@a73b32be3a5b:~$ grep -E '/api/v[0-9]+/internal/' /var/log/app/access.log | grep -c '^10\.'
+[?2004l200
+[?2004huser@a73b32be3a5b:~$ echo "Task completed successfully! Filtered 4800 internal API calls (excluding 10.x.x.x IPs) from the original log."
+[?2004lTask completed successfully! Filtered 4800 internal API calls (excluding 10.x.x.x IPs) from the original log.
+[?2004huser@a73b32be3a5b:~$ tail -10 /home/user/internal_hits.log
+[?2004l34.67.105.23 - - 2024-03-11T08:11:12 +0000 "PUT /api/v1/internal/config HTTP/1.1" 204 5596 "-" "axios/0.21.1"
+185.97.110.178 - - 2024-09-01T01:47:48 +0000 "PATCH /api/v3/internal/webhook HTTP/1.1" 200 1790 "-" "curl/7.68.0"
+45.231.154.56 - - 2024-02-06T11:50:02 +0000 "POST /api/v2/internal/metrics HTTP/1.1" 201 7270 "-" "WebhookClient/1.0"
+172.29.230.109 - - 2024-05-09T16:56:10 +0000 "POST /api/v3/internal/sync HTTP/1.1" 500 9087 "-" "curl/7.68.0"
+203.250.140.138 - - 2024-02-09T21:04:45 +0000 "PUT /api/v3/internal/sync HTTP/1.1" 404 2563 "-" "Python-urllib/3.9"
+203.47.244.159 - - 2024-05-17T22:52:17 +0000 "PUT /api/v2/internal/users HTTP/1.1" 200 5098 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+34.221.91.242 - - 2024-11-11T03:25:57 +0000 "POST /api/v2/internal/audit HTTP/1.1" 201 5982 "-" "WebhookClient/1.0"
+52.251.242.36 - - 2024-04-07T01:26:48 +0000 "GET /api/v1/internal/config HTTP/1.1" 401 6767 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+192.168.9.56 - - 2024-07-28T17:22:30 +0000 "PUT /api/v3/internal/webhook HTTP/1.1" 400 9594 "-" "axios/0.21.1"
+172.27.215.155 - - 2024-12-15T00:48:03 +0000 "POST /api/v2/internal/audit HTTP/1.1" 500 2229 "-" "curl/7.68.0"
+[?2004huser@a73b32be3a5b:~$ grep -E '(/health|/ready)' /home/user/internal_hits.log | wc -l
+[?2004l0
+[?2004huser@a73b32be3a5b:~$ awk '{print $1}' /home/user/internal_hits.log | grep '^10\.' | wc -l
+[?2004l0
+[?2004huser@a73b32be3a5b:~$ 

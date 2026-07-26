@@ -1,0 +1,126 @@
+New Terminal Output:
+
+user@e252a997ef07:~/scheduler$ cat > BUGFIX_SUMMARY.txt << 'EOF'
+> =================================================================
+> BUGFIX SUMMARY: Timezone Conversion Issue in Meeting Scheduler
+> =================================================================
+>
+> PROBLEM:
+> --------
+> The scheduler app was sending meeting reminders at incorrect times,
+> specifically for meetings falling between 2am-3am local time during
+> DST transitions. The offset was exactly 1 hour.
+>
+> ROOT CAUSE:
+> -----------
+> In app.py, the convert_to_berlin() function was incorrectly using:
+>   BERLIN_TZ.localize(utc_dt)
+>
+> This treated the UTC datetime as if it were already in Berlin time,
+> rather than converting FROM UTC TO Berlin time.
+>
+> During DST transitions (like March 31, 2024 when clocks jump from
+> 2am CET to 3am CEST), this caused incorrect time calculations.
+>
+> EXAMPLE:
+> --------
+> Maintenance Window Prep meeting:
+>   Stored as:     2024-03-31T01:30:00 UTC
+>
+>   OLD (BUGGY):   2024-03-31 01:30:00 CET (UTC+0100)
+>                  [Incorrectly treats UTC time as Berlin time]
+>
+>   NEW (FIXED):   2024-03-31 03:30:00 CEST (UTC+0200)
+>                  [Correctly converts UTC to Berlin time]
+>
+>   Difference:    1 hour off (would send reminder at wrong time)
+>
+> SOLUTION:
+> ---------
+> Fixed the convert_to_berlin() function to properly:
+> 1. Parse the UTC time string
+> 2. Localize it as UTC using UTC_TZ.localize(utc_dt)
+> 3. Convert to Berlin time using utc_dt.astimezone(BERLIN_TZ)
+>
+> CODE CHANGE:
+> ------------
+> - OLD: berlin_dt = BERLIN_TZ.localize(utc_dt)
+> + NEW: utc_dt = UTC_TZ.localize(utc_dt)
+> +      berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+>
+> VERIFICATION:
+> -------------
+> - Fixed code now correctly handles DST transitions
+> - All meetings convert to proper Berlin local time
+> - Cron job will now send reminders at correct times
+> - No changes needed to crontab or meetings.json
+>
+> FILES MODIFIED:
+> ---------------
+> - /home/user/scheduler/app.py (fixed convert_to_berlin function)
+> - /home/user/scheduler/app.py.backup (backup of original buggy version)
+>
+> =================================================================
+> EOF
+user@e252a997ef07:~/scheduler$ cat BUGFIX_SUMMARY.txt
+=================================================================
+BUGFIX SUMMARY: Timezone Conversion Issue in Meeting Scheduler
+=================================================================
+
+PROBLEM:
+--------
+The scheduler app was sending meeting reminders at incorrect times,
+specifically for meetings falling between 2am-3am local time during
+DST transitions. The offset was exactly 1 hour.
+
+ROOT CAUSE:
+-----------
+In app.py, the convert_to_berlin() function was incorrectly using:
+  BERLIN_TZ.localize(utc_dt)
+
+This treated the UTC datetime as if it were already in Berlin time,
+rather than converting FROM UTC TO Berlin time.
+
+During DST transitions (like March 31, 2024 when clocks jump from
+2am CET to 3am CEST), this caused incorrect time calculations.
+
+EXAMPLE:
+--------
+Maintenance Window Prep meeting:
+  Stored as:     2024-03-31T01:30:00 UTC
+
+  OLD (BUGGY):   2024-03-31 01:30:00 CET (UTC+0100)
+                 [Incorrectly treats UTC time as Berlin time]
+
+  NEW (FIXED):   2024-03-31 03:30:00 CEST (UTC+0200)
+                 [Correctly converts UTC to Berlin time]
+
+  Difference:    1 hour off (would send reminder at wrong time)
+
+SOLUTION:
+---------
+Fixed the convert_to_berlin() function to properly:
+1. Parse the UTC time string
+2. Localize it as UTC using UTC_TZ.localize(utc_dt)
+3. Convert to Berlin time using utc_dt.astimezone(BERLIN_TZ)
+
+CODE CHANGE:
+------------
+- OLD: berlin_dt = BERLIN_TZ.localize(utc_dt)
++ NEW: utc_dt = UTC_TZ.localize(utc_dt)
++      berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+
+VERIFICATION:
+-------------
+- Fixed code now correctly handles DST transitions
+- All meetings convert to proper Berlin local time
+- Cron job will now send reminders at correct times
+- No changes needed to crontab or meetings.json
+
+FILES MODIFIED:
+---------------
+- /home/user/scheduler/app.py (fixed convert_to_berlin function)
+- /home/user/scheduler/app.py.backup (backup of original buggy version)
+
+=================================================================
+user@e252a997ef07:~/scheduler$

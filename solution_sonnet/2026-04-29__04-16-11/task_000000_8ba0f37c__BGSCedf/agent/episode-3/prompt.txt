@@ -1,0 +1,74 @@
+New Terminal Output:
+
+user@640c95f8df54:~/pentest$ cat > finding.txt << 'EOF'
+> FINDING: HTTP/HTTPS Traffic Blocked by Overly Restrictive String Matching
+>
+> AFFECTED RULES:
+> - Line 7: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+> - Line 8: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+> - Line 9: -A INPUT -p tcp --dport 80 -j DROP
+> - Line 10: -A INPUT -p tcp --dport 443 -j DROP
+>
+> ROOT CAUSE:
+> The iptables ruleset attempts to filter HTTP/HTTPS traffic by only accepting packets containing the string "Mozilla" in the packet payload. This appears to be
+ an attempt at user-agent filtering or bot blocking. However, this approach has several critical issues:
+>
+> 1. The string matching occurs at the packet level, not the HTTP header level
+> 2. It requires "Mozilla" to appear in the TCP payload of packets destined for ports 80/443
+> 3. Legitimate tools like curl (User-Agent: curl/x.x.x) don't contain "Mozilla" and are blocked
+> 4. The subsequent DROP rules (lines 9-10) catch all traffic that doesn't match the Mozilla string
+>
+> WHY SSH WORKS BUT HTTP DOESN'T:
+> - SSH (port 22): Has a simple ACCEPT rule with no string matching requirement (line 6)
+> - HTTP/HTTPS (ports 80/443): Requires "Mozilla" string to be present in packet payload
+> - When curl connects from 10.0.0.5, it sends "curl/version" as User-Agent, not "Mozilla"
+> - The connection hangs because packets are being dropped by rules on lines 9-10
+>
+> RECOMMENDATION:
+> The string matching approach is fundamentally flawed for HTTP filtering because:
+> - It operates at the wrong layer (packet vs application)
+> - It blocks legitimate non-browser clients (curl, wget, APIs, monitoring tools)
+> - It can be easily bypassed by including "Mozilla" in any packet payload
+> - It doesn't actually validate proper HTTP User-Agent headers
+>
+> The organization should either:
+> 1. Remove the string matching rules entirely and use proper application-layer filtering (WAF)
+> 2. Remove the DROP rules and rely on the default INPUT DROP policy
+> 3. Implement user-agent filtering at the web server level, not the firewall
+> EOF
+user@640c95f8df54:~/pentest$ cat finding.txt
+FINDING: HTTP/HTTPS Traffic Blocked by Overly Restrictive String Matching
+
+AFFECTED RULES:
+- Line 7: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Line 8: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Line 9: -A INPUT -p tcp --dport 80 -j DROP
+- Line 10: -A INPUT -p tcp --dport 443 -j DROP
+
+ROOT CAUSE:
+The iptables ruleset attempts to filter HTTP/HTTPS traffic by only accepting packets containing the string "Mozilla" in the packet payload. This appears to be a
+n attempt at user-agent filtering or bot blocking. However, this approach has several critical issues:
+
+1. The string matching occurs at the packet level, not the HTTP header level
+2. It requires "Mozilla" to appear in the TCP payload of packets destined for ports 80/443
+3. Legitimate tools like curl (User-Agent: curl/x.x.x) don't contain "Mozilla" and are blocked
+4. The subsequent DROP rules (lines 9-10) catch all traffic that doesn't match the Mozilla string
+
+WHY SSH WORKS BUT HTTP DOESN'T:
+- SSH (port 22): Has a simple ACCEPT rule with no string matching requirement (line 6)
+- HTTP/HTTPS (ports 80/443): Requires "Mozilla" string to be present in packet payload
+- When curl connects from 10.0.0.5, it sends "curl/version" as User-Agent, not "Mozilla"
+- The connection hangs because packets are being dropped by rules on lines 9-10
+
+RECOMMENDATION:
+The string matching approach is fundamentally flawed for HTTP filtering because:
+- It operates at the wrong layer (packet vs application)
+- It blocks legitimate non-browser clients (curl, wget, APIs, monitoring tools)
+- It can be easily bypassed by including "Mozilla" in any packet payload
+- It doesn't actually validate proper HTTP User-Agent headers
+
+The organization should either:
+1. Remove the string matching rules entirely and use proper application-layer filtering (WAF)
+2. Remove the DROP rules and rely on the default INPUT DROP policy
+3. Implement user-agent filtering at the web server level, not the firewall
+user@640c95f8df54:~/pentest$

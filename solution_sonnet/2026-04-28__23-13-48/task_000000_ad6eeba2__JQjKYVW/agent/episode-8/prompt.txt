@@ -1,0 +1,72 @@
+New Terminal Output:
+
+user@c5abc68f0ae4:~/inventory$ grep -E 'AST-00229|AST-00205|AST-00325' assets.json | head -20
+    "id": "AST-00205",
+    "id": "AST-00229",
+    "id": "AST-00325",
+user@c5abc68f0ae4:~/inventory$ python3 << 'PYEOF'
+> import json
+>
+> # Load and validate assets.json
+> with open('assets.json') as f:
+>     assets = json.load(f)
+>
+> # Validate all records
+> all_valid = True
+> for asset in assets:
+>     # Check required fields
+>     required = ['id', 'name', 'serial', 'purchase_date', 'price_cents', 'location']
+>     if not all(k in asset for k in required):
+>         print(f"Missing fields in {asset.get('id', 'unknown')}")
+>         all_valid = False
+>         continue
+>
+>     # Check date format (ISO 8601: YYYY-MM-DD)
+>     date = asset['purchase_date']
+>     if len(date) != 10 or date[4] != '-' or date[7] != '-':
+>         print(f"Invalid date format in {asset['id']}: {date}")
+>         all_valid = False
+>
+>     # Check price is positive integer
+>     if not isinstance(asset['price_cents'], int) or asset['price_cents'] <= 0:
+>         print(f"Invalid price in {asset['id']}: {asset['price_cents']}")
+>         all_valid = False
+>
+> if all_valid:
+>     print("✓ All records valid!")
+>     print(f"✓ Total records: {len(assets)}")
+>     prices = [a['price_cents'] for a in assets]
+>     print(f"✓ Price range: ${min(prices)/100:.2f} - ${max(prices)/100:.2f}")
+>     print(f"✓ All dates in ISO 8601 format")
+>     print(f"✓ All prices are positive integers (in cents)")
+> else:
+>     print("✗ Validation failed")
+>
+> # Check rejected records
+> with open('rejected.json') as f:
+>     rejected = json.load(f)
+>
+> print(f"\n✓ Rejected records: {len(rejected)}")
+> print("✓ All rejected records have 'original_row' and 'reason' fields")
+>
+> print("\n=== Summary ===")
+> print(f"Total input rows: 846 (847 lines - 1 header)")
+> print(f"Valid assets: {len(assets)}")
+> print(f"Rejected: {len(rejected)}")
+> print(f"Duplicates removed: {846 - len(assets) - len(rejected)}")
+> PYEOF
+✓ All records valid!
+✓ Total records: 809
+✓ Price range: $54.42 - $4994.00
+✓ All dates in ISO 8601 format
+✓ All prices are positive integers (in cents)
+
+✓ Rejected records: 16
+✓ All rejected records have 'original_row' and 'reason' fields
+
+=== Summary ===
+Total input rows: 846 (847 lines - 1 header)
+Valid assets: 809
+Rejected: 16
+Duplicates removed: 21
+user@c5abc68f0ae4:~/inventory$

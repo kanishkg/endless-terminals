@@ -1,0 +1,150 @@
+New Terminal Output:
+
+root@9affc3be52bf:/home/user/audit# cat > check.py << 'EOF'
+ ipaddress.ip_address(src_ip)
+
+    # Check each rule in order (most specific CIDR first)
+    for rule in rules:
+        network = ipaddress.ip_network(rule['source_cidr'])
+        if ip_obj in network:
+            # IP matches this CIDR, now check port
+            if port_matches(dest_port, rule['dest_port']):
+                return (rule['action'], rule['source_cidr'])
+
+    # No matching rule found
+    return (None, None)
+
+def main():
+    # Load firewall rules
+    with open('/home/user/audit/firewall_rules.json', 'r') as f:
+        firewall_data = json.load(f)
+
+    rules = firewall_data['rules']
+    default_action = firewall_data.get('default_action', 'deny')
+
+    # Sort rules by CIDR prefix length (most specific first)
+    # This ensures /24 is checked before /16, /16 before /8, etc.
+    rules_sorted = sorted(rules, key=lambda r: ipaddress.ip_network(r['source_cidr']).prefixlen, reverse=True)
+
+    # Load connections
+    with open('/home/user/audit/connections.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        connections = list(reader)
+
+    # Check each connection
+    for conn in connections:
+        src_ip = conn['src_ip']
+        dest_port = int(conn['dest_port'])
+
+        action, matching_cidr = find_matching_rule(src_ip, dest_port, rules_sorted)
+
+        # If no rule matched, apply default action
+        if action is None:
+            action = default_action
+            # Find the least specific CIDR that contains this IP for reporting
+            ip_obj = ipaddress.ip_address(src_ip)
+            matching_cidr = None
+            for rule in sorted(rules_sorted, key=lambda r: ipaddress.ip_network(r['source_cidr']).prefixlen):
+                network = ipaddress.ip_network(rule['source_cidr'])
+                if ip_obj in network:
+                    matching_cidr = rule['source_cidr']
+                    break
+            if matching_cidr is None:
+                matching_cidr = '0.0.0.0/0'
+
+        # Report if blocked
+        if action == 'deny' or action != 'allow':
+            print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {matching_cidr}")
+
+if __name__ == '__main__':
+    main()
+EOF
+> #!/usr/bin/env python3
+> import json
+> import csv
+> import ipaddress
+> import sys
+>
+> def parse_port_spec(port_spec):
+>     """Parse a port specification into a list of allowed ports or a range."""
+>     port_str = str(port_spec)
+>     if '-' in port_str:
+>         start, end = port_str.split('-')
+>         return ('range', int(start), int(end))
+>     else:
+>         return ('single', int(port_str))
+>
+> def port_matches(port, port_spec):
+>     """Check if a port matches a port specification."""
+>     spec_type, *spec_data = parse_port_spec(port_spec)
+>     if spec_type == 'single':
+>         return port == spec_data[0]
+>     elif spec_type == 'range':
+>         return spec_data[0] <= port <= spec_data[1]
+>     return False
+>
+> def find_matching_rule(src_ip, dest_port, rules):
+>     """Find the most specific matching rule for a given source IP and destination port.
+>
+>     Returns tuple: (action, source_cidr) or (None, None) if no match.
+>     Rules should already be sorted by prefix length (most specific first).
+>     """
+>     ip_obj = ipaddress.ip_address(src_ip)
+>
+>     # Check each rule in order (most specific CIDR first)
+>     for rule in rules:
+>         network = ipaddress.ip_network(rule['source_cidr'])
+>         if ip_obj in network:
+>             # IP matches this CIDR, now check port
+>             if port_matches(dest_port, rule['dest_port']):
+>                 return (rule['action'], rule['source_cidr'])
+>
+>     # No matching rule found
+>     return (None, None)
+>
+> def main():
+>     # Load firewall rules
+>     with open('/home/user/audit/firewall_rules.json', 'r') as f:
+>         firewall_data = json.load(f)
+>
+>     rules = firewall_data['rules']
+>     default_action = firewall_data.get('default_action', 'deny')
+>
+>     # Sort rules by CIDR prefix length (most specific first)
+>     # This ensures /24 is checked before /16, /16 before /8, etc.
+>     rules_sorted = sorted(rules, key=lambda r: ipaddress.ip_network(r['source_cidr']).prefixlen, reverse=True)
+>
+>     # Load connections
+>     with open('/home/user/audit/connections.csv', 'r') as f:
+>         reader = csv.DictReader(f)
+>         connections = list(reader)
+>
+>     # Check each connection
+>     for conn in connections:
+>         src_ip = conn['src_ip']
+>         dest_port = int(conn['dest_port'])
+>
+>         action, matching_cidr = find_matching_rule(src_ip, dest_port, rules_sorted)
+>
+>         # If no rule matched, apply default action
+>         if action is None:
+>             action = default_action
+>             # Find the least specific CIDR that contains this IP for reporting
+>             ip_obj = ipaddress.ip_address(src_ip)
+>             matching_cidr = None
+>             for rule in sorted(rules_sorted, key=lambda r: ipaddress.ip_network(r['source_cidr']).prefixlen):
+>                 network = ipaddress.ip_network(rule['source_cidr'])
+>                 if ip_obj in network:
+>                     matching_cidr = rule['source_cidr']
+>                     break
+>             if matching_cidr is None:
+>                 matching_cidr = '0.0.0.0/0'
+>
+>         # Report if blocked
+>         if action == 'deny' or action != 'allow':
+>             print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {matching_cidr}")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+root@9affc3be52bf:/home/user/audit#

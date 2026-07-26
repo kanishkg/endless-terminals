@@ -1,0 +1,131 @@
+[?2004huser@9221fc7b5358:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@9221fc7b5358:~$ clear
+[?2004l[H[J[?2004huser@9221fc7b5358:~$ ls -la /home/user/
+[?2004ltotal 36
+drwxrwxrwx 1 user user 4096 Apr 29 00:34 [0m[34;42m.[0m
+drwxr-xr-x 1 root root 4096 Apr 28 23:14 [01;34m..[0m
+-rw-r--r-- 1 user user  220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 user user 3771 Jan  6  2022 .bashrc
+drwxr-xr-x 3 user user 4096 Apr 29 00:34 [01;34m.config[0m
+-rw-r--r-- 1 user user  807 Jan  6  2022 .profile
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34mbackups[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34mprojects[0m
+[?2004huser@9221fc7b5358:~$ ls -la /home/user/projects/ 2>/dev/null || echo 'Cannot list projects root directly'
+[?2004ltotal 24
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [0m[01;34m.[0m
+drwxrwxrwx 1 user user 4096 Apr 29 00:34 [34;42m..[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34malpha[0m
+drwx--x--x 1 user user 4096 Apr 28 23:14 [01;34mbeta[0m
+drwx------ 1 root root 4096 Apr 28 23:14 [01;34mdelta[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34mgamma[0m
+[?2004huser@9221fc7b5358:~$ find /home/user/projects -type f 2>/dev/null | head -20
+[?2004l/home/user/projects/beta/notes.txt
+/home/user/projects/beta/data.csv
+/home/user/projects/alpha/secret.key
+/home/user/projects/alpha/config.json
+/home/user/projects/gamma/subdir/deep.txt
+/home/user/projects/gamma/locked.dat
+/home/user/projects/gamma/readable.md
+[?2004huser@9221fc7b5358:~$ ls -la /home/user/backups/
+[?2004ltotal 8
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [0m[01;34m.[0m
+drwxrwxrwx 1 user user 4096 Apr 29 00:34 [34;42m..[0m
+[?2004huser@9221fc7b5358:~$ stat -c '%U:%G' /home/user/projects/alpha/config.json 2>/dev/null
+[?2004luser:user
+[?2004huser@9221fc7b5358:~$ cat > /home/user/backup.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Backup script that handles permission issues gracefully
+[?2004l[?2004h> SOURCE_DIR="/home/user/projects"
+[?2004l[?2004h> BACKUP_DIR="/home/user/backups"
+[?2004l[?2004h> MANIFEST="$BACKUP_DIR/manifest.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clear/create manifest
+[?2004l[?2004h> > "$MANIFEST"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find all readable files, suppress errors
+[?2004l[?2004h> find "$SOURCE_DIR" -type f 2>/dev/null | while read -r file; do
+[?2004l[?2004h>     # Try to read the file (test if we actually have read access)
+[?2004l[?2004h>     if cat "$file" > /dev/null 2>&1; then
+[?2004l[?2004h>         # Get relative path
+[?2004l[?2004h>         rel_path="${file#$SOURCE_DIR/}"
+[?2004l[?2004h>         dest_file="$BACKUP_DIR/$rel_path"
+[?2004l[?2004h>         dest_dir="$(dirname "$dest_file")"
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Create destination directory structure
+[?2004l[?2004h>         mkdir -p "$dest_dir" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Copy the file
+[?2004l[?2004h>         if cp "$file" "$dest_file" 2>/dev/null; then
+[?2004l[?2004h>             # Get owner:group info
+[?2004l[?2004h>             owner_info=$(stat -c '%U:%G' "$file" 2>/dev/null)
+[?2004l[?2004h>             if [ -n "$owner_info" ]; then
+[?2004l[?2004h>                 echo "$rel_path $owner_info" >> "$MANIFEST"
+[?2004l[?2004h>             fi
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Backup complete. Manifest written to $MANIFEST"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@9221fc7b5358:~$ chmod +x /home/user/backup.sh
+[?2004l[?2004huser@9221fc7b5358:~$ ls -la /home/user/backup.sh
+[?2004l-rwxr-xr-x 1 user user 1057 Apr 29 00:34 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@9221fc7b5358:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest written to /home/user/backups/manifest.txt
+[?2004huser@9221fc7b5358:~$ ls -la /home/user/backups/
+[?2004ltotal 28
+drwxr-xr-x 1 user user 4096 Apr 29 00:34 [0m[01;34m.[0m
+drwxrwxrwx 1 user user 4096 Apr 29 00:34 [34;42m..[0m
+drwxr-xr-x 2 user user 4096 Apr 29 00:34 [01;34malpha[0m
+drwxr-xr-x 2 user user 4096 Apr 29 00:34 [01;34mbeta[0m
+drwxr-xr-x 3 user user 4096 Apr 29 00:34 [01;34mgamma[0m
+-rw-r--r-- 1 user user  137 Apr 29 00:34 manifest.txt
+[?2004huser@9221fc7b5358:~$ find /home/user/backups -type f
+[?2004l/home/user/backups/beta/notes.txt
+/home/user/backups/beta/data.csv
+/home/user/backups/alpha/config.json
+/home/user/backups/gamma/subdir/deep.txt
+/home/user/backups/gamma/readable.md
+/home/user/backups/manifest.txt
+[?2004huser@9221fc7b5358:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@9221fc7b5358:~$ cat /home/user/projects/alpha/secret.key > /dev/null 2>&1 && echo 'secret.key is readable' || echo 'secret.key is NOT readable'
+[?2004lsecret.key is NOT readable
+[?2004huser@9221fc7b5358:~$ cat /home/user/projects/gamma/locked.dat > /dev/null 2>&1 && echo 'locked.dat is readable' || echo 'locked.dat is NOT readable'
+[?2004llocked.dat is NOT readable
+[?2004huser@9221fc7b5358:~$ ls -la /home/user/projects/alpha/ 2>/dev/null
+[?2004ltotal 16
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [0m[01;34m.[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34m..[0m
+-rw-r--r-- 1 user user   12 Apr 28 23:14 config.json
+-rw------- 1 root root   12 Apr 28 23:14 secret.key
+[?2004huser@9221fc7b5358:~$ ls -la /home/user/projects/gamma/ 2>/dev/null
+[?2004ltotal 20
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [0m[01;34m.[0m
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34m..[0m
+-rw------- 1 root root   12 Apr 28 23:14 locked.dat
+-rw-r--r-- 1 user user   12 Apr 28 23:14 readable.md
+drwxr-xr-x 1 user user 4096 Apr 28 23:14 [01;34msubdir[0m
+[?2004huser@9221fc7b5358:~$ diff /home/user/projects/alpha/config.json /home/user/backups/alpha/config.json && echo 'Files match perfectly'
+[?2004lFiles match perfectly
+[?2004huser@9221fc7b5358:~$ echo 'Backup script verification complete!'
+[?2004lBackup script verification complete!
+[?2004huser@9221fc7b5358:~$ echo '=== Backup Script Created ===' && ls -lh /home/user/backup.sh
+[?2004l=== Backup Script Created ===
+-rwxr-xr-x 1 user user 1.1K Apr 29 00:34 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@9221fc7b5358:~$ echo '=== Files Backed Up ===' && wc -l /home/user/backups/manifest.txt
+[?2004l=== Files Backed Up ===
+5 /home/user/backups/manifest.txt
+[?2004huser@9221fc7b5358:~$ echo '=== Task Complete ===' && echo 'Script location: /home/user/backup.sh' && echo 'Backup location: /home/user/backups/' && echo 'Manifest: /home/user/backups/manifest.txt'
+[?2004l=== Task Complete ===
+Script location: /home/user/backup.sh
+Backup location: /home/user/backups/
+Manifest: /home/user/backups/manifest.txt
+[?2004huser@9221fc7b5358:~$ 

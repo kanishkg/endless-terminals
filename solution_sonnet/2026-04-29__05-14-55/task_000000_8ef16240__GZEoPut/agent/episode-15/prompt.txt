@@ -1,0 +1,96 @@
+New Terminal Output:
+
+root@750d474a0771:/home/user/pipeline# cat > BUGFIX_SUMMARY.md << 'EOF'
+> # Pipeline Checkpoint Resume Bug Fix
+>
+> ## Problem
+> The batch processing script would create checkpoint files but fail to properly resume from them, reprocessing all data from the beginning after each restart.
+>
+> ## Root Causes Identified
+>
+> ### 1. **Critical: Semantic Mismatch in Checkpoint Data**
+> - **Bug**: Checkpoint saved `batch_num` (batch counter: 0, 1, 2...) but labeled it as 'last_line'
+> - **Impact**: When resuming, the script would skip `i < start_from` lines where `i` is the actual line number
+> - **Example**: After processing 5 batches (5000 lines), checkpoint saved `5` but resume logic only skipped 5 lines
+> - **Fix**: Save the actual line number (`batch_num * BATCH_SIZE`) instead of batch number
+>
+> ### 2. **Data Loss: Database INSERT Strategy**
+> - **Bug**: Used `INSERT OR REPLACE` which overwrites existing aggregated data
+> - **Impact**: On resume, previously processed data for each category was lost/replaced
+> - **Fix**: Changed to `INSERT ... ON CONFLICT DO UPDATE` to accumulate values:
+>   ```sql
+>   INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+>   ON CONFLICT(category) DO UPDATE SET
+>       total_value = total_value + excluded.total_value,
+>       count = count + excluded.count
+>   ```
+>
+> ### 3. **Race Condition: Checkpoint File Buffering**
+> - **Bug**: Checkpoint written without proper flush/sync: `json.dump(..., open('.checkpoint', 'w'))`
+> - **Impact**: If process crashes immediately after checkpoint write, data might not be persisted
+> - **Fix**: Use context manager with explicit flush and fsync:
+>   ```python
+>   with open('.checkpoint', 'w') as f:
+>       json.dump({'last_line': line_num}, f)
+>       f.flush()
+>       os.fsync(f.fileno())
+>   ```
+>
+> ## Verification
+> Tested with multiple interruption scenarios:
+> - Run 1: Processed 2000 records, crashed
+> - Run 2: Resumed from 2000, processed to 5000, crashed
+> - Run 3: Resumed from 5000, completed all 50000 records
+>
+> Final totals match complete single-run totals, confirming no duplicates or data loss.
+>
+> ## Files Modified
+> - `process.py` - Fixed checkpoint save/load and database insert logic
+> EOF
+root@750d474a0771:/home/user/pipeline# cat BUGFIX_SUMMARY.md
+# Pipeline Checkpoint Resume Bug Fix
+
+## Problem
+The batch processing script would create checkpoint files but fail to properly resume from them, reprocessing all data from the beginning after each restart.
+
+## Root Causes Identified
+
+### 1. **Critical: Semantic Mismatch in Checkpoint Data**
+- **Bug**: Checkpoint saved `batch_num` (batch counter: 0, 1, 2...) but labeled it as 'last_line'
+- **Impact**: When resuming, the script would skip `i < start_from` lines where `i` is the actual line number
+- **Example**: After processing 5 batches (5000 lines), checkpoint saved `5` but resume logic only skipped 5 lines
+- **Fix**: Save the actual line number (`batch_num * BATCH_SIZE`) instead of batch number
+
+### 2. **Data Loss: Database INSERT Strategy**
+- **Bug**: Used `INSERT OR REPLACE` which overwrites existing aggregated data
+- **Impact**: On resume, previously processed data for each category was lost/replaced
+- **Fix**: Changed to `INSERT ... ON CONFLICT DO UPDATE` to accumulate values:
+  ```sql
+  INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+  ON CONFLICT(category) DO UPDATE SET
+      total_value = total_value + excluded.total_value,
+      count = count + excluded.count
+  ```
+
+### 3. **Race Condition: Checkpoint File Buffering**
+- **Bug**: Checkpoint written without proper flush/sync: `json.dump(..., open('.checkpoint', 'w'))`
+- **Impact**: If process crashes immediately after checkpoint write, data might not be persisted
+- **Fix**: Use context manager with explicit flush and fsync:
+  ```python
+  with open('.checkpoint', 'w') as f:
+      json.dump({'last_line': line_num}, f)
+      f.flush()
+      os.fsync(f.fileno())
+  ```
+
+## Verification
+Tested with multiple interruption scenarios:
+- Run 1: Processed 2000 records, crashed
+- Run 2: Resumed from 2000, processed to 5000, crashed
+- Run 3: Resumed from 5000, completed all 50000 records
+
+Final totals match complete single-run totals, confirming no duplicates or data loss.
+
+## Files Modified
+- `process.py` - Fixed checkpoint save/load and database insert logic
+root@750d474a0771:/home/user/pipeline#

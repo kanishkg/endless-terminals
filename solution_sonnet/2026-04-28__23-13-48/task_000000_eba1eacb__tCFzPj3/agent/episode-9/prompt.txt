@@ -1,0 +1,39 @@
+New Terminal Output:
+
+root@95be60053efd:/home/user/netmon# cat Makefile
+.PHONY: report check-ping check-ports aggregate clean
+
+# Main target to generate the complete report
+report: results/status.json
+        @echo "Monitoring report complete!"
+
+# Check that hosts.conf exists before doing anything
+results/ping.txt: hosts.conf scripts/check_ping.sh
+        @test -f hosts.conf || (echo "Error: hosts.conf not found" && exit 1)
+        @echo "Running ping checks..."
+        ./scripts/check_ping.sh
+
+results/ports.txt: hosts.conf scripts/check_ports.sh
+        @test -f hosts.conf || (echo "Error: hosts.conf not found" && exit 1)
+        @echo "Running port checks..."
+        ./scripts/check_ports.sh
+
+# Aggregate results into JSON report
+results/status.json: results/ping.txt results/ports.txt aggregate.py
+        @echo "Aggregating results..."
+        ./aggregate.py
+
+# Convenience targets
+check-ping: results/ping.txt
+
+check-ports: results/ports.txt
+
+aggregate: results/status.json
+
+# Clean up generated files
+clean:
+        rm -rf results/
+root@95be60053efd:/home/user/netmon# make report
+Running ping checks...
+./scripts/check_ping.sh
+

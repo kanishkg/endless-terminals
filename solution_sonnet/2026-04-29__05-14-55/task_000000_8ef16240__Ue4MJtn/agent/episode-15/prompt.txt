@@ -1,0 +1,76 @@
+New Terminal Output:
+
+]root@3b83cadd2721:/home/user/pipeline# cat > BUGFIX_SUMMARY.md << 'EOF'
+> # Pipeline Checkpoint Resume - Bug Fixes
+>
+> ## Problems Identified
+>
+> The checkpoint/resume functionality had three critical bugs:
+>
+> ### 1. **Semantic Mismatch Bug (CRITICAL)**
+> - **Problem**: `save_checkpoint(batch_num)` saved the batch number (e.g., 5 for 5000 records) but stored it as 'last_line'
+> - **Impact**: On resume, the code compared line number `i < start_from`, so if batch_num=5, it only skipped 5 lines instead of 5000
+> - **Fix**: Changed to save `records_processed` (actual line/record number) instead of batch number
+>
+> ### 2. **Buffer Flush Bug**
+> - **Problem**: Checkpoint file opened with `open('.checkpoint', 'w')` without context manager or flush
+> - **Impact**: Data might not be written to disk before a crash, leaving stale or empty checkpoint
+> - **Fix**: Use context manager with explicit `f.flush()` and `os.fsync()` to ensure data reaches disk
+>
+> ### 3. **Data Overwrite Bug**
+> - **Problem**: Used `INSERT OR REPLACE` which overwrites existing aggregates instead of accumulating
+> - **Impact**: On resume, previously aggregated data was replaced instead of added to, causing data loss
+> - **Fix**: Changed to `UPDATE` with addition (accumulation), falling back to `INSERT` for new categories
+>
+> ## Verification
+>
+> - Tested by processing 50,000 records
+> - Killed process at 25,000 records
+> - Resumed from checkpoint
+> - Verified final results match a full uninterrupted run (identical output)
+>
+> ## Result
+>
+> Checkpoint/resume now works correctly:
+> - Kills midway preserve progress
+> - Restarts resume from exact position
+> - No data duplication or loss
+> - Proper accumulation of aggregates
+> EOF
+root@3b83cadd2721:/home/user/pipeline# cat BUGFIX_SUMMARY.md
+# Pipeline Checkpoint Resume - Bug Fixes
+
+## Problems Identified
+
+The checkpoint/resume functionality had three critical bugs:
+
+### 1. **Semantic Mismatch Bug (CRITICAL)**
+- **Problem**: `save_checkpoint(batch_num)` saved the batch number (e.g., 5 for 5000 records) but stored it as 'last_line'
+- **Impact**: On resume, the code compared line number `i < start_from`, so if batch_num=5, it only skipped 5 lines instead of 5000
+- **Fix**: Changed to save `records_processed` (actual line/record number) instead of batch number
+
+### 2. **Buffer Flush Bug**
+- **Problem**: Checkpoint file opened with `open('.checkpoint', 'w')` without context manager or flush
+- **Impact**: Data might not be written to disk before a crash, leaving stale or empty checkpoint
+- **Fix**: Use context manager with explicit `f.flush()` and `os.fsync()` to ensure data reaches disk
+
+### 3. **Data Overwrite Bug**
+- **Problem**: Used `INSERT OR REPLACE` which overwrites existing aggregates instead of accumulating
+- **Impact**: On resume, previously aggregated data was replaced instead of added to, causing data loss
+- **Fix**: Changed to `UPDATE` with addition (accumulation), falling back to `INSERT` for new categories
+
+## Verification
+
+- Tested by processing 50,000 records
+- Killed process at 25,000 records
+- Resumed from checkpoint
+- Verified final results match a full uninterrupted run (identical output)
+
+## Result
+
+Checkpoint/resume now works correctly:
+- Kills midway preserve progress
+- Restarts resume from exact position
+- No data duplication or loss
+- Proper accumulation of aggregates
+root@3b83cadd2721:/home/user/pipeline#

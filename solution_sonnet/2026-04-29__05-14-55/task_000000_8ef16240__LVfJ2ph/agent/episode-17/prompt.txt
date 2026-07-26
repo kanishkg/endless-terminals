@@ -1,0 +1,67 @@
+Previous response had warnings:
+WARNINGS: - Extra text detected before JSON object
+- Extra text detected after JSON object
+
+New Terminal Output:
+
+{"last_line": 50000}root@6131d4766dab:/home/user/pipeline# cat > test_checkpoint_resume.sh << 'EOF'
+> #!/bin/bash
+> set -e
+>
+> echo "=== Checkpoint Resume Test ==="
+> echo ""
+>
+> echo "Step 1: Clean up previous run"
+> rm -f .checkpoint output/summary.db
+>
+> echo "Step 2: Start processing and kill after 0.15 seconds"
+> timeout 0.15 python3 process.py || true
+>
+> echo ""
+> echo "Step 3: Check partial progress"
+> echo -n "Checkpoint: "
+> cat .checkpoint
+> echo ""
+> python3 << 'PYEOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT SUM(count) FROM summary').fetchone()
+> print(f"Records processed so far: {result[0]}")
+> conn.close()
+> PYEOF
+>
+> echo ""
+> echo "Step 4: Resume processing to completion"
+> python3 process.py
+>
+> echo ""
+> echo "Step 5: Verify final results"
+> python3 << 'PYEOF'
+> import sqlite3
+> conn = sqlite3.connect('output/summary.db')
+> result = conn.execute('SELECT COUNT(*), SUM(count) FROM summary').fetchone()
+> print(f"Final: {result[0]} categories, {result[1]} total records")
+> if result[1] == 50000:
+>     print("✓ SUCCESS: All 50,000 records processed exactly once!")
+> else:
+>     print(f"✗ FAILED: Expected 50000, got {result[1]}")
+> conn.close()
+> PYEOF
+> EOF
+root@6131d4766dab:/home/user/pipeline# chmod +x test_checkpoint_resume.sh
+root@6131d4766dab:/home/user/pipeline# ./test_checkpoint_resume.sh
+=== Checkpoint Resume Test ===
+
+Step 1: Clean up previous run
+Step 2: Start processing and kill after 0.15 seconds
+
+Step 3: Check partial progress
+Checkpoint: {"last_line": 8000}
+Records processed so far: 8000
+
+Step 4: Resume processing to completion
+
+Step 5: Verify final results
+Final: 10 categories, 50000 total records
+✓ SUCCESS: All 50,000 records processed exactly once!
+root@6131d4766dab:/home/user/pipeline#

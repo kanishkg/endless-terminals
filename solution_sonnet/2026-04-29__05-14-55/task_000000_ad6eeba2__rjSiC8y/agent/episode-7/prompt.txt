@@ -1,0 +1,95 @@
+New Terminal Output:
+
+user@6f0c20b3912a:~/inventory$ python3 << 'EOF'
+O 8601 format (YYYY-MM-DD)
+import re
+date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+invalid_dates = [a for a in assets if not date_pattern.match(a['purchase_date'])]
+if invalid_dates:
+    print(f"ERROR: Found {len(invalid_dates)} invalid date formats")
+    for a in invalid_dates[:3]:
+        print(f"  {a['id']}: {a['purchase_date']}")
+else:
+    print("✓ All dates are in ISO 8601 format")
+
+# Show sample of valid records
+print("\nSample valid records:")
+for asset in assets[:3]:
+    print(f"  {asset['id']}: {asset['name']}, ${asset['price_cents']/100:.2f}, {asset['purchase_date']}")
+
+# Show sample of rejected records
+print("\nSample rejected records:")
+for rec in rejected[:3]:
+    print(f"  Row {rec['row_number']}: {rec['reason']}")
+
+EOF
+> import json
+>
+> # Load and verify assets.json
+> with open('assets.json', 'r') as f:
+>     assets = json.load(f)
+>
+> # Load rejected.json
+> with open('rejected.json', 'r') as f:
+>     rejected = json.load(f)
+>
+> print(f"Total valid assets: {len(assets)}")
+> print(f"Total rejected records: {len(rejected)}")
+>
+> # Check for duplicates
+> ids = [a['id'] for a in assets]
+> if len(ids) != len(set(ids)):
+>     print("ERROR: Duplicate IDs found!")
+>     from collections import Counter
+>     dupes = [id for id, count in Counter(ids).items() if count > 1]
+>     print(f"Duplicates: {dupes}")
+> else:
+>     print("✓ No duplicate IDs in assets.json")
+>
+> # Verify all price_cents are positive integers
+> invalid_prices = [a for a in assets if not isinstance(a['price_cents'], int) or a['price_cents'] <= 0]
+> if invalid_prices:
+>     print(f"ERROR: Found {len(invalid_prices)} invalid prices")
+>     for a in invalid_prices[:3]:
+>         print(f"  {a['id']}: {a['price_cents']}")
+> else:
+>     print("✓ All prices are positive integers")
+>
+> # Verify all dates are ISO 8601 format (YYYY-MM-DD)
+> import re
+> date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+> invalid_dates = [a for a in assets if not date_pattern.match(a['purchase_date'])]
+> if invalid_dates:
+>     print(f"ERROR: Found {len(invalid_dates)} invalid date formats")
+>     for a in invalid_dates[:3]:
+>         print(f"  {a['id']}: {a['purchase_date']}")
+> else:
+>     print("✓ All dates are in ISO 8601 format")
+>
+> # Show sample of valid records
+> print("\nSample valid records:")
+> for asset in assets[:3]:
+>     print(f"  {asset['id']}: {asset['name']}, ${asset['price_cents']/100:.2f}, {asset['purchase_date']}")
+>
+> # Show sample of rejected records
+> print("\nSample rejected records:")
+> for rec in rejected[:3]:
+>     print(f"  Row {rec['row_number']}: {rec['reason']}")
+>
+> EOF
+Total valid assets: 809
+Total rejected records: 37
+✓ No duplicate IDs in assets.json
+✓ All prices are positive integers
+✓ All dates are in ISO 8601 format
+
+Sample valid records:
+  AST-00001: Whiteboard Digital, $38.17, 2023-10-08
+  AST-00002: Headset Bluetooth, $27.94, 2017-11-15
+  AST-00003: Server Rack, $33.82, 2021-08-02
+
+Sample rejected records:
+  Row 111: Invalid price: -579.02
+  Row 141: Missing asset ID
+  Row 146: Invalid price: -2098.30
+user@6f0c20b3912a:~/inventory$

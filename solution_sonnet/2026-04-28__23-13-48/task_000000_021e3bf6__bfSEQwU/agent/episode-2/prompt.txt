@@ -1,0 +1,56 @@
+New Terminal Output:
+
+MemAvaiuser@94cb245099d8:~$ cat > process_memory.sh << 'EOF'
+> #!/bin/bash
+>
+> # Temporary file for collecting results
+> tempfile=$(mktemp)
+>
+> # Process each host file
+> for file in /home/user/memstats/host*.txt; do
+>     hostname=$(basename "$file" .txt)
+>
+>     # Extract MemTotal and MemAvailable, handling missing values gracefully
+>     memtotal=$(grep -oP '^MemTotal:\s+\K\d+' "$file" 2>/dev/null)
+>     memavail=$(grep -oP '^MemAvailable:\s+\K\d+' "$file" 2>/dev/null)
+>
+>     # Skip if either value is missing or invalid
+>     if [[ -z "$memtotal" ]] || [[ -z "$memavail" ]] || [[ "$memtotal" -eq 0 ]]; then
+>         continue
+>     fi
+>
+>     # Calculate percentage available (using bc for floating point)
+>     percent=$(echo "scale=2; ($memavail * 100) / $memtotal" | bc)
+>
+>     # Check if less than 20%
+>     is_low=$(echo "$percent < 20" | bc)
+>
+>     if [[ "$is_low" -eq 1 ]]; then
+>         echo -e "$hostname\t$percent" >> "$tempfile"
+>     fi
+> done
+>
+> # Sort by percentage (ascending = worst first) and write to report
+> sort -t$'\t' -k2 -n "$tempfile" > /home/user/low_memory_report.txt
+>
+> # Clean up
+> rm -f "$tempfile"
+> EOF
+user@94cb245099d8:~$ chmod +x process_memory.sh
+user@94cb245099d8:~$ bash process_memory.sh
+process_memory.sh: line 20: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 20: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 20: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 20: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 20: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 20: bc: command not found
+process_memory.sh: line 23: bc: command not found
+process_memory.sh: line 20: bc: command not found
+process_memory.sh: line 23: bc: command not found
+user@94cb245099d8:~$ cat /home/user/low_memory_report.txt
+user@94cb245099d8:~$

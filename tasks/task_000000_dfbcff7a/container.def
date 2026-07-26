@@ -1,0 +1,48 @@
+Bootstrap: localimage
+From: ./ubuntu_22.04.sif
+
+%post
+    # Install necessary packages
+    apt-get update && apt-get install -y python3-pip tar gzip
+
+    # Install pytest
+    pip3 install pytest
+
+    # Create the user and set up the home directory
+    useradd -m user
+    chown -R user:user /home/user
+
+    # Create the directory for logs
+    mkdir -p /var/log/user_activity/
+    chown -R user:user /var/log/user_activity/
+    chmod 0755 /var/log/user_activity/
+
+    # Create the log files
+    touch /var/log/user_activity/user_log_20250405_01.txt
+    touch /var/log/user_activity/user_log_20250405_02.txt
+    touch /var/log/user_activity/user_log_20250405_03.txt
+
+    # Set permissions and ownership for the log files
+    chown -R user:user /var/log/user_activity/*.txt
+    chmod 0644 /var/log/user_activity/*.txt
+
+    # Add sample content to the log files
+    echo "Sample log entry 1" > /var/log/user_activity/user_log_20250405_01.txt
+    echo "Sample log entry 2" > /var/log/user_activity/user_log_20250405_02.txt
+    echo "Sample log entry 3" > /var/log/user_activity/user_log_20250405_03.txt
+
+    # Ensure no pre-existing tarball or verification file
+    if [ -f "/home/user/user_activity_logs_20250405.tar.gz" ]; then
+        rm /home/user/user_activity_logs_20250405.tar.gz
+    fi
+
+    if [ -f "/home/user/archive_verification_20250405.txt" ]; then
+        rm /home/user/archive_verification_20250405.txt
+    fi
+
+    # Ensure /home/user is world-executable so apptainer shell --pwd works
+    chmod 755 /home/user
+
+%environment
+    export HOME=/home/user
+    export USER=user

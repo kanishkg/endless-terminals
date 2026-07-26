@@ -1,0 +1,88 @@
+New Terminal Output:
+
+root@fadc5874b747:/home/user/audit# cat > check.py << 'EOF'
+> #!/usr/bin/env python3
+> import json
+> import csv
+> import ipaddress
+> import sys
+>
+> def parse_port_spec(port_spec):
+>     """Parse port specification - either single port or range."""
+>     if '-' in port_spec:
+>         start, end = port_spec.split('-')
+>         return (int(start), int(end))
+>     else:
+>         port = int(port_spec)
+>         return (port, port)
+>
+> def port_in_range(port, port_spec):
+>     """Check if port falls within the port specification."""
+>     start, end = parse_port_spec(port_spec)
+>     return start <= port <= end
+>
+> def find_matching_rules(src_ip, dest_port, rules):
+>     """Find all rules that match the source IP and destination port.
+>     Returns list of (rule, prefix_length) tuples."""
+>     matching = []
+>     ip_obj = ipaddress.ip_address(src_ip)
+>
+>     for rule in rules:
+>         network = ipaddress.ip_network(rule['source_cidr'])
+>         if ip_obj in network and port_in_range(dest_port, rule['dest_port']):
+>             matching.append((rule, network.prefixlen))
+>
+>     return matching
+>
+> def is_connection_allowed(src_ip, dest_port, rules):
+>     """Check if a connection is allowed based on firewall rules.
+>     Returns (allowed, matching_rule) tuple."""
+>     matching = find_matching_rules(src_ip, dest_port, rules)
+>
+>     if not matching:
+>         # No matching rule - default deny
+>         return (False, None)
+>
+>     # Sort by prefix length (most specific first)
+>     matching.sort(key=lambda x: x[1], reverse=True)
+>
+>     # Use the most specific rule
+>     most_specific_rule = matching[0][0]
+>
+>     if most_specific_rule['action'] == 'allow':
+>         return (True, most_specific_rule)
+>     else:
+>         return (False, most_specific_rule)
+>
+> def main():
+>     # Load firewall rules
+>     with open('/home/user/audit/firewall_rules.json', 'r') as f:
+>         config = json.load(f)
+>         rules = config['rules']
+>
+>     # Load connections
+>     with open('/home/user/audit/connections.csv', 'r') as f:
+>         reader = csv.DictReader(f)
+>         connections = list(reader)
+>
+>     # Check each connection
+>     for conn in connections:
+>         src_ip = conn['src_ip']
+>         dest_port = int(conn['dest_port'])
+>
+>         allowed, matching_rule = is_connection_allowed(src_ip, dest_port, rules)
+>
+>         if not allowed:
+>             if matching_rule:
+>                 # Explicitly denied
+>                 print(f"BLOCKED: {src_ip}:{dest_port} not allowed from {matching_rule['source_cidr']}")
+>             else:
+>                 # No matching rule - find the least specific CIDR that could have matched
+>                 # For reporting purposes, we'll say "no matching rule"
+>                 print(f"BLOCKED: {src_ip}:{dest_port} not allowed from any rule")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+root@fadc5874b747:/home/user/audit# chmod +x check.py
+root@fadc5874b747:/home/user/audit#

@@ -1,0 +1,100 @@
+[?2004huser@640c95f8df54:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@640c95f8df54:~$ clear
+[?2004l[H[J[?2004huser@640c95f8df54:~$ cd /home/user/pentest
+[?2004l[?2004huser@640c95f8df54:~/pentest$ ls -la
+[?2004ltotal 12
+drwxrwxrwx 1 user user 4096 Apr 29 05:08 .
+drwxrwxrwx 1 user user 4096 Apr 29 05:09 ..
+-rw-r--r-- 1 user user  468 Apr 29 05:08 target_iptables.txt
+[?2004huser@640c95f8df54:~/pentest$ cat target_iptables.txt
+[?2004l*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -p tcp --dport 22 -j ACCEPT
+-A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+-A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+-A INPUT -p tcp --dport 80 -j DROP
+-A INPUT -p tcp --dport 443 -j DROP
+-A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+COMMIT
+[?2004huser@640c95f8df54:~/pentest$ cat > finding.txt << 'EOF'
+[?2004l[?2004h> FINDING: HTTP/HTTPS Traffic Blocked by Overly Restrictive String Matching
+[?2004l[?2004h> 
+[?2004l[?2004h> AFFECTED RULES:
+[?2004l[?2004h> - Line 7: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+[?2004l[?2004h> - Line 8: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+[?2004l[?2004h> - Line 9: -A INPUT -p tcp --dport 80 -j DROP
+[?2004l[?2004h> - Line 10: -A INPUT -p tcp --dport 443 -j DROP
+[?2004l[?2004h> 
+[?2004l[?2004h> ROOT CAUSE:
+[?2004l[?2004h> The iptables ruleset attempts to filter HTTP/HTTPS traffic by only accepting packets containing the string "Mozilla" in the packet payload. This appears to be an attempt at user-agent filtering or bot blocking. However, this approach has several critical issues:
+[?2004l[?2004h> 
+[?2004l[?2004h> 1. The string matching occurs at the packet level, not the HTTP header level
+[?2004l[?2004h> 2. It requires "Mozilla" to appear in the TCP payload of packets destined for ports 80/443
+[?2004l[?2004h> 3. Legitimate tools like curl (User-Agent: curl/x.x.x) don't contain "Mozilla" and are blocked
+[?2004l[?2004h> 4. The subsequent DROP rules (lines 9-10) catch all traffic that doesn't match the Mozilla string
+[?2004l[?2004h> 
+[?2004l[?2004h> WHY SSH WORKS BUT HTTP DOESN'T:
+[?2004l[?2004h> - SSH (port 22): Has a simple ACCEPT rule with no string matching requirement (line 6)
+[?2004l[?2004h> - HTTP/HTTPS (ports 80/443): Requires "Mozilla" string to be present in packet payload
+[?2004l[?2004h> - When curl connects from 10.0.0.5, it sends "curl/version" as User-Agent, not "Mozilla"
+[?2004l[?2004h> - The connection hangs because packets are being dropped by rules on lines 9-10
+[?2004l[?2004h> 
+[?2004l[?2004h> RECOMMENDATION:
+[?2004l[?2004h> The string matching approach is fundamentally flawed for HTTP filtering because:
+[?2004l[?2004h> - It operates at the wrong layer (packet vs application)
+[?2004l[?2004h> - It blocks legitimate non-browser clients (curl, wget, APIs, monitoring tools)
+[?2004l[?2004h> - It can be easily bypassed by including "Mozilla" in any packet payload
+[?2004l[?2004h> - It doesn't actually validate proper HTTP User-Agent headers
+[?2004l[?2004h> 
+[?2004l[?2004h> The organization should either:
+[?2004l[?2004h> 1. Remove the string matching rules entirely and use proper application-layer filtering (WAF)
+[?2004l[?2004h> 2. Remove the DROP rules and rely on the default INPUT DROP policy
+[?2004l[?2004h> 3. Implement user-agent filtering at the web server level, not the firewall
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@640c95f8df54:~/pentest$ cat finding.txt
+[?2004lFINDING: HTTP/HTTPS Traffic Blocked by Overly Restrictive String Matching
+
+AFFECTED RULES:
+- Line 7: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Line 8: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Line 9: -A INPUT -p tcp --dport 80 -j DROP
+- Line 10: -A INPUT -p tcp --dport 443 -j DROP
+
+ROOT CAUSE:
+The iptables ruleset attempts to filter HTTP/HTTPS traffic by only accepting packets containing the string "Mozilla" in the packet payload. This appears to be an attempt at user-agent filtering or bot blocking. However, this approach has several critical issues:
+
+1. The string matching occurs at the packet level, not the HTTP header level
+2. It requires "Mozilla" to appear in the TCP payload of packets destined for ports 80/443
+3. Legitimate tools like curl (User-Agent: curl/x.x.x) don't contain "Mozilla" and are blocked
+4. The subsequent DROP rules (lines 9-10) catch all traffic that doesn't match the Mozilla string
+
+WHY SSH WORKS BUT HTTP DOESN'T:
+- SSH (port 22): Has a simple ACCEPT rule with no string matching requirement (line 6)
+- HTTP/HTTPS (ports 80/443): Requires "Mozilla" string to be present in packet payload
+- When curl connects from 10.0.0.5, it sends "curl/version" as User-Agent, not "Mozilla"
+- The connection hangs because packets are being dropped by rules on lines 9-10
+
+RECOMMENDATION:
+The string matching approach is fundamentally flawed for HTTP filtering because:
+- It operates at the wrong layer (packet vs application)
+- It blocks legitimate non-browser clients (curl, wget, APIs, monitoring tools)
+- It can be easily bypassed by including "Mozilla" in any packet payload
+- It doesn't actually validate proper HTTP User-Agent headers
+
+The organization should either:
+1. Remove the string matching rules entirely and use proper application-layer filtering (WAF)
+2. Remove the DROP rules and rely on the default INPUT DROP policy
+3. Implement user-agent filtering at the web server level, not the firewall
+[?2004huser@640c95f8df54:~/pentest$ ls -la
+[?2004ltotal 20
+drwxrwxrwx 1 user user 4096 Apr 29 05:09 .
+drwxrwxrwx 1 user user 4096 Apr 29 05:09 ..
+-rw-r--r-- 1 user user 2010 Apr 29 05:09 finding.txt
+-rw-r--r-- 1 user user  468 Apr 29 05:08 target_iptables.txt
+[?2004huser@640c95f8df54:~/pentest$ 

@@ -1,0 +1,68 @@
+New Terminal Output:
+
+root@eeb139b0a696:/home/user/admin# cp export_users.sh export_users.sh.backup
+root@eeb139b0a696:/home/user/admin# cat > export_users.sh << 'EOF'
+> #!/bin/bash
+> # export_users.sh - Export user data to CSV format
+> # Combines data from multiple source files
+>
+> DATA_DIR="/home/user/admin/data"
+> OUTPUT_FILE="/home/user/admin/export.csv"
+>
+> # Source files
+> USERS_DAT="$DATA_DIR/users.dat"
+> EMAILS_DAT="$DATA_DIR/emails.dat"
+> GROUPS_DAT="$DATA_DIR/groups.dat"
+> MEMBERSHIPS_DAT="$DATA_DIR/memberships.dat"
+>
+> # Create temporary directory
+> TMPDIR=$(mktemp -d)
+> trap "rm -rf $TMPDIR" EXIT
+>
+> # Write header
+> echo "username,uid,primary_group,email,shell,supplementary_groups" > "$OUTPUT_FILE"
+>
+> # Extract and sort user data by UID (not username) to match email ordering
+> sort -t'|' -k2,2n "$USERS_DAT" > "$TMPDIR/users_sorted.tmp"
+>
+> # Extract emails sorted by UID - FIX: use tab delimiter
+> sort -t$'\t' -k1,1n "$EMAILS_DAT" > "$TMPDIR/emails_sorted.tmp"
+>
+> # Process each user
+> while IFS='|' read -r username uid gid gecos homedir shell; do
+>     # Get email for this uid - FIX: use tab delimiter
+>     email=$(awk -F$'\t' -v u="$uid" '$1 == u {print $2}' "$TMPDIR/emails_sorted.tmp")
+>
+>     # Resolve primary group name - FIX: use colon field separator
+>     primary_group=$(awk -F':' -v g="$gid" '$1 == g {print $2}' "$GROUPS_DAT")
+>
+>     # If group resolution failed, just use the gid
+>     if [ -z "$primary_group" ]; then
+>         primary_group="$gid"
+>     fi
+>
+>     # Get supplementary groups for this uid
+>     supp_gids=$(awk -v u="$uid" '$1 == u {for(i=2;i<=NF;i++) print $i}' "$MEMBERSHIPS_DAT")
+>
+>     # Resolve supplementary group names - FIX: use colon field separator
+>     supp_names=""
+>     for sgid in $supp_gids; do
+>         gname=$(awk -F':' -v g="$sgid" '$1 == g {print $2}' "$GROUPS_DAT")
+>         if [ -z "$gname" ]; then
+>             gname="$sgid"
+>         fi
+>         if [ -z "$supp_names" ]; then
+>             supp_names="$gname"
+>         else
+>             supp_names="$supp_names;$gname"
+>         fi
+>     done
+>
+>     # Output CSV line
+>     echo "$username,$uid,$primary_group,$email,$shell,$supp_names"
+>
+> done < "$TMPDIR/users_sorted.tmp" >> "$OUTPUT_FILE"
+>
+> exit 0
+> EOF
+root@eeb139b0a696:/home/user/admin#

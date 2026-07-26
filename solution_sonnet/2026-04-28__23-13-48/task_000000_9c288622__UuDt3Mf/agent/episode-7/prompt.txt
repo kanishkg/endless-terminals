@@ -1,0 +1,111 @@
+New Terminal Output:
+
+user@dabf8146e4c9:~/scheduler$ cat > verify_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Comprehensive verification that the fix resolves the DST issue."""
+>
+> import json
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> print("=" * 70)
+> print("VERIFICATION: DST Transition Bug Fix")
+> print("=" * 70)
+> print()
+>
+> # Load the actual meetings
+> with open('/home/user/scheduler/meetings.json', 'r') as f:
+>     meetings = json.load(f)
+>
+> print("Analyzing all meetings for correct timezone conversion:")
+> print()
+>
+> for meeting in meetings:
+>     utc_time_str = meeting['utc_time']
+>     title = meeting['title']
+>
+>     # Parse UTC time
+>     utc_dt_naive = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>
+>     # OLD BUGGY WAY
+>     buggy_berlin = BERLIN_TZ.localize(utc_dt_naive)
+>
+>     # NEW CORRECT WAY (from fixed app.py)
+>     utc_dt = UTC_TZ.localize(utc_dt_naive)
+>     correct_berlin = utc_dt.astimezone(BERLIN_TZ)
+>
+>     diff_hours = (correct_berlin - buggy_berlin).total_seconds() / 3600
+>
+>     print(f"Meeting: {title}")
+>     print(f"  UTC:     {utc_time_str}")
+>     print(f"  BUGGY:   {buggy_berlin.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"  CORRECT: {correct_berlin.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+>     if abs(diff_hours) > 0.01:
+>         print(f"  *** DIFFERENCE: {diff_hours} hours - THIS WAS THE BUG! ***")
+>     else:
+>         print(f"  No difference (no DST transition)")
+>     print()
+>
+> print("=" * 70)
+> print("SUMMARY:")
+> print("The 'Maintenance Window Prep' meeting at 2024-03-31T01:30:00 UTC")
+> print("falls during the DST spring forward transition in Berlin.")
+> print("")
+> print("BUGGY CODE: Treated 01:30 as Berlin time -> 01:30 CET (UTC+1)")
+> print("FIXED CODE: Treats 01:30 as UTC time -> 03:30 CEST (UTC+2)")
+> print("")
+> print("The 1-hour difference would cause reminders to be sent at the wrong time!")
+> print("=" * 70)
+> EOF
+user@dabf8146e4c9:~/scheduler$ python3 verify_fix.py
+======================================================================
+VERIFICATION: DST Transition Bug Fix
+======================================================================
+
+Analyzing all meetings for correct timezone conversion:
+
+Meeting: Daily Standup
+  UTC:     2024-03-31T08:00:00
+  BUGGY:   2024-03-31 08:00:00 CEST+0200
+  CORRECT: 2024-03-31 10:00:00 CEST+0200
+  *** DIFFERENCE: 2.0 hours - THIS WAS THE BUG! ***
+
+Meeting: Maintenance Window Prep
+  UTC:     2024-03-31T01:30:00
+  BUGGY:   2024-03-31 01:30:00 CET+0100
+  CORRECT: 2024-03-31 03:30:00 CEST+0200
+  *** DIFFERENCE: 1.0 hours - THIS WAS THE BUG! ***
+
+Meeting: Weekly Review
+  UTC:     2024-04-01T14:00:00
+  BUGGY:   2024-04-01 14:00:00 CEST+0200
+  CORRECT: 2024-04-01 16:00:00 CEST+0200
+  *** DIFFERENCE: 2.0 hours - THIS WAS THE BUG! ***
+
+Meeting: Client Call
+  UTC:     2024-03-30T15:30:00
+  BUGGY:   2024-03-30 15:30:00 CET+0100
+  CORRECT: 2024-03-30 16:30:00 CET+0100
+  *** DIFFERENCE: 1.0 hours - THIS WAS THE BUG! ***
+
+Meeting: Team Lunch
+  UTC:     2024-03-29T11:00:00
+  BUGGY:   2024-03-29 11:00:00 CET+0100
+  CORRECT: 2024-03-29 12:00:00 CET+0100
+  *** DIFFERENCE: 1.0 hours - THIS WAS THE BUG! ***
+
+======================================================================
+SUMMARY:
+The 'Maintenance Window Prep' meeting at 2024-03-31T01:30:00 UTC
+falls during the DST spring forward transition in Berlin.
+
+BUGGY CODE: Treated 01:30 as Berlin time -> 01:30 CET (UTC+1)
+FIXED CODE: Treats 01:30 as UTC time -> 03:30 CEST (UTC+2)
+
+The 1-hour difference would cause reminders to be sent at the wrong time!
+======================================================================
+user@dabf8146e4c9:~/scheduler$

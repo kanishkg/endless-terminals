@@ -1,0 +1,36 @@
+New Terminal Output:
+
+user@604ca6004623:~/pentest$ cat > finding.txt << 'EOF'
+> FINDING: HTTP/HTTPS Traffic Blocked by Misconfigured iptables String Matching
+>
+> AFFECTED RULES:
+> - Rule 4: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+> - Rule 5: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+> - Rule 6: -A INPUT -p tcp --dport 80 -j DROP
+> - Rule 7: -A INPUT -p tcp --dport 443 -j DROP
+>
+> ROOT CAUSE:
+> The iptables rules attempt to filter HTTP/HTTPS traffic by looking for the string "Mozilla" in packet payloads (likely trying to allow only browser traffic).
+However, this approach is fundamentally flawed because:
+>
+> 1. The string match module inspects packet payload at the network layer
+> 2. During the TCP three-way handshake (SYN, SYN-ACK, ACK), packets contain NO application-layer data
+> 3. The initial SYN packet from the client has no payload, so it cannot contain "Mozilla"
+> 4. Since the SYN packet doesn't match the string, it falls through to rules 6/7 which DROP the traffic
+> 5. The TCP connection never gets established, causing curl to hang indefinitely
+>
+> WHY SSH WORKS BUT HTTP DOESN'T:
+> Rule 3 (-A INPUT -p tcp --dport 22 -j ACCEPT) unconditionally accepts ALL TCP traffic to port 22 without any string matching. SSH connections are allowed to c
+omplete the TCP handshake and establish connections normally.
+>
+> In contrast, ports 80 and 443 require the "Mozilla" string to be present in the packet BEFORE accepting it, which is impossible during connection establishmen
+t.
+>
+> RECOMMENDATION:
+> The string matching approach for connection filtering is architecturally incorrect. If the goal is to restrict HTTP/HTTPS access:
+> - Remove the string matching rules (they cannot work for connection establishment)
+> - Use source IP-based filtering if geo-blocking is needed
+> - Implement application-layer filtering at the web server level (e.g., using User-Agent checks in Apache/Nginx)
+> - Or simply allow the connections to establish and let the web application handle request filtering
+> EOF
+user@604ca6004623:~/pentest$

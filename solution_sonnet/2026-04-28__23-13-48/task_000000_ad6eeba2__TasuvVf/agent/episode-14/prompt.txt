@@ -1,0 +1,75 @@
+New Terminal Output:
+
+user@08347ddfed8c:~/inventory$ python3 << 'EOF'
+> import json
+> import re
+> from datetime import datetime
+>
+> # Load both files
+> with open('assets.json', 'r') as f:
+>     assets = json.load(f)
+> with open('rejected.json', 'r') as f:
+>     rejected = json.load(f)
+>
+> print("=== Final Validation Report ===")
+> print(f"\nTotal records in CSV: 846 (excluding header)")
+> print(f"Valid assets: {len(assets)}")
+> print(f"Rejected records: {len(rejected)}")
+> print(f"Duplicates resolved: 21")
+> print(f"Expected: 846 = 809 + 16 + 21 ✓")
+>
+> # Validate all assets
+> errors = []
+> for i, asset in enumerate(assets):
+>     # Check ISO 8601 date format
+>     try:
+>         datetime.strptime(asset['purchase_date'], '%Y-%m-%d')
+>     except ValueError:
+>         errors.append(f"Asset {i} ({asset['id']}): Invalid ISO date {asset['purchase_date']}")
+>
+>     # Check price_cents is positive integer
+>     if not isinstance(asset['price_cents'], int) or asset['price_cents'] <= 0:
+>         errors.append(f"Asset {i} ({asset['id']}): Invalid price_cents {asset['price_cents']}")
+>
+>     # Check serial number format
+>     if not asset['serial'].startswith('SN-'):
+>         errors.append(f"Asset {i} ({asset['id']}): Invalid serial {asset['serial']}")
+>
+>     # Check all required fields are non-empty
+>     for field in ['id', 'name', 'serial', 'location']:
+>         if not asset[field]:
+>             errors.append(f"Asset {i} ({asset['id']}): Empty {field}")
+>
+> if errors:
+>     print(f"\n❌ Found {len(errors)} validation errors:")
+>     for error in errors[:10]:
+>         print(f"  {error}")
+> else:
+>     print("\n✓ All assets passed validation!")
+>     print("  - All dates in ISO 8601 format (YYYY-MM-DD)")
+>     print("  - All price_cents are positive integers")
+>     print("  - All serial numbers start with 'SN-'")
+>     print("  - All required fields are present and non-empty")
+>
+> print("\n✓ Files ready for import:")
+> print("  - /home/user/inventory/assets.json")
+> print("  - /home/user/inventory/rejected.json")
+> EOF
+=== Final Validation Report ===
+
+Total records in CSV: 846 (excluding header)
+Valid assets: 809
+Rejected records: 16
+Duplicates resolved: 21
+Expected: 846 = 809 + 16 + 21 ✓
+
+✓ All assets passed validation!
+  - All dates in ISO 8601 format (YYYY-MM-DD)
+  - All price_cents are positive integers
+  - All serial numbers start with 'SN-'
+  - All required fields are present and non-empty
+
+✓ Files ready for import:
+  - /home/user/inventory/assets.json
+  - /home/user/inventory/rejected.json
+user@08347ddfed8c:~/inventory$

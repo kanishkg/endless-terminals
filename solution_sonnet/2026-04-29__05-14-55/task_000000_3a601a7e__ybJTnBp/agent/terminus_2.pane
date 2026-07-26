@@ -1,0 +1,58 @@
+[?2004hroot@9866f4f96b54:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@9866f4f96b54:/home/user# clear
+[?2004l[H[J[?2004hroot@9866f4f96b54:/home/user# cd /home/user/collector
+[?2004l[?2004hroot@9866f4f96b54:/home/user/collector# ls -la
+[?2004ltotal 24
+drwxrwxrwx 1 root root 4096 Apr 29 06:08 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 06:08 [34;42m..[0m
+-rw-rw-rw- 1 root root   26 Apr 29 06:08 .credentials_cache
+-rw-rw-rw- 1 root root   73 Apr 29 06:08 .env
+-rwxrwxrwx 1 root root  345 Apr 29 06:08 [01;32mconfig.sh[0m
+-rwxrwxrwx 1 root root  364 Apr 29 06:08 [01;32mhealthcheck.sh[0m
+[?2004hroot@9866f4f96b54:/home/user/collector# cat .env
+[?2004lAPI_HOST=http://localhost:8080
+API_KEY=sk_stg_9f7a2e3c8b
+LOG_LEVEL=debug
+[?2004hroot@9866f4f96b54:/home/user/collector# cat .credentials_cache
+[?2004lAPI_KEY=sk_stg_7d4b1a9e2f
+[?2004hroot@9866f4f96b54:/home/user/collector# cat healthcheck.sh
+[?2004l#!/bin/bash
+set -e
+
+# Load environment
+source /home/user/collector/config.sh
+
+RESPONSE=$(curl -s -w "%{http_code}" -o /tmp/health_response.json \
+    -H "Authorization: Bearer $API_KEY" \
+    "$API_HOST/v1/status")
+
+if [ "$RESPONSE" -eq 200 ]; then
+    echo "Health check passed"
+    exit 0
+else
+    echo "Health check failed with status: $RESPONSE"
+    exit 1
+fi
+[?2004hroot@9866f4f96b54:/home/user/collector# cat config.sh
+[?2004l#!/bin/bash
+# Collector configuration loader
+
+# Source the env file
+if [ -f /home/user/collector/.env ]; then
+    export $(cat /home/user/collector/.env | xargs)
+fi
+
+# Override with cached credentials if present (for backwards compat)
+if [ -f /home/user/collector/.credentials_cache ]; then
+    source /home/user/collector/.credentials_cache
+fi
+[?2004hroot@9866f4f96b54:/home/user/collector# echo 'API_KEY=sk_stg_9f7a2e3c8b' > .credentials_cache
+[?2004l[?2004hroot@9866f4f96b54:/home/user/collector# cat .credentials_cache
+[?2004lAPI_KEY=sk_stg_9f7a2e3c8b
+[?2004hroot@9866f4f96b54:/home/user/collector# ./healthcheck.sh
+[?2004lHealth check passed
+[?2004hroot@9866f4f96b54:/home/user/collector# ./healthcheck.sh
+[?2004lHealth check passed
+[?2004hroot@9866f4f96b54:/home/user/collector# 

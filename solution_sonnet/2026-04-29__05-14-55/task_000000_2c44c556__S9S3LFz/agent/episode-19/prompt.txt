@@ -1,0 +1,45 @@
+Current terminal state:
+New Terminal Output:
+
+root@ea7849a717f2:/home/user/firewall# cat rules.sh
+#!/bin/bash
+# Flush existing rules
+iptables -F
+iptables -t nat -F
+
+# Default policies
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# Allow established connections
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow SSH to gateway
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow inference subnet to registry on port 5000 (FIXED: moved to FORWARD chain)
+iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+
+# NAT for outbound
+iptables -t nat -A POSTROUTING -s 10.200.0.0/16 -o eth2 -j MASQUERADE
+
+# General forwarding
+iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+root@ea7849a717f2:/home/user/firewall# echo ''
+
+root@ea7849a717f2:/home/user/firewall# echo '=== Summary of Changes ==='
+=== Summary of Changes ===
+root@ea7849a717f2:/home/user/firewall# echo '1. Removed incorrect INPUT chain rule (was trying to handle forwarded traffic)'
+1. Removed incorrect INPUT chain rule (was trying to handle forwarded traffic)
+root@ea7849a717f2:/home/user/firewall# echo '2. Removed DROP rule that was blocking all 10.200.0.0/16 -> 10.100.0.0/16 traffic'
+2. Removed DROP rule that was blocking all 10.200.0.0/16 -> 10.100.0.0/16 traffic
+root@ea7849a717f2:/home/user/firewall# echo '3. Added proper FORWARD chain rule for inference subnet to registry'
+3. Added proper FORWARD chain rule for inference subnet to registry
+root@ea7849a717f2:/home/user/firewall# echo '4. Traffic from 10.200.0.0/16 can now reach 10.100.0.42:5000'
+4. Traffic from 10.200.0.0/16 can now reach 10.100.0.42:5000
+root@ea7849a717f2:/home/user/firewall#
+
+
+Are you sure you want to mark the task as complete? This will trigger your solution to be graded and you won't be able to make any further corrections. If so, include "task_complete": true in your JSON response again.

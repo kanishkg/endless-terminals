@@ -1,0 +1,59 @@
+New Terminal Output:
+
+root@d29ceaee5705:/home/user/firewall# echo '=== FIXED RULES.SH ==='
+=== FIXED RULES.SH ===
+root@d29ceaee5705:/home/user/firewall# cat rules.sh
+#!/bin/bash
+# Flush existing rules
+iptables -F
+iptables -t nat -F
+
+# Default policies
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# Allow established connections
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow SSH to gateway
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow inference subnet to registry - FIXED: moved to FORWARD chain and placed before DROP rules
+iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+
+# NAT for outbound
+iptables -t nat -A POSTROUTING -s 10.200.0.0/16 -o eth2 -j MASQUERADE
+
+# Block known bad actors
+iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j LOG --log-prefix "FORWARD_DROP: "
+iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.0/16 -j DROP
+
+# General forwarding (added later, supposedly to fix things)
+iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+root@d29ceaee5705:/home/user/firewall# echo ''
+
+root@d29ceaee5705:/home/user/firewall# echo '=== KEY CHANGES ==='
+=== KEY CHANGES ===
+root@d29ceaee5705:/home/user/firewall# echo '1. Moved rule from INPUT chain to FORWARD chain (line 19)'
+1. Moved rule from INPUT chain to FORWARD chain (line 19)
+root@d29ceaee5705:/home/user/firewall# echo '2. Changed destination from any to specific registry IP: 10.100.0.42'
+2. Changed destination from any to specific registry IP: 10.100.0.42
+root@d29ceaee5705:/home/user/firewall# echo '3. Placed ACCEPT rule BEFORE the DROP rules (lines 24-25)'
+3. Placed ACCEPT rule BEFORE the DROP rules (lines 24-25)
+root@d29ceaee5705:/home/user/firewall# echo ''
+
+root@d29ceaee5705:/home/user/firewall# echo '=== EXPLANATION ==='
+=== EXPLANATION ===
+root@d29ceaee5705:/home/user/firewall# echo 'The original rule was in INPUT chain, but INPUT only applies to traffic'
+The original rule was in INPUT chain, but INPUT only applies to traffic
+root@d29ceaee5705:/home/user/firewall# echo 'destined for the gateway itself. For routed/forwarded traffic between'
+destined for the gateway itself. For routed/forwarded traffic between
+root@d29ceaee5705:/home/user/firewall# echo 'networks, the FORWARD chain must be used. Additionally, the DROP rules'
+networks, the FORWARD chain must be used. Additionally, the DROP rules
+root@d29ceaee5705:/home/user/firewall# echo 'were blocking ALL traffic from 10.200.0.0/16 to 10.100.0.0/16, so the'
+were blocking ALL traffic from 10.200.0.0/16 to 10.100.0.0/16, so the
+root@d29ceaee5705:/home/user/firewall# echo 'ACCEPT rule must come BEFORE them to match first.'
+ACCEPT rule must come BEFORE them to match first.
+root@d29ceaee5705:/home/user/firewall#

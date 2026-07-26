@@ -1,0 +1,75 @@
+New Terminal Output:
+
+user@b22109935916:~$ cat > /home/user/backup.sh << 'EOF'
+> #!/bin/bash
+>
+> # Backup script that handles complex permissions
+> SOURCE_DIR="/home/user/projects"
+> BACKUP_DIR="/home/user/backups"
+> MANIFEST="${BACKUP_DIR}/manifest.txt"
+>
+> # Clear/create manifest
+> > "$MANIFEST"
+>
+> # Find all files, suppressing permission errors
+> find "$SOURCE_DIR" -type f 2>/dev/null | while IFS= read -r file; do
+>     # Check if file is actually readable
+>     if [ -r "$file" ]; then
+>         # Get relative path from source
+>         rel_path="${file#$SOURCE_DIR/}"
+>         dest_file="${BACKUP_DIR}/${rel_path}"
+>         dest_dir="$(dirname "$dest_file")"
+>
+>         # Create destination directory structure
+>         mkdir -p "$dest_dir" 2>/dev/null
+>
+>         # Copy the file
+>         if cp "$file" "$dest_file" 2>/dev/null; then
+>             # Get owner:group info from original file
+>             owner_group=$(stat -c '%U:%G' "$file" 2>/dev/null)
+>
+>             # Write to manifest
+>             echo "${rel_path} ${owner_group}" >> "$MANIFEST"
+>         fi
+>     fi
+> done
+>
+> echo "Backup complete. Manifest written to $MANIFEST"
+> EOF
+user@b22109935916:~$ chmod +x /home/user/backup.sh
+user@b22109935916:~$ cat /home/user/backup.sh
+#!/bin/bash
+
+# Backup script that handles complex permissions
+SOURCE_DIR="/home/user/projects"
+BACKUP_DIR="/home/user/backups"
+MANIFEST="${BACKUP_DIR}/manifest.txt"
+
+# Clear/create manifest
+> "$MANIFEST"
+
+# Find all files, suppressing permission errors
+find "$SOURCE_DIR" -type f 2>/dev/null | while IFS= read -r file; do
+    # Check if file is actually readable
+    if [ -r "$file" ]; then
+        # Get relative path from source
+        rel_path="${file#$SOURCE_DIR/}"
+        dest_file="${BACKUP_DIR}/${rel_path}"
+        dest_dir="$(dirname "$dest_file")"
+
+        # Create destination directory structure
+        mkdir -p "$dest_dir" 2>/dev/null
+
+        # Copy the file
+        if cp "$file" "$dest_file" 2>/dev/null; then
+            # Get owner:group info from original file
+            owner_group=$(stat -c '%U:%G' "$file" 2>/dev/null)
+
+            # Write to manifest
+            echo "${rel_path} ${owner_group}" >> "$MANIFEST"
+        fi
+    fi
+done
+
+echo "Backup complete. Manifest written to $MANIFEST"
+user@b22109935916:~$

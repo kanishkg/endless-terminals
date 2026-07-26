@@ -1,0 +1,49 @@
+Bootstrap: localimage
+From: ./ubuntu_22.04.sif
+
+%post
+    # Install necessary packages
+    apt-get update && apt-get install -y \
+        python3 \
+        python3-pip \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Install pytest
+    pip3 install pytest
+
+    # Create required directories
+    mkdir -p /home/user/microservices/config
+    mkdir -p /home/user/microservices/services
+    mkdir -p /home/user/microservices/logs
+
+    # Set permissions for directories to be readable/writable by the user
+    chmod 755 /home/user/microservices/config
+    chmod 755 /home/user/microservices/services
+    chmod 755 /home/user/microservices/logs
+
+    # Create services.csv with the correct content
+    cat <<EOL > /home/user/microservices/config/services.csv
+service_name,port,environment_vars
+service-a,8080,"{""env1"":""value1"", ""env2"":""value2""}"
+service-b,9090,"{""env3"":""value3"", ""env4"":""value4""}"
+EOL
+
+    # Create mappings.json with the correct content
+    cat <<EOL > /home/user/microservices/config/mappings.json
+{
+  "env1": "NEW_ENV1",
+  "env2": "NEW_ENV2",
+  "env3": "NEW_ENV3"
+}
+EOL
+
+    # Set permissions for files to be readable/writable by the user
+    chmod 644 /home/user/microservices/config/services.csv
+    chmod 644 /home/user/microservices/config/mappings.json
+
+%environment
+    # No need to override HOME; let Apptainer bind the host $HOME
+    export PATH=/usr/local/bin:$PATH
+
+%runscript
+    echo "Container is ready for testing."

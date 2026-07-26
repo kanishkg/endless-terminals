@@ -1,0 +1,70 @@
+New Terminal Output:
+
+user@c83efca373bd:~/scheduler$ ls -la
+total 52
+drwxrwxrwx 1 user user 4096 Apr 29 09:50 .
+drwxrwxrwx 1 user user 4096 Apr 29 09:48 ..
+-rw-r--r-- 1 user user 1701 Apr 29 09:50 FIX_SUMMARY.md
+drwxr-xr-x 2 user user 4096 Apr 29 09:50 __pycache__
+-rwxr-xr-x 1 user user 2014 Apr 29 09:49 app.py
+-rwxr-xr-x 1 user user 1995 Apr 29 09:49 app.py.backup
+-rw-r--r-- 1 user user  144 Apr 29 09:48 crontab
+-rw-r--r-- 1 user user  453 Apr 29 09:48 meetings.json
+-rwxr-xr-x 1 user user 1015 Apr 29 09:48 test_conversion.py
+-rw-r--r-- 1 user user 2153 Apr 29 09:49 test_dst_fix.py
+-rw-r--r-- 1 user user 1567 Apr 29 09:50 verify_fix.py
+user@c83efca373bd:~/scheduler$ python3 app.py
+No upcoming meetings in the next 15-75 minutes.
+user@c83efca373bd:~/scheduler$ echo ''
+
+user@c83efca373bd:~/scheduler$ echo '=== FIX COMPLETE ==='
+=== FIX COMPLETE ===
+user@c83efca373bd:~/scheduler$ cat FIX_SUMMARY.md
+# Timezone Bug Fix Summary
+
+## Problem
+The scheduler app was sending meeting reminders at incorrect times (off by 1 hour) for meetings that fall between 2am-3am local time (Europe/Berlin), specifical
+ly during DST transition periods.
+
+## Root Cause
+In `app.py`, the `convert_to_berlin()` function had a critical bug on line 27:
+
+```python
+# BUGGY CODE:
+berlin_dt = BERLIN_TZ.localize(utc_dt)
+```
+
+This code treated the UTC datetime as if it were a naive Berlin datetime and localized it, rather than converting FROM UTC TO Berlin time.
+
+## The Fix
+Changed lines 27-28 to properly convert from UTC to Berlin:
+
+```python
+# FIXED CODE:
+utc_dt_aware = UTC_TZ.localize(utc_dt)      # Make it UTC-aware
+berlin_dt = utc_dt_aware.astimezone(BERLIN_TZ)  # Convert to Berlin
+```
+
+## Impact
+- **Before fix**: 2024-03-31T01:30:00 UTC → 01:30 CET (WRONG, 1 hour off)
+- **After fix**: 2024-03-31T01:30:00 UTC → 03:30 CEST (CORRECT)
+
+## Why It Only Affected 2am-3am Times
+The bug manifested during DST transitions when:
+- In Europe/Berlin, DST transition happens at 02:00 CET → 03:00 CEST
+- The buggy code would show times as CET when they should be CEST
+- This created exactly a 1-hour offset for meetings in that window
+
+## Testing
+Verified with:
+1. `test_dst_fix.py` - Shows the 1-hour difference between old and new code
+2. `verify_fix.py` - Confirms the Maintenance Window meeting now converts correctly
+3. Both manual and cron execution now produce correct results
+
+## Files Modified
+- `/home/user/scheduler/app.py` - Fixed the timezone conversion bug
+- Backup saved as `app.py.backup`
+
+## Status
+✅ Fixed and verified. The Monday 2:30am maintenance window reminder will now be sent at the correct time.
+user@c83efca373bd:~/scheduler$

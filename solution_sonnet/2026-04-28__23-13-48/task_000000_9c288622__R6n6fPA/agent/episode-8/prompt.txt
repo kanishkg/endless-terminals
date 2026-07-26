@@ -1,0 +1,116 @@
+New Terminal Output:
+
+user@d9abd51ef7b1:~/scheduler$ cat > test_dst_fix.py << 'EOF'
+(f"\nOLD (buggy) conversion: {old_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+
+new_result = convert_to_berlin_new(test_time)
+print(f"NEW (fixed) conversion: {new_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+
+print(f"\nDifference: {(new_result - old_result).total_seconds() / 3600} hours")
+
+# Test a few more times around DST
+test_cases = [
+    "2024-03-30T15:30:00",  # Before DST
+    "2024-03-31T08:00:00",  # After DST
+    "2024-04-01T14:00:00",  # Well after DST
+]
+
+print("\n" + "="*70)
+print("Additional test cases:")
+for test in test_cases:
+    old = convert_to_berlin_old(test)
+    new = convert_to_berlin_new(test)
+    diff = (new - old).total_seconds() / 3600
+    print(f"\nUTC: {test}")
+    print(f"  OLD: {old.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+    print(f"  NEW: {new.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+    print(f"  Diff: {diff} hours")
+EOF
+> #!/usr/bin/env python3
+> """Test that DST conversion is now working correctly."""
+>
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> def convert_to_berlin_old(utc_time_str):
+>     """Old buggy version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     berlin_dt = BERLIN_TZ.localize(utc_dt)
+>     return berlin_dt
+>
+> def convert_to_berlin_new(utc_time_str):
+>     """New fixed version."""
+>     utc_dt = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+>     utc_dt = UTC_TZ.localize(utc_dt)
+>     berlin_dt = utc_dt.astimezone(BERLIN_TZ)
+>     return berlin_dt
+>
+> print("Testing DST conversion fix for March 31, 2024 (DST transition day)")
+> print("="*70)
+>
+> # Test the problematic meeting time: 01:30 UTC on March 31, 2024
+> test_time = "2024-03-31T01:30:00"
+>
+> print(f"\nUTC Time: {test_time}")
+> print(f"Expected Berlin Time: 2024-03-31 03:30:00 CEST+0200 (after DST spring forward)")
+>
+> old_result = convert_to_berlin_old(test_time)
+> print(f"\nOLD (buggy) conversion: {old_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> new_result = convert_to_berlin_new(test_time)
+> print(f"NEW (fixed) conversion: {new_result.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> print(f"\nDifference: {(new_result - old_result).total_seconds() / 3600} hours")
+>
+> # Test a few more times around DST
+> test_cases = [
+>     "2024-03-30T15:30:00",  # Before DST
+>     "2024-03-31T08:00:00",  # After DST
+>     "2024-04-01T14:00:00",  # Well after DST
+> ]
+>
+> print("\n" + "="*70)
+> print("Additional test cases:")
+> for test in test_cases:
+>     old = convert_to_berlin_old(test)
+>     new = convert_to_berlin_new(test)
+>     diff = (new - old).total_seconds() / 3600
+>     print(f"\nUTC: {test}")
+>     print(f"  OLD: {old.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"  NEW: {new.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>     print(f"  Diff: {diff} hours")
+> EOF
+user@d9abd51ef7b1:~/scheduler$ chmod +x test_dst_fix.py
+user@d9abd51ef7b1:~/scheduler$ python3 test_dst_fix.py
+Testing DST conversion fix for March 31, 2024 (DST transition day)
+======================================================================
+
+UTC Time: 2024-03-31T01:30:00
+Expected Berlin Time: 2024-03-31 03:30:00 CEST+0200 (after DST spring forward)
+
+OLD (buggy) conversion: 2024-03-31 01:30:00 CET+0100
+NEW (fixed) conversion: 2024-03-31 03:30:00 CEST+0200
+
+Difference: 1.0 hours
+
+======================================================================
+Additional test cases:
+
+UTC: 2024-03-30T15:30:00
+  OLD: 2024-03-30 15:30:00 CET+0100
+  NEW: 2024-03-30 16:30:00 CET+0100
+  Diff: 1.0 hours
+
+UTC: 2024-03-31T08:00:00
+  OLD: 2024-03-31 08:00:00 CEST+0200
+  NEW: 2024-03-31 10:00:00 CEST+0200
+  Diff: 2.0 hours
+
+UTC: 2024-04-01T14:00:00
+  OLD: 2024-04-01 14:00:00 CEST+0200
+  NEW: 2024-04-01 16:00:00 CEST+0200
+  Diff: 2.0 hours
+user@d9abd51ef7b1:~/scheduler$

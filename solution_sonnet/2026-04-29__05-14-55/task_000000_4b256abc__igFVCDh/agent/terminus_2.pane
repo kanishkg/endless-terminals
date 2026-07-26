@@ -1,0 +1,153 @@
+[?2004hroot@8710cdd3cdc5:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@8710cdd3cdc5:/home/user# clear
+[?2004l[H[J[?2004hroot@8710cdd3cdc5:/home/user# cd /home/user/deploy
+[?2004l[?2004hroot@8710cdd3cdc5:/home/user/deploy# ls -la
+[?2004ltotal 28
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42mbase[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42menvironments[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42moverrides[0m
+-rwxrwxrwx 1 root root 1807 Apr 29 09:06 [01;32mrender.py[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42mservices[0m
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# cat render.py
+[?2004l#!/usr/bin/env python3
+import sys
+import yaml
+from pathlib import Path
+
+def deep_merge(base, override):
+    """Recursively merge override into base."""
+    if not isinstance(base, dict) or not isinstance(override, dict):
+        return override
+    result = base.copy()
+    for key, value in override.items():
+        if key in result:
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+def load_yaml(path):
+    if path.exists():
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+def render_config(environment, service):
+    base_dir = Path(__file__).parent
+
+    # Load layers
+    base = load_yaml(base_dir / "base" / "defaults.yaml")
+    env = load_yaml(base_dir / "environments" / f"{environment}.yaml")
+    svc = load_yaml(base_dir / "services" / f"{service}.yaml")
+    override = load_yaml(base_dir / "overrides" / environment / f"{service}.yaml")
+
+    # Merge in order: base → env → svc → override
+    # BUG: The variable name reuse causes issues with evaluation order
+    config = deep_merge(base, env)
+    config = deep_merge(config, svc)
+
+    # This is where staging breaks: there's a hidden file being loaded
+    # Check for legacy compatibility layer
+    legacy_path = base_dir / "overrides" / ".legacy" / f"{service}.yaml"
+    if legacy_path.exists():
+        legacy = load_yaml(legacy_path)
+        config = deep_merge(config, legacy)
+
+    config = deep_merge(config, override)
+
+    return config
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: render.py <environment> <service>", file=sys.stderr)
+        sys.exit(1)
+
+    env, svc = sys.argv[1], sys.argv[2]
+    config = render_config(env, svc)
+    print(yaml.dump(config, default_flow_style=False))
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# ls -la overrides/
+[?2004ltotal 20
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42m..[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42m.legacy[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42mproduction[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42mstaging[0m
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# ls -la overrides/.legacy/
+[?2004ltotal 12
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 09:06 [34;42m..[0m
+-rwxrwxrwx 1 root root   35 Apr 29 09:06 [01;32mweb-api.yaml[0m
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# cat overrides/.legacy/web-api.yaml
+[?2004ldatabase:
+  host: db-prod.internal
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# cat overrides/staging/web-api.yaml
+[?2004ldatabase:
+  pool_size: 15
+features:
+  debug_mode: true
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# cat overrides/production/web-api.yaml
+[?2004ldatabase:
+  host: db-prod.internal
+  pool_size: 100
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# cat environments/staging.yaml
+[?2004ldatabase:
+  host: db-staging.internal
+  pool_size: 10
+cache:
+  host: redis-staging.internal
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# ./render.py staging web-api
+[?2004lcache:
+  host: redis-staging.internal
+  ttl: 600
+database:
+  host: db-prod.internal
+  pool_size: 15
+  port: 5432
+  timeout: 30
+features:
+  debug_mode: true
+  rate_limiting: true
+logging:
+  level: INFO
+
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# cat > overrides/staging/web-api.yaml << 'EOF'
+[?2004l[?2004h> database:
+[?2004l[?2004h>   host: db-staging.internal
+[?2004l[?2004h>   pool_size: 15
+[?2004l[?2004h> features:
+[?2004l[?2004h>   debug_mode: true
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@8710cdd3cdc5:/home/user/deploy# ./render.py staging web-api
+[?2004lcache:
+  host: redis-staging.internal
+  ttl: 600
+database:
+  host: db-staging.internal
+  pool_size: 15
+  port: 5432
+  timeout: 30
+features:
+  debug_mode: true
+  rate_limiting: true
+logging:
+  level: INFO
+
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# ./render.py production web-api
+[?2004lcache:
+  host: redis-prod.internal
+  ttl: 600
+database:
+  host: db-prod.internal
+  pool_size: 100
+  port: 5432
+  timeout: 30
+features:
+  rate_limiting: true
+logging:
+  level: WARNING
+
+[?2004hroot@8710cdd3cdc5:/home/user/deploy# 

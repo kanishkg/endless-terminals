@@ -1,0 +1,215 @@
+[?2004huser@0b52afb56a16:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@0b52afb56a16:~$ clear
+[?2004l[H[J[?2004huser@0b52afb56a16:~$ ls -la /home/user/memstats/
+[?2004ltotal 40
+drwxrwxrwx 1 user user 4096 Apr 29 05:59 .
+drwxrwxrwx 1 user user 4096 Apr 29 05:59 ..
+-rw-r--r-- 1 user user  224 Apr 29 05:59 host01.txt
+-rw-r--r-- 1 user user  224 Apr 29 05:59 host02.txt
+-rw-r--r-- 1 user user   35 Apr 29 05:59 host03.txt
+-rw-r--r-- 1 user user  224 Apr 29 05:59 host04.txt
+-rw-r--r-- 1 user user  224 Apr 29 05:59 host05.txt
+-rw-r--r-- 1 user user  224 Apr 29 05:59 host06.txt
+-rw-r--r-- 1 user user  224 Apr 29 05:59 host07.txt
+-rw-r--r-- 1 user user  224 Apr 29 05:59 host08.txt
+[?2004huser@0b52afb56a16:~$ head -20 /home/user/memstats/host01.txt
+[?2004lMemTotal:       16384000 kB
+MemFree:         2048000 kB
+MemAvailable:    8192000 kB
+Buffers:          512000 kB
+Cached:          4096000 kB
+SwapCached:            0 kB
+Active:          8192000 kB
+Inactive:        4096000 kB
+[?2004huser@0b52afb56a16:~$ cat /home/user/memstats/host03.txt
+[?2004lMemTotal:       16384000 kB
+MemAvai[?2004huser@0b52afb56a16:~$ cat > /tmp/analyze_memory.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Output file
+[?2004l[?2004h> OUTPUT="/home/user/low_memory_report.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Temporary file for collecting results
+[?2004l[?2004h> TEMP_FILE=$(mktemp)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Loop through all host files
+[?2004l[?2004h> for file in /home/user/memstats/host*.txt; do
+[?2004l[?2004h>     # Extract hostname from filename
+[?2004l[?2004h>     hostname=$(basename "$file" .txt)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Extract MemTotal and MemAvailable, handle errors gracefully
+[?2004l[?2004h>     memtotal=$(grep -E '^MemTotal:' "$file" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     memavail=$(grep -E '^MemAvailable:' "$file" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check if both values were found and are valid numbers
+[?2004l[?2004h>     if [[ -n "$memtotal" && -n "$memavail" && "$memtotal" -gt 0 ]]; then
+[?2004l[?2004h>         # Calculate percentage available (using bc for floating point)
+[?2004l[?2004h>         percentage=$(echo "scale=2; ($memavail * 100) / $memtotal" | bc)
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Check if less than 20%
+[?2004l[?2004h>         is_low=$(echo "$percentage < 20" | bc)
+[?2004l[?2004h>         if [[ "$is_low" -eq 1 ]]; then
+[?2004l[?2004h>             # Store hostname, percentage, and raw percentage for sorting
+[?2004l[?2004h>             echo -e "${percentage}\t${hostname}\t${percentage}" >> "$TEMP_FILE"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Sort by percentage (ascending = worst first) and output hostname + percentage
+[?2004l[?2004h> if [[ -s "$TEMP_FILE" ]]; then
+[?2004l[?2004h>     sort -n "$TEMP_FILE" | awk -F'\t' '{printf "%s\t%s\n", $2, $3}' > "$OUTPUT"
+[?2004l[?2004h> else
+[?2004l[?2004h>     # Create empty file if no hosts meet criteria
+[?2004l[?2004h>     touch "$OUTPUT"
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Cleanup
+[?2004l[?2004h> rm -f "$TEMP_FILE"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@0b52afb56a16:~$ chmod +x /tmp/analyze_memory.sh
+[?2004l[?2004huser@0b52afb56a16:~$ bash /tmp/analyze_memory.sh
+[?2004l/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+/tmp/analyze_memory.sh: line 21: bc: command not found
+/tmp/analyze_memory.sh: line 24: bc: command not found
+[?2004huser@0b52afb56a16:~$ cat /home/user/low_memory_report.txt
+[?2004l[?2004huser@0b52afb56a16:~$ for f in /home/user/memstats/host*.txt; do echo "=== $(basename $f) ==="  ; cat $f; echo; done
+[?2004l=== host01.txt ===
+MemTotal:       16384000 kB
+MemFree:         2048000 kB
+MemAvailable:    8192000 kB
+Buffers:          512000 kB
+Cached:          4096000 kB
+SwapCached:            0 kB
+Active:          8192000 kB
+Inactive:        4096000 kB
+
+=== host02.txt ===
+MemTotal:       32768000 kB
+MemFree:         1024000 kB
+MemAvailable:    4915200 kB
+Buffers:          256000 kB
+Cached:          2048000 kB
+SwapCached:            0 kB
+Active:         20480000 kB
+Inactive:        8192000 kB
+
+=== host03.txt ===
+MemTotal:       16384000 kB
+MemAvai
+=== host04.txt ===
+MemTotal:       16384000 kB
+MemFree:          819200 kB
+MemAvailable:    2621440 kB
+Buffers:          128000 kB
+Cached:          1024000 kB
+SwapCached:            0 kB
+Active:         10240000 kB
+Inactive:        4096000 kB
+
+=== host05.txt ===
+MemTotal:        8192000 kB
+MemFree:         1024000 kB
+MemAvailable:    4096000 kB
+Buffers:          256000 kB
+Cached:          2048000 kB
+SwapCached:            0 kB
+Active:          4096000 kB
+Inactive:        2048000 kB
+
+=== host06.txt ===
+MemTotal:       32768000 kB
+MemFree:         2048000 kB
+MemAvailable:    5242880 kB
+Buffers:          512000 kB
+Cached:          2048000 kB
+SwapCached:            0 kB
+Active:         20480000 kB
+Inactive:        8192000 kB
+
+=== host07.txt ===
+MemTotal:       16384000 kB
+MemFree:          512000 kB
+MemAvailable:    1638400 kB
+Buffers:           64000 kB
+Cached:           512000 kB
+SwapCached:            0 kB
+Active:         12288000 kB
+Inactive:        2048000 kB
+
+=== host08.txt ===
+MemTotal:        8192000 kB
+MemFree:          819200 kB
+MemAvailable:    2457600 kB
+Buffers:          128000 kB
+Cached:          1024000 kB
+SwapCached:            0 kB
+Active:          4096000 kB
+Inactive:        2048000 kB
+
+[?2004huser@0b52afb56a16:~$ cat > /tmp/analyze_memory.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> OUTPUT="/home/user/low_memory_report.txt"
+[?2004l[?2004h> TEMP_FILE=$(mktemp)
+[?2004l[?2004h> 
+[?2004l[?2004h> for file in /home/user/memstats/host*.txt; do
+[?2004l[?2004h>     hostname=$(basename "$file" .txt)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Use awk to extract and calculate in one go
+[?2004l[?2004h>     result=$(awk '
+[?2004l[?2004h>         /^MemTotal:/ { memtotal = $2 }
+[?2004l[?2004h>         /^MemAvailable:/ { memavail = $2 }
+[?2004l[?2004h>         END {
+[?2004l[?2004h>             if (memtotal > 0 && memavail != "") {
+[?2004l[?2004h>                 percentage = (memavail * 100.0) / memtotal
+[?2004l[?2004h>                 if (percentage < 20) {
+[?2004l[?2004h>                     printf "%.2f\t%s\t%.2f\n", percentage, "'$hostname'", percentage
+[?2004l[?2004h>                 }
+[?2004l[?2004h>             }
+[?2004l[?2004h>         }
+[?2004l[?2004h>     ' "$file" 2>/dev/null)
+[?2004l[?2004h>     
+[?2004l[?2004h>     # If result is not empty, add to temp file
+[?2004l[?2004h>     if [[ -n "$result" ]]; then
+[?2004l[?2004h>         echo "$result" >> "$TEMP_FILE"
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Sort by percentage (ascending = worst first) and output hostname + percentage
+[?2004l[?2004h> if [[ -s "$TEMP_FILE" ]]; then
+[?2004l[?2004h>     sort -n "$TEMP_FILE" | awk -F'\t' '{printf "%s\t%s\n", $2, $3}' > "$OUTPUT"
+[?2004l[?2004h> else
+[?2004l[?2004h>     touch "$OUTPUT"
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> rm -f "$TEMP_FILE"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@0b52afb56a16:~$ bash /tmp/analyze_memory.sh
+[?2004l[?2004huser@0b52afb56a16:~$ cat /home/user/low_memory_report.txt
+[?2004lhost07	10.00
+host02	15.00
+host04	16.00
+host06	16.00
+[?2004huser@0b52afb56a16:~$ ls -lh /home/user/low_memory_report.txt
+[?2004l-rw-r--r-- 1 user user 52 Apr 29 06:00 /home/user/low_memory_report.txt
+[?2004huser@0b52afb56a16:~$ echo "Task completed successfully. Report shows hosts with <20% memory available, sorted worst-first:"
+[?2004lTask completed successfully. Report shows hosts with <20% memory available, sorted worst-first:
+[?2004huser@0b52afb56a16:~$ cat /home/user/low_memory_report.txt
+[?2004lhost07	10.00
+host02	15.00
+host04	16.00
+host06	16.00
+[?2004huser@0b52afb56a16:~$ 

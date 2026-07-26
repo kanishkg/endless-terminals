@@ -1,0 +1,108 @@
+[?2004huser@18e6f422c9a0:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@18e6f422c9a0:~$ clear
+[?2004l[H[J[?2004huser@18e6f422c9a0:~$ ls -la /home/user/memstats/
+[?2004ltotal 40
+drwxrwxrwx 1 user user 4096 Apr 29 04:21 .
+drwxrwxrwx 1 user user 4096 Apr 29 04:21 ..
+-rw-r--r-- 1 user user  224 Apr 29 04:21 host01.txt
+-rw-r--r-- 1 user user  224 Apr 29 04:21 host02.txt
+-rw-r--r-- 1 user user   35 Apr 29 04:21 host03.txt
+-rw-r--r-- 1 user user  224 Apr 29 04:21 host04.txt
+-rw-r--r-- 1 user user  224 Apr 29 04:21 host05.txt
+-rw-r--r-- 1 user user  224 Apr 29 04:21 host06.txt
+-rw-r--r-- 1 user user  224 Apr 29 04:21 host07.txt
+-rw-r--r-- 1 user user  224 Apr 29 04:21 host08.txt
+[?2004huser@18e6f422c9a0:~$ head -20 /home/user/memstats/host01.txt
+[?2004lMemTotal:       16384000 kB
+MemFree:         2048000 kB
+MemAvailable:    8192000 kB
+Buffers:          512000 kB
+Cached:          4096000 kB
+SwapCached:            0 kB
+Active:          8192000 kB
+Inactive:        4096000 kB
+[?2004huser@18e6f422c9a0:~$ head -20 /home/user/memstats/host03.txt
+[?2004lMemTotal:       16384000 kB
+MemAvai[?2004huser@18e6f422c9a0:~$ cat /home/user/memstats/host02.txt
+[?2004lMemTotal:       32768000 kB
+MemFree:         1024000 kB
+MemAvailable:    4915200 kB
+Buffers:          256000 kB
+Cached:          2048000 kB
+SwapCached:            0 kB
+Active:         20480000 kB
+Inactive:        8192000 kB
+[?2004huser@18e6f422c9a0:~$ cat /home/user/memstats/host05.txt
+[?2004lMemTotal:        8192000 kB
+MemFree:         1024000 kB
+MemAvailable:    4096000 kB
+Buffers:          256000 kB
+Cached:          2048000 kB
+SwapCached:            0 kB
+Active:          4096000 kB
+Inactive:        2048000 kB
+[?2004huser@18e6f422c9a0:~$ cat > /tmp/analyze_memory.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Temporary file to store results
+[?2004l[?2004h> tmp_file=$(mktemp)
+[?2004l[?2004h> 
+[?2004l[?2004h> # Process each host file
+[?2004l[?2004h> for i in {01..08}; do
+[?2004l[?2004h>     file="/home/user/memstats/host${i}.txt"
+[?2004l[?2004h>     hostname="host${i}"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Extract MemTotal and MemAvailable
+[?2004l[?2004h>     mem_total=$(grep -E '^MemTotal:' "$file" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     mem_available=$(grep -E '^MemAvailable:' "$file" 2>/dev/null | awk '{print $2}')
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Check if both values exist (handle corrupted files)
+[?2004l[?2004h>     if [[ -n "$mem_total" && -n "$mem_available" ]]; then
+[?2004l[?2004h>         # Calculate percentage available
+[?2004l[?2004h>         percentage=$(awk "BEGIN {printf \"%.2f\", ($mem_available / $mem_total) * 100}")
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Check if less than 20%
+[?2004l[?2004h>         is_low=$(awk "BEGIN {print ($percentage < 20) ? 1 : 0}")
+[?2004l[?2004h>         
+[?2004l[?2004h>         if [[ $is_low -eq 1 ]]; then
+[?2004l[?2004h>             echo -e "${hostname}\t${percentage}" >> "$tmp_file"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> # Sort by percentage (ascending = worst first) and output to report
+[?2004l[?2004h> sort -t$'\t' -k2 -n "$tmp_file" > /home/user/low_memory_report.txt
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clean up
+[?2004l[?2004h> rm -f "$tmp_file"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@18e6f422c9a0:~$ chmod +x /tmp/analyze_memory.sh
+[?2004l[?2004huser@18e6f422c9a0:~$ /tmp/analyze_memory.sh
+[?2004l[?2004huser@18e6f422c9a0:~$ cat /home/user/low_memory_report.txt
+[?2004lhost07	10.00
+host02	15.00
+host04	16.00
+host06	16.00
+[?2004huser@18e6f422c9a0:~$ echo "Verifying host07:"
+[?2004lVerifying host07:
+[?2004huser@18e6f422c9a0:~$ grep -E '^Mem(Total|Available):' /home/user/memstats/host07.txt
+[?2004lMemTotal:       16384000 kB
+MemAvailable:    1638400 kB
+[?2004huser@18e6f422c9a0:~$ echo "Calculation: MemAvailable/MemTotal * 100"
+[?2004lCalculation: MemAvailable/MemTotal * 100
+[?2004huser@18e6f422c9a0:~$ awk 'BEGIN {printf "host07: %.2f%%\n", (1638400 / 16384000) * 100}'
+[?2004lhost07: 10.00%
+[?2004huser@18e6f422c9a0:~$ echo "Verifying host02:"
+[?2004lVerifying host02:
+[?2004huser@18e6f422c9a0:~$ grep -E '^Mem(Total|Available):' /home/user/memstats/host02.txt
+[?2004lMemTotal:       32768000 kB
+MemAvailable:    4915200 kB
+[?2004huser@18e6f422c9a0:~$ awk 'BEGIN {printf "host02: %.2f%%\n", (4915200 / 32768000) * 100}'
+[?2004lhost02: 15.00%
+[?2004huser@18e6f422c9a0:~$ ls -lh /home/user/low_memory_report.txt
+[?2004l-rw-r--r-- 1 user user 52 Apr 29 04:22 /home/user/low_memory_report.txt
+[?2004huser@18e6f422c9a0:~$ echo "Task completed successfully!"
+[?2004lTask completed successfully!
+[?2004huser@18e6f422c9a0:~$ 

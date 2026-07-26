@@ -1,0 +1,90 @@
+[?2004huser@604ca6004623:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@604ca6004623:~$ clear
+[?2004l[H[J[?2004huser@604ca6004623:~$ cd /home/user/pentest
+[?2004l[?2004huser@604ca6004623:~/pentest$ ls -la
+[?2004ltotal 12
+drwxrwxrwx 1 user user 4096 Apr 29 06:48 .
+drwxrwxrwx 1 user user 4096 Apr 29 06:48 ..
+-rw-r--r-- 1 user user  468 Apr 29 06:48 target_iptables.txt
+[?2004huser@604ca6004623:~/pentest$ cat target_iptables.txt
+[?2004l*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -p tcp --dport 22 -j ACCEPT
+-A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+-A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+-A INPUT -p tcp --dport 80 -j DROP
+-A INPUT -p tcp --dport 443 -j DROP
+-A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+COMMIT
+[?2004huser@604ca6004623:~/pentest$ cat > finding.txt << 'EOF'
+[?2004l[?2004h> FINDING: HTTP/HTTPS Traffic Blocked by Misconfigured iptables String Matching
+[?2004l[?2004h> 
+[?2004l[?2004h> AFFECTED RULES:
+[?2004l[?2004h> - Rule 4: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+[?2004l[?2004h> - Rule 5: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+[?2004l[?2004h> - Rule 6: -A INPUT -p tcp --dport 80 -j DROP
+[?2004l[?2004h> - Rule 7: -A INPUT -p tcp --dport 443 -j DROP
+[?2004l[?2004h> 
+[?2004l[?2004h> ROOT CAUSE:
+[?2004l[?2004h> The iptables rules attempt to filter HTTP/HTTPS traffic by looking for the string "Mozilla" in packet payloads (likely trying to allow only browser traffic). However, this approach is fundamentally flawed because:
+[?2004l[?2004h> 
+[?2004l[?2004h> 1. The string match module inspects packet payload at the network layer
+[?2004l[?2004h> 2. During the TCP three-way handshake (SYN, SYN-ACK, ACK), packets contain NO application-layer data
+[?2004l[?2004h> 3. The initial SYN packet from the client has no payload, so it cannot contain "Mozilla"
+[?2004l[?2004h> 4. Since the SYN packet doesn't match the string, it falls through to rules 6/7 which DROP the traffic
+[?2004l[?2004h> 5. The TCP connection never gets established, causing curl to hang indefinitely
+[?2004l[?2004h> 
+[?2004l[?2004h> WHY SSH WORKS BUT HTTP DOESN'T:
+[?2004l[?2004h> Rule 3 (-A INPUT -p tcp --dport 22 -j ACCEPT) unconditionally accepts ALL TCP traffic to port 22 without any string matching. SSH connections are allowed to complete the TCP handshake and establish connections normally.
+[?2004l[?2004h> 
+[?2004l[?2004h> In contrast, ports 80 and 443 require the "Mozilla" string to be present in the packet BEFORE accepting it, which is impossible during connection establishment.
+[?2004l[?2004h> 
+[?2004l[?2004h> RECOMMENDATION:
+[?2004l[?2004h> The string matching approach for connection filtering is architecturally incorrect. If the goal is to restrict HTTP/HTTPS access:
+[?2004l[?2004h> - Remove the string matching rules (they cannot work for connection establishment)
+[?2004l[?2004h> - Use source IP-based filtering if geo-blocking is needed
+[?2004l[?2004h> - Implement application-layer filtering at the web server level (e.g., using User-Agent checks in Apache/Nginx)
+[?2004l[?2004h> - Or simply allow the connections to establish and let the web application handle request filtering
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@604ca6004623:~/pentest$ ls -la
+[?2004ltotal 20
+drwxrwxrwx 1 user user 4096 Apr 29 06:49 .
+drwxrwxrwx 1 user user 4096 Apr 29 06:48 ..
+-rw-r--r-- 1 user user 1947 Apr 29 06:49 finding.txt
+-rw-r--r-- 1 user user  468 Apr 29 06:48 target_iptables.txt
+[?2004huser@604ca6004623:~/pentest$ cat finding.txt
+[?2004lFINDING: HTTP/HTTPS Traffic Blocked by Misconfigured iptables String Matching
+
+AFFECTED RULES:
+- Rule 4: -A INPUT -p tcp --dport 80 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Rule 5: -A INPUT -p tcp --dport 443 -m string --string "Mozilla" --algo bm -j ACCEPT
+- Rule 6: -A INPUT -p tcp --dport 80 -j DROP
+- Rule 7: -A INPUT -p tcp --dport 443 -j DROP
+
+ROOT CAUSE:
+The iptables rules attempt to filter HTTP/HTTPS traffic by looking for the string "Mozilla" in packet payloads (likely trying to allow only browser traffic). However, this approach is fundamentally flawed because:
+
+1. The string match module inspects packet payload at the network layer
+2. During the TCP three-way handshake (SYN, SYN-ACK, ACK), packets contain NO application-layer data
+3. The initial SYN packet from the client has no payload, so it cannot contain "Mozilla"
+4. Since the SYN packet doesn't match the string, it falls through to rules 6/7 which DROP the traffic
+5. The TCP connection never gets established, causing curl to hang indefinitely
+
+WHY SSH WORKS BUT HTTP DOESN'T:
+Rule 3 (-A INPUT -p tcp --dport 22 -j ACCEPT) unconditionally accepts ALL TCP traffic to port 22 without any string matching. SSH connections are allowed to complete the TCP handshake and establish connections normally.
+
+In contrast, ports 80 and 443 require the "Mozilla" string to be present in the packet BEFORE accepting it, which is impossible during connection establishment.
+
+RECOMMENDATION:
+The string matching approach for connection filtering is architecturally incorrect. If the goal is to restrict HTTP/HTTPS access:
+- Remove the string matching rules (they cannot work for connection establishment)
+- Use source IP-based filtering if geo-blocking is needed
+- Implement application-layer filtering at the web server level (e.g., using User-Agent checks in Apache/Nginx)
+- Or simply allow the connections to establish and let the web application handle request filtering
+[?2004huser@604ca6004623:~/pentest$ 

@@ -1,0 +1,23 @@
+{
+  "analysis": "I can see the memstats directory has 8 host files. Host01 shows a typical /proc/meminfo format with MemTotal and MemAvailable fields. Host03.txt is indeed corrupted/truncated (only 35 bytes) - it has MemTotal but the MemAvailable line is incomplete. I need to parse each file, extract MemTotal and MemAvailable, calculate percentages, handle missing/corrupt data gracefully, filter for <20% available, and sort worst-first.",
+  "plan": "I'll create a bash script that:\n1. Loops through all host*.txt files\n2. Uses grep to extract MemTotal and MemAvailable values\n3. Checks if both values exist (handles corruption)\n4. Calculates percentage available\n5. Filters for <20%\n6. Sorts by percentage (ascending = worst first)\n7. Outputs hostname and percentage tab-separated to the report file",
+  "commands": [
+    {
+      "keystrokes": "cat > process_memory.sh << 'EOF'\n#!/bin/bash\n\n# Temporary file for collecting results\ntempfile=$(mktemp)\n\n# Process each host file\nfor file in /home/user/memstats/host*.txt; do\n    hostname=$(basename \"$file\" .txt)\n    \n    # Extract MemTotal and MemAvailable, handling missing values gracefully\n    memtotal=$(grep -oP '^MemTotal:\\s+\\K\\d+' \"$file\" 2>/dev/null)\n    memavail=$(grep -oP '^MemAvailable:\\s+\\K\\d+' \"$file\" 2>/dev/null)\n    \n    # Skip if either value is missing or invalid\n    if [[ -z \"$memtotal\" ]] || [[ -z \"$memavail\" ]] || [[ \"$memtotal\" -eq 0 ]]; then\n        continue\n    fi\n    \n    # Calculate percentage available (using bc for floating point)\n    percent=$(echo \"scale=2; ($memavail * 100) / $memtotal\" | bc)\n    \n    # Check if less than 20%\n    is_low=$(echo \"$percent < 20\" | bc)\n    \n    if [[ \"$is_low\" -eq 1 ]]; then\n        echo -e \"$hostname\\t$percent\" >> \"$tempfile\"\n    fi\ndone\n\n# Sort by percentage (ascending = worst first) and write to report\nsort -t$'\\t' -k2 -n \"$tempfile\" > /home/user/low_memory_report.txt\n\n# Clean up\nrm -f \"$tempfile\"\nEOF\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "chmod +x process_memory.sh\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "bash process_memory.sh\n",
+      "duration": 1.0
+    },
+    {
+      "keystrokes": "cat /home/user/low_memory_report.txt\n",
+      "duration": 0.1
+    }
+  ],
+  "task_complete": false
+}

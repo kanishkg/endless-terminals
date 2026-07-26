@@ -1,0 +1,113 @@
+[?2004huser@5fc838720b1d:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@5fc838720b1d:~$ clear
+[?2004l[H[J[?2004huser@5fc838720b1d:~$ ls -la /home/user/bin
+[?2004ltotal 8
+drwxrwxrwx 1 user user 4096 Apr 29 09:30 .
+drwxrwxrwx 1 user user 4096 Apr 29 09:30 ..
+[?2004huser@5fc838720b1d:~$ cat /home/user/project/.env.defaults
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=false
+API_KEY=default-key-123
+[?2004huser@5fc838720b1d:~$ cat /home/user/project/.env.local
+[?2004lDEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@5fc838720b1d:~$ cat > /home/user/bin/env-merge.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Check if two arguments are provided
+[?2004l[?2004h> if [ $# -ne 2 ]; then
+[?2004l[?2004h>     echo "Usage: $0 <file1.env> <file2.env>" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Check if both files exist
+[?2004l[?2004h> if [ ! -f "$1" ]; then
+[?2004l[?2004h>     echo "Error: File '$1' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> if [ ! -f "$2" ]; then
+[?2004l[?2004h>     echo "Error: File '$2' not found" >&2
+[?2004l[?2004h>     exit 1
+[?2004l[?2004h> fi
+[?2004l[?2004h> 
+[?2004l[?2004h> # Use associative array to store key-value pairs
+[?2004l[?2004h> declare -A env_vars
+[?2004l[?2004h> declare -a keys_order
+[?2004l[?2004h> 
+[?2004l[?2004h> # Function to parse env file
+[?2004l[?2004h> parse_env_file() {
+[?2004l[?2004h>     local file="$1"
+[?2004l[?2004h>     while IFS= read -r line || [ -n "$line" ]; do
+[?2004l[?2004h>         # Skip empty lines and comments
+[?2004l[?2004h>         [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Extract key=value
+[?2004l[?2004h>         if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+[?2004l[?2004h>             key="${BASH_REMATCH[1]}"
+[?2004l[?2004h>             value="${BASH_REMATCH[2]}"
+[?2004l[?2004h>             
+[?2004l[?2004h>             # Only add to keys_order if it's a new key
+[?2004l[?2004h>             if [ -z "${env_vars[$key]+x}" ]; then
+[?2004l[?2004h>                 keys_order+=("$key")
+[?2004l[?2004h>             fi
+[?2004l[?2004h>             
+[?2004l[?2004h>             env_vars["$key"]="$value"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     done < "$file"
+[?2004l[?2004h> }
+[?2004l[?2004h> 
+[?2004l[?2004h> # Parse both files (second file overwrites first)
+[?2004l[?2004h> parse_env_file "$1"
+[?2004l[?2004h> parse_env_file "$2"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Output merged environment variables
+[?2004l[?2004h> for key in "${keys_order[@]}"; do
+[?2004l[?2004h>     echo "${key}=${env_vars[$key]}"
+[?2004l[?2004h> done
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@5fc838720b1d:~$ chmod +x /home/user/bin/env-merge.sh
+[?2004l[?2004huser@5fc838720b1d:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /home/user/project/.env.local
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@5fc838720b1d:~$ ls -la /home/user/bin/env-merge.sh
+[?2004l-rwxr-xr-x 1 user user 1261 Apr 29 09:31 /home/user/bin/env-merge.sh
+[?2004huser@5fc838720b1d:~$ /home/user/bin/env-merge.sh
+[?2004lUsage: /home/user/bin/env-merge.sh <file1.env> <file2.env>
+[?2004huser@5fc838720b1d:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /nonexistent.env
+[?2004lError: File '/nonexistent.env' not found
+[?2004huser@5fc838720b1d:~$ echo "=== Testing env-merge.sh ==="
+[?2004l=== Testing env-merge.sh ===
+[?2004huser@5fc838720b1d:~$ echo "First file (.env.defaults):"
+[?2004lFirst file (.env.defaults):
+[?2004huser@5fc838720b1d:~$ cat /home/user/project/.env.defaults
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=false
+API_KEY=default-key-123
+[?2004huser@5fc838720b1d:~$ echo ""
+[?2004l
+[?2004huser@5fc838720b1d:~$ echo "Second file (.env.local):"
+[?2004lSecond file (.env.local):
+[?2004huser@5fc838720b1d:~$ cat /home/user/project/.env.local
+[?2004lDEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@5fc838720b1d:~$ echo ""
+[?2004l
+[?2004huser@5fc838720b1d:~$ echo "Merged output (second file wins):"
+[?2004lMerged output (second file wins):
+[?2004huser@5fc838720b1d:~$ /home/user/bin/env-merge.sh /home/user/project/.env.defaults /home/user/project/.env.local
+[?2004lDATABASE_URL=postgres://localhost/dev
+CACHE_TTL=300
+DEBUG=true
+API_KEY=secret-prod-key-456
+NEW_FEATURE=enabled
+[?2004huser@5fc838720b1d:~$ 

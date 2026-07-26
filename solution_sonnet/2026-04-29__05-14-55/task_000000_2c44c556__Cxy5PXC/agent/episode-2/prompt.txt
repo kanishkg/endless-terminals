@@ -1,0 +1,59 @@
+New Terminal Output:
+
+root@a31c3d1cad0d:/home/user/firewall# cp rules.sh rules.sh.backup
+root@a31c3d1cad0d:/home/user/firewall# cat > rules.sh << 'EOF'
+> #!/bin/bash
+> # Flush existing rules
+> iptables -F
+> iptables -t nat -F
+>
+> # Default policies
+> iptables -P INPUT DROP
+> iptables -P FORWARD DROP
+> iptables -P OUTPUT ACCEPT
+>
+> # Allow established connections
+> iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+> iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+>
+> # Allow SSH to gateway
+> iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+>
+> # Allow inference subnet to registry on port 5000 (FIXED: moved to FORWARD chain)
+> iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+>
+> # NAT for outbound
+> iptables -t nat -A POSTROUTING -s 10.200.0.0/16 -o eth2 -j MASQUERADE
+>
+> # General forwarding between networks
+> iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+> iptables -A FORWARD -i eth2 -o eth1 -j ACCEPT
+> EOF
+root@a31c3d1cad0d:/home/user/firewall# cat rules.sh
+#!/bin/bash
+# Flush existing rules
+iptables -F
+iptables -t nat -F
+
+# Default policies
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# Allow established connections
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow SSH to gateway
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow inference subnet to registry on port 5000 (FIXED: moved to FORWARD chain)
+iptables -A FORWARD -s 10.200.0.0/16 -d 10.100.0.42 -p tcp --dport 5000 -j ACCEPT
+
+# NAT for outbound
+iptables -t nat -A POSTROUTING -s 10.200.0.0/16 -o eth2 -j MASQUERADE
+
+# General forwarding between networks
+iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth1 -j ACCEPT
+root@a31c3d1cad0d:/home/user/firewall#

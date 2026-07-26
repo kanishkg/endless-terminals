@@ -1,0 +1,54 @@
+New Terminal Output:
+
+user@e252a997ef07:~/scheduler$ cat > test_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test to verify the timezone conversion fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> # Test case: UTC 01:30:00 on March 31, 2024
+> # This is during the DST transition in Europe/Berlin
+> # Should convert to 2024-03-31 02:30:00 CEST (UTC+2)
+> utc_time_str = '2024-03-31T01:30:00'
+>
+> print("Testing timezone conversion for DST transition...")
+> print(f"UTC time: {utc_time_str}")
+> print()
+>
+> # OLD (BUGGY) METHOD:
+> print("OLD METHOD (buggy):")
+> utc_dt_old = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+> berlin_dt_old = BERLIN_TZ.localize(utc_dt_old)
+> print(f"  Result: {berlin_dt_old.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+> print(f"  This incorrectly treats UTC time as if it were Berlin time!")
+> print()
+>
+> # NEW (FIXED) METHOD:
+> print("NEW METHOD (fixed):")
+> utc_dt_new = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+> utc_dt_new = UTC_TZ.localize(utc_dt_new)
+> berlin_dt_new = utc_dt_new.astimezone(BERLIN_TZ)
+> print(f"  Result: {berlin_dt_new.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+> print(f"  This correctly converts UTC to Berlin time!")
+> print()
+>
+> print(f"Difference: {(berlin_dt_old - berlin_dt_new).total_seconds() / 3600} hours")
+> EOF
+user@e252a997ef07:~/scheduler$ python3 test_fix.py
+Testing timezone conversion for DST transition...
+UTC time: 2024-03-31T01:30:00
+
+OLD METHOD (buggy):
+  Result: 2024-03-31 01:30:00 CET (UTC+0100)
+  This incorrectly treats UTC time as if it were Berlin time!
+
+NEW METHOD (fixed):
+  Result: 2024-03-31 03:30:00 CEST (UTC+0200)
+  This correctly converts UTC to Berlin time!
+
+Difference: -1.0 hours
+user@e252a997ef07:~/scheduler$

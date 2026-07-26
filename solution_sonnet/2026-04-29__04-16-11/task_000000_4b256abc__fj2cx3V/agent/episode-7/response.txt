@@ -1,0 +1,14 @@
+{
+  "analysis": "Confirmed! The output shows `db-prod.internal` instead of `db-staging.internal`. The legacy file is overriding the environment setting. The fix is to either remove the legacy layer entirely or move it earlier in the merge order (before the environment layer) so environment-specific settings take precedence.",
+  "plan": "I'll fix render.py by moving the legacy layer to merge right after base but before environment. This way the merge order becomes: base → legacy → env → svc → override, ensuring environment-specific configs override legacy values. Then I'll test the fix.",
+  "commands": [
+    {
+      "keystrokes": "cp render.py render.py.backup\n",
+      "duration": 0.1
+    },
+    {
+      "keystrokes": "cat > render.py << 'EOF'\n#!/usr/bin/env python3\nimport sys\nimport yaml\nfrom pathlib import Path\n\ndef deep_merge(base, override):\n    \"\"\"Recursively merge override into base.\"\"\"\n    if not isinstance(base, dict) or not isinstance(override, dict):\n        return override\n    result = base.copy()\n    for key, value in override.items():\n        if key in result:\n            result[key] = deep_merge(result[key], value)\n        else:\n            result[key] = value\n    return result\n\ndef load_yaml(path):\n    if path.exists():\n        with open(path) as f:\n            return yaml.safe_load(f) or {}\n    return {}\n\ndef render_config(environment, service):\n    base_dir = Path(__file__).parent\n\n    # Load layers\n    base = load_yaml(base_dir / \"base\" / \"defaults.yaml\")\n    env = load_yaml(base_dir / \"environments\" / f\"{environment}.yaml\")\n    svc = load_yaml(base_dir / \"services\" / f\"{service}.yaml\")\n    override = load_yaml(base_dir / \"overrides\" / environment / f\"{service}.yaml\")\n\n    # Merge in order: base → legacy → env → svc → override\n    # FIX: Load legacy early so environment configs can override it\n    config = base\n    \n    # Check for legacy compatibility layer (merge early)\n    legacy_path = base_dir / \"overrides\" / \".legacy\" / f\"{service}.yaml\"\n    if legacy_path.exists():\n        legacy = load_yaml(legacy_path)\n        config = deep_merge(config, legacy)\n\n    config = deep_merge(config, env)\n    config = deep_merge(config, svc)\n    config = deep_merge(config, override)\n\n    return config\n\nif __name__ == \"__main__\":\n    if len(sys.argv) != 3:\n        print(\"Usage: render.py <environment> <service>\", file=sys.stderr)\n        sys.exit(1)\n\n    env, svc = sys.argv[1], sys.argv[2]\n    config = render_config(env, svc)\n    print(yaml.dump(config, default_flow_style=False))\nEOF\n",
+      "duration": 0.1
+    }
+  ]
+}

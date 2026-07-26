@@ -1,0 +1,55 @@
+New Terminal Output:
+
+user@c83efca373bd:~/scheduler$ cat > verify_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Verify the fix for the Maintenance Window meeting."""
+>
+> import sys
+> sys.path.insert(0, '/home/user/scheduler')
+>
+> import json
+> import pytz
+> from datetime import datetime
+>
+> # Import the fixed function from app.py
+> from app import convert_to_berlin
+>
+> print("=" * 60)
+> print("VERIFICATION: Maintenance Window Meeting Timezone Fix")
+> print("=" * 60)
+> print()
+>
+> # The problematic meeting from meetings.json
+> maintenance_utc = "2024-03-31T01:30:00"
+>
+> print(f"Meeting: Maintenance Window Prep")
+> print(f"Stored UTC time: {maintenance_utc}")
+> print()
+>
+> # Convert using the fixed function
+> berlin_time = convert_to_berlin(maintenance_utc)
+>
+> print(f"Converted Berlin time: {berlin_time.strftime('%Y-%m-%d %H:%M:%S %Z (UTC%z)')}")
+> print()
+>
+> # Verify this is correct
+> print("Verification:")
+> print(f"  - UTC time: 2024-03-31 01:30:00")
+> print(f"  - DST transition in Berlin: March 31, 2024 at 02:00 CET -> 03:00 CEST")
+> print(f"  - Expected Berlin time: 03:30 CEST (UTC+0200)")
+> print(f"  - Actual result: {berlin_time.strftime('%H:%M %Z (UTC%z)')}")
+> print()
+>
+> if berlin_time.strftime('%H:%M') == '03:30' and 'CEST' in berlin_time.strftime('%Z'):
+>     print("✅ SUCCESS! The fix correctly handles the DST transition.")
+>     print("   The maintenance window reminder will now be sent at the correct time.")
+> else:
+>     print("❌ FAILED! The conversion is still incorrect.")
+>     sys.exit(1)
+>
+> print()
+> print("The bug was: BERLIN_TZ.localize(utc_dt) treated UTC time as Berlin time.")
+> print("The fix is: UTC_TZ.localize(utc_dt).astimezone(BERLIN_TZ) properly converts.")
+> print("=" * 60)
+> EOF
+user@c83efca373bd:~/scheduler$

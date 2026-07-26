@@ -1,0 +1,73 @@
+New Terminal Output:
+
+root@750d474a0771:/home/user/pipeline# cat process.py
+import json
+import sqlite3
+import os
+
+BATCH_SIZE = 1000
+
+def load_checkpoint():
+    try:
+        with open('.checkpoint', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def save_checkpoint(line_num):
+    # FIX: Use context manager and flush to ensure data is written
+    with open('.checkpoint', 'w') as f:
+        json.dump({'last_line': line_num}, f)
+        f.flush()
+        os.fsync(f.fileno())
+
+def process_batch(conn, batch):
+    aggregates = {}
+    for event in batch:
+        cat = event['category']
+        if cat not in aggregates:
+            aggregates[cat] = {'total': 0, 'count': 0}
+        aggregates[cat]['total'] += event['value']
+        aggregates[cat]['count'] += 1
+
+    for cat, data in aggregates.items():
+        # FIX: Use INSERT ... ON CONFLICT to accumulate instead of replace
+        conn.execute('''
+            INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+            ON CONFLICT(category) DO UPDATE SET
+                total_value = total_value + excluded.total_value,
+                count = count + excluded.count
+        ''', (cat, data['total'], data['count']))
+
+def process():
+    conn = sqlite3.connect('output/summary.db')
+    conn.execute('CREATE TABLE IF NOT EXISTS summary (category TEXT PRIMARY KEY, total_value REAL, count INTEGER)')
+
+    checkpoint = load_checkpoint()
+    start_from = checkpoint['last_line'] if checkpoint else 0
+
+    with open('data/events.json', 'r') as f:
+        batch = []
+        batch_num = 0
+        for i, line in enumerate(f):
+            if i < start_from:
+                continue
+            batch.append(json.loads(line))
+            if len(batch) >= BATCH_SIZE:
+                process_batch(conn, batch)
+                conn.commit()  # Commit after each batch
+                batch_num += 1
+                # FIX: Save the actual line number, not batch number
+                save_checkpoint(start_from + batch_num * BATCH_SIZE)
+                batch = []
+        if batch:
+            process_batch(conn, batch)
+            conn.commit()
+            # FIX: Save the total lines processed
+            save_checkpoint(start_from + batch_num * BATCH_SIZE + len(batch))
+
+    conn.close()
+
+if __name__ == '__main__':
+    process()
+root@750d474a0771:/home/user/pipeline#

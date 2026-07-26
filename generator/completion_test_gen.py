@@ -37,10 +37,26 @@ Rules:
 * Failures must clearly explain **what is still wrong**.
 * When you check for files or directories, always use their *absolute* paths exactly as given (no relative paths).
 * Ensure that the the state of the OS matches the truth after the task is completed.
-* Write the code in a fenced code block that can be parsed to get a single python file."""
+* Write the code in a fenced code block that can be parsed to get a single python file.
+
+Evaluation approach guidelines:
+* Prefer semantic validation over exact string matching. For example:
+  - Parse JSON/YAML and check keys/values instead of comparing raw strings.
+  - Use `in` or regex to check for required content instead of exact line matching.
+  - Check numeric values with tolerance (abs(actual - expected) < epsilon) instead of string comparison.
+* For service-based tasks, test that services respond correctly:
+  - Use subprocess to curl/wget endpoints and check response codes and content.
+  - Check that ports are listening (socket connect or ss/netstat).
+  - Verify processes are running (subprocess: pgrep, ps).
+* For command-output tasks, run the command and check its exit code and stdout.
+* For file tasks, validate structure and key content, not exact byte-for-byte match.
+* Never check exact whitespace, trailing newlines, or formatting that the task didn't explicitly specify.
+* For easy tasks, tests should check simple outcomes (file exists, content contains expected value).
+* For hard tasks, tests can check complex multi-faceted state but should still validate semantics over exact formatting."""
 
 USER_TEMPLATE = """The task description is: {task_description}
 The truth value is: {truth}
+Task difficulty: {difficulty}
 The tests to check the initial container state, before the task is completed, are:
 {initial_test_py}
 Write the code in a fenced code block that can be parsed."""
@@ -50,7 +66,7 @@ Write the code in a fenced code block that can be parsed."""
 # ---------------------------------------------------------------------------
 
 def generate_test_templates_batch(
-    items: list[tuple[str, str, str]],
+    items: list[tuple[str, ...]],
     *,
     model: str = "qwen/Qwen2.5-3B-Instruct",
     temperature: float = 0.6,
@@ -59,12 +75,21 @@ def generate_test_templates_batch(
 ) -> list[Optional[str]]:
     """Batched generation of final-state pytest templates.
 
-    items: list of (task_description, truth, initial_test_py). Returns aligned list with None on failure.
+    items: list of (task_description, truth, initial_test_py) or
+           (task_description, truth, initial_test_py, difficulty).
+    Returns aligned list with None on failure.
     """
 
     messages: list[list[dict[str, str]]] = []
-    for task_description, truth, initial_test_py in items:
-        prompt = USER_TEMPLATE.format(task_description=task_description, truth=truth, initial_test_py=initial_test_py)
+    for item in items:
+        task_description, truth, initial_test_py = item[0], item[1], item[2]
+        difficulty = item[3] if len(item) > 3 else "medium"
+        prompt = USER_TEMPLATE.format(
+            task_description=task_description,
+            truth=truth,
+            initial_test_py=initial_test_py,
+            difficulty=difficulty,
+        )
         messages.append([
             {"role": "system", "content": SYSTEM_MSG},
             {"role": "user", "content": prompt},

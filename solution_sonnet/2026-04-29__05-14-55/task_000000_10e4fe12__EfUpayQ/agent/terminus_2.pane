@@ -1,0 +1,153 @@
+[?2004huser@0f0153f4e9e1:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@0f0153f4e9e1:~$ clear
+[?2004l[H[J[?2004huser@0f0153f4e9e1:~$ ls -la /home/user/
+[?2004ltotal 36
+drwxrwxrwx 1 user user 4096 Apr 29 08:13 [0m[34;42m.[0m
+drwxr-xr-x 1 root root 4096 Apr 29 08:13 [01;34m..[0m
+-rw-r--r-- 1 user user  220 Jan  6  2022 .bash_logout
+-rw-r--r-- 1 user user 3771 Jan  6  2022 .bashrc
+drwxr-xr-x 3 user user 4096 Apr 29 08:13 [01;34m.config[0m
+-rw-r--r-- 1 user user  807 Jan  6  2022 .profile
+drwxr-xr-x 1 user user 4096 Apr 29 08:13 [01;34mbackups[0m
+drwxr-xr-x 1 user user 4096 Apr 29 08:13 [01;34mprojects[0m
+[?2004huser@0f0153f4e9e1:~$ ls -la /home/user/projects/ 2>&1 | head -20
+[?2004ltotal 24
+drwxr-xr-x 1 user user 4096 Apr 29 08:13 .
+drwxrwxrwx 1 user user 4096 Apr 29 08:13 ..
+drwxr-xr-x 1 user user 4096 Apr 29 08:13 alpha
+drwx--x--x 1 user user 4096 Apr 29 08:13 beta
+drwx------ 1 root root 4096 Apr 29 08:13 delta
+drwxr-xr-x 1 user user 4096 Apr 29 08:13 gamma
+[?2004huser@0f0153f4e9e1:~$ find /home/user/projects -type f -readable 2>/dev/null | head -20
+[?2004l/home/user/projects/beta/notes.txt
+/home/user/projects/beta/data.csv
+/home/user/projects/alpha/config.json
+/home/user/projects/gamma/subdir/deep.txt
+/home/user/projects/gamma/readable.md
+[?2004huser@0f0153f4e9e1:~$ cat > /home/user/backup.sh << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> 
+[?2004l[?2004h> # Backup script that handles complex permissions
+[?2004l[?2004h> SOURCE_DIR="/home/user/projects"
+[?2004l[?2004h> BACKUP_DIR="/home/user/backups"
+[?2004l[?2004h> MANIFEST="${BACKUP_DIR}/manifest.txt"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clear/create manifest
+[?2004l[?2004h> > "${MANIFEST}"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Find all readable files and process them
+[?2004l[?2004h> find "${SOURCE_DIR}" -type f -readable 2>/dev/null | while read -r file; do
+[?2004l[?2004h>     # Get the relative path from source directory
+[?2004l[?2004h>     rel_path="${file#${SOURCE_DIR}/}"
+[?2004l[?2004h>     dest_file="${BACKUP_DIR}/${rel_path}"
+[?2004l[?2004h>     
+[?2004l[?2004h>     # Get owner:group info (suppress errors if stat fails)
+[?2004l[?2004h>     owner_info=$(stat -c '%U:%G' "${file}" 2>/dev/null)
+[?2004l[?2004h>     
+[?2004l[?2004h>     if [ -n "${owner_info}" ]; then
+[?2004l[?2004h>         # Create destination directory structure
+[?2004l[?2004h>         dest_dir=$(dirname "${dest_file}")
+[?2004l[?2004h>         mkdir -p "${dest_dir}" 2>/dev/null
+[?2004l[?2004h>         
+[?2004l[?2004h>         # Copy the file (suppress errors)
+[?2004l[?2004h>         if cp "${file}" "${dest_file}" 2>/dev/null; then
+[?2004l[?2004h>             # Write to manifest
+[?2004l[?2004h>             echo "${rel_path} ${owner_info}" >> "${MANIFEST}"
+[?2004l[?2004h>         fi
+[?2004l[?2004h>     fi
+[?2004l[?2004h> done
+[?2004l[?2004h> 
+[?2004l[?2004h> echo "Backup complete. Manifest saved to ${MANIFEST}"
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@0f0153f4e9e1:~$ chmod +x /home/user/backup.sh
+[?2004l[?2004huser@0f0153f4e9e1:~$ cat /home/user/backup.sh
+[?2004l#!/bin/bash
+
+# Backup script that handles complex permissions
+SOURCE_DIR="/home/user/projects"
+BACKUP_DIR="/home/user/backups"
+MANIFEST="${BACKUP_DIR}/manifest.txt"
+
+# Clear/create manifest
+> "${MANIFEST}"
+
+# Find all readable files and process them
+find "${SOURCE_DIR}" -type f -readable 2>/dev/null | while read -r file; do
+    # Get the relative path from source directory
+    rel_path="${file#${SOURCE_DIR}/}"
+    dest_file="${BACKUP_DIR}/${rel_path}"
+    
+    # Get owner:group info (suppress errors if stat fails)
+    owner_info=$(stat -c '%U:%G' "${file}" 2>/dev/null)
+    
+    if [ -n "${owner_info}" ]; then
+        # Create destination directory structure
+        dest_dir=$(dirname "${dest_file}")
+        mkdir -p "${dest_dir}" 2>/dev/null
+        
+        # Copy the file (suppress errors)
+        if cp "${file}" "${dest_file}" 2>/dev/null; then
+            # Write to manifest
+            echo "${rel_path} ${owner_info}" >> "${MANIFEST}"
+        fi
+    fi
+done
+
+echo "Backup complete. Manifest saved to ${MANIFEST}"
+[?2004huser@0f0153f4e9e1:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest saved to /home/user/backups/manifest.txt
+[?2004huser@0f0153f4e9e1:~$ echo "=== Backup directory structure ==="
+[?2004l=== Backup directory structure ===
+[?2004huser@0f0153f4e9e1:~$ find /home/user/backups -type f | sort
+[?2004l/home/user/backups/alpha/config.json
+/home/user/backups/beta/data.csv
+/home/user/backups/beta/notes.txt
+/home/user/backups/gamma/readable.md
+/home/user/backups/gamma/subdir/deep.txt
+/home/user/backups/manifest.txt
+[?2004huser@0f0153f4e9e1:~$ echo "=== Manifest contents ==="
+[?2004l=== Manifest contents ===
+[?2004huser@0f0153f4e9e1:~$ cat /home/user/backups/manifest.txt
+[?2004lbeta/notes.txt user:user
+beta/data.csv user:user
+alpha/config.json user:user
+gamma/subdir/deep.txt user:user
+gamma/readable.md user:user
+[?2004huser@0f0153f4e9e1:~$ echo "=== Verifying directory structure mirroring ==="
+[?2004l=== Verifying directory structure mirroring ===
+[?2004huser@0f0153f4e9e1:~$ ls -R /home/user/backups/
+[?2004l/home/user/backups/:
+[0m[01;34malpha[0m  [01;34mbeta[0m  [01;34mgamma[0m  manifest.txt
+
+/home/user/backups/alpha:
+config.json
+
+/home/user/backups/beta:
+data.csv  notes.txt
+
+/home/user/backups/gamma:
+readable.md  [01;34msubdir[0m
+
+/home/user/backups/gamma/subdir:
+deep.txt
+[?2004huser@0f0153f4e9e1:~$ echo "=== Testing script can be run again ==="
+[?2004l=== Testing script can be run again ===
+[?2004huser@0f0153f4e9e1:~$ /home/user/backup.sh
+[?2004lBackup complete. Manifest saved to /home/user/backups/manifest.txt
+[?2004huser@0f0153f4e9e1:~$ echo "=== Final verification - script location and permissions ==="
+[?2004l=== Final verification - script location and permissions ===
+[?2004huser@0f0153f4e9e1:~$ ls -la /home/user/backup.sh
+[?2004l-rwxr-xr-x 1 user user 1032 Apr 29 08:14 [0m[01;32m/home/user/backup.sh[0m
+[?2004huser@0f0153f4e9e1:~$ echo "=== Task Summary ==="
+[?2004l=== Task Summary ===
+[?2004huser@0f0153f4e9e1:~$ echo "Script location: /home/user/backup.sh (executable)"
+[?2004lScript location: /home/user/backup.sh (executable)
+[?2004huser@0f0153f4e9e1:~$ echo "Files backed up: $(find /home/user/backups -type f ! -name manifest.txt | wc -l)"
+[?2004lFiles backed up: 5
+[?2004huser@0f0153f4e9e1:~$ echo "Manifest entries: $(wc -l < /home/user/backups/manifest.txt)"
+[?2004lManifest entries: 5
+[?2004huser@0f0153f4e9e1:~$ echo "All requirements met: Script handles permission issues silently and preserves structure"
+[?2004lAll requirements met: Script handles permission issues silently and preserves structure
+[?2004huser@0f0153f4e9e1:~$ 

@@ -1,0 +1,321 @@
+[?2004hroot@112c7107e917:/home/user# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@112c7107e917:/home/user# clear
+[?2004l[H[J[?2004hroot@112c7107e917:/home/user# cd /home/user/netmon
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# ls -la
+[?2004ltotal 20
+drwxrwxrwx 1 root root 4096 Apr 28 23:24 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 28 23:24 [34;42m..[0m
+-rw-rw-rw- 1 root root  924 Apr 28 23:24 aggregate.py
+-rw-rw-rw- 1 root root   33 Apr 28 23:24 hosts.conf
+drwxrwxrwx 1 root root 4096 Apr 28 23:24 [34;42mscripts[0m
+[?2004hroot@112c7107e917:/home/user/netmon# ls -la scripts/
+[?2004ltotal 16
+drwxrwxrwx 1 root root 4096 Apr 28 23:24 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 28 23:24 [34;42m..[0m
+-rwxr-xr-x 1 root root  205 Apr 28 23:24 [01;32mcheck_ping.sh[0m
+-rwxr-xr-x 1 root root  267 Apr 28 23:24 [01;32mcheck_ports.sh[0m
+[?2004hroot@112c7107e917:/home/user/netmon# cat hosts.conf
+[?2004l192.168.1.1
+192.168.1.2
+10.0.0.1
+[?2004hroot@112c7107e917:/home/user/netmon# cat scripts/check_ping.sh
+[?2004l#!/bin/bash
+mkdir -p results
+while read -r host; do
+    if ping -c 1 -W 1 "$host" &>/dev/null; then
+        echo "$host: up"
+    else
+        echo "$host: down"
+    fi
+done < hosts.conf > results/ping.txt
+[?2004hroot@112c7107e917:/home/user/netmon# cat scripts/check_ports.sh
+[?2004l#!/bin/bash
+mkdir -p results
+while read -r host; do
+    for port in 22 80 443; do
+        timeout 1 bash -c "echo >/dev/tcp/$host/$port" 2>/dev/null && status="open" || status="closed"
+        echo "$host:$port $status"
+    done
+done < hosts.conf > results/ports.txt
+[?2004hroot@112c7107e917:/home/user/netmon# cat aggregate.py
+[?2004l#!/usr/bin/env python3
+import json
+
+def main():
+    results = {"hosts": {}}
+
+    with open("results/ping.txt") as f:
+        for line in f:
+            host, status = line.strip().split(": ")
+            results["hosts"][host] = {"ping": status}
+
+    with open("results/ports.txt") as f:
+        for line in f:
+            parts = line.strip().split()
+            host_port = parts[0].split(":")
+            host = host_port[0]
+            port = host_port[1]
+            status = parts[1]
+            if host not in results["hosts"]:
+                results["hosts"][host] = {}
+            if "ports" not in results["hosts"][host]:
+                results["hosts"][host]["ports"] = {}
+            results["hosts"][host]["ports"][port] = status
+
+    with open("results/status.json", "w") as f
+        json.dump(results, f, indent=2)
+
+    print("Report generated: results/status.json")
+
+if __name__ == "__main__":
+    main()
+[?2004hroot@112c7107e917:/home/user/netmon# ls -la results/ 2>/dev/null || echo 'results directory does not exist yet'
+[?2004lresults directory does not exist yet
+[?2004hroot@112c7107e917:/home/user/netmon# sed -i 's/with open("results\/status.json", "w") as f$/with open("results\/status.json", "w") as f:/' aggregate.py
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# cat aggregate.py | grep -A 2 'with open.*status.json'
+[?2004l    [01;31m[Kwith open("results/status.json[m[K", "w") as f:
+        json.dump(results, f, indent=2)
+
+[?2004hroot@112c7107e917:/home/user/netmon# cat > Makefile << 'EOF'
+[?2004l[?2004h> .PHONY: report check-config clean
+[?2004l[?2004h> 
+[?2004l[?2004h> # Main target to generate the report
+[?2004l[?2004h> report: results/status.json
+[?2004l[?2004h> @echo "Monitoring report complete!"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Generate the aggregated JSON report
+[?2004l[?2004h> results/status.json: results/ping.txt results/ports.txt aggregate.py
+[?2004l[?2004h> @echo "Generating aggregated report..."
+[?2004l[?2004h> python3 aggregate.py
+[?2004l[?2004h> 
+[?2004l[?2004h> # Run ping checks
+[?2004l[?2004h> results/ping.txt: check-config scripts/check_ping.sh
+[?2004l[?2004h> @echo "Running ping checks..."
+[?2004l[?2004h> ./scripts/check_ping.sh
+[?2004l[?2004h> 
+[?2004l[?2004h> # Run port checks
+[?2004l[?2004h> results/ports.txt: check-config scripts/check_ports.sh
+[?2004l[?2004h> @echo "Running port checks..."
+[?2004l[?2004h> ./scripts/check_ports.sh
+[?2004l[?2004h> 
+[?2004l[?2004h> # Verify hosts.conf exists before running checks
+[?2004l[?2004h> check-config:
+[?2004l[?2004h> @if [ ! -f hosts.conf ]; then \
+[?2004l[?2004h> 
+aggregate.py  hosts.conf    scripts/      
+> echo "Error: hosts.conf not found. Cannot proceed."; \
+[?2004l[?2004h> 
+aggregate.py  hosts.conf    scripts/      
+> exit 1; \
+[?2004l[?2004h> fi
+[?2004l[?2004h> @echo "Configuration file found."
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clean up generated files
+[?2004l[?2004h> clean:
+[?2004l[?2004h> @echo "Cleaning up results..."
+[?2004l[?2004h> rm -rf results
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# cat Makefile
+[?2004l.PHONY: report check-config clean
+
+# Main target to generate the report
+report: results/status.json
+@echo "Monitoring report complete!"
+
+# Generate the aggregated JSON report
+results/status.json: results/ping.txt results/ports.txt aggregate.py
+@echo "Generating aggregated report..."
+python3 aggregate.py
+
+# Run ping checks
+results/ping.txt: check-config scripts/check_ping.sh
+@echo "Running ping checks..."
+./scripts/check_ping.sh
+
+# Run port checks
+results/ports.txt: check-config scripts/check_ports.sh
+@echo "Running port checks..."
+./scripts/check_ports.sh
+
+# Verify hosts.conf exists before running checks
+check-config:
+@if [ ! -f hosts.conf ]; then \
+echo "Error: hosts.conf not found. Cannot proceed."; \
+exit 1; \
+fi
+@echo "Configuration file found."
+
+# Clean up generated files
+clean:
+@echo "Cleaning up results..."
+rm -rf results
+[?2004hroot@112c7107e917:/home/user/netmon# make report
+[?2004lMakefile:5: *** missing separator.  Stop.
+[?2004hroot@112c7107e917:/home/user/netmon# cat > Makefile << 'EOF'
+[?2004l[?2004h> .PHONY: report check-config clean
+[?2004l[?2004h> 
+[?2004l[?2004h> # Main target to generate the report
+[?2004l[?2004h> report: results/status.json
+[?2004l[?2004h> @echo "Monitoring report complete!"
+[?2004l[?2004h> 
+[?2004l[?2004h> # Generate the aggregated JSON report
+[?2004l[?2004h> results/status.json: results/ping.txt results/ports.txt aggregate.py
+[?2004l[?2004h> @echo "Generating aggregated report..."
+[?2004l[?2004h> @python3 aggregate.py
+[?2004l[?2004h> 
+[?2004l[?2004h> # Run ping checks
+[?2004l[?2004h> results/ping.txt: check-config scripts/check_ping.sh
+[?2004l[?2004h> @echo "Running ping checks..."
+[?2004l[?2004h> @./scripts/check_ping.sh
+[?2004l[?2004h> 
+[?2004l[?2004h> # Run port checks
+[?2004l[?2004h> results/ports.txt: check-config scripts/check_ports.sh
+[?2004l[?2004h> @echo "Running port checks..."
+[?2004l[?2004h> @./scripts/check_ports.sh
+[?2004l[?2004h> 
+[?2004l[?2004h> # Verify hosts.conf exists before running checks
+[?2004l[?2004h> check-config:
+[?2004l[?2004h> @if [ ! -f hosts.conf ]; then \
+[?2004l[?2004h> 
+Makefile      aggregate.py  hosts.conf    scripts/      
+> echo "Error: hosts.conf not found. Cannot proceed."; \
+[?2004l[?2004h> 
+Makefile      aggregate.py  hosts.conf    scripts/      
+> exit 1; \
+[?2004l[?2004h> fi
+[?2004l[?2004h> @echo "Configuration file found."
+[?2004l[?2004h> 
+[?2004l[?2004h> # Clean up generated files
+[?2004l[?2004h> clean:
+[?2004l[?2004h> @echo "Cleaning up results..."
+[?2004l[?2004h> @rm -rf results
+[?2004l[?2004h> EOF
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# make report
+[?2004lMakefile:5: *** missing separator.  Stop.
+[?2004hroot@112c7107e917:/home/user/netmon# rm Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '.PHONY: report check-config clean\n\n' > Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '# Main target to generate the report\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf 'report: results/status.json\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@echo "Monitoring report complete!"\n\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '# Generate the aggregated JSON report\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf 'results/status.json: results/ping.txt results/ports.txt aggregate.py\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@echo "Generating aggregated report..."\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@python3 aggregate.py\n\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '# Run ping checks\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf 'results/ping.txt: check-config scripts/check_ping.sh\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@echo "Running ping checks..."\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@./scripts/check_ping.sh\n\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '# Run port checks\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf 'results/ports.txt: check-config scripts/check_ports.sh\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@echo "Running port checks..."\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@./scripts/check_ports.sh\n\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '# Verify hosts.conf exists before running checks\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf 'check-config:\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@if [ ! -f hosts.conf ]; then echo "Error: hosts.conf not found. Cannot proceed."; exit 1; fi\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@echo "Configuration file found."\n\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '# Clean up generated files\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf 'clean:\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@echo "Cleaning up results..."\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# printf '\t@rm -rf results\n' >> Makefile
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# cat Makefile
+[?2004l.PHONY: report check-config clean
+
+# Main target to generate the report
+report: results/status.json
+	@echo "Monitoring report complete!"
+
+# Generate the aggregated JSON report
+results/status.json: results/ping.txt results/ports.txt aggregate.py
+	@echo "Generating aggregated report..."
+	@python3 aggregate.py
+
+# Run ping checks
+results/ping.txt: check-config scripts/check_ping.sh
+	@echo "Running ping checks..."
+	@./scripts/check_ping.sh
+
+# Run port checks
+results/ports.txt: check-config scripts/check_ports.sh
+	@echo "Running port checks..."
+	@./scripts/check_ports.sh
+
+# Verify hosts.conf exists before running checks
+check-config:
+	@if [ ! -f hosts.conf ]; then echo "Error: hosts.conf not found. Cannot proceed."; exit 1; fi
+	@echo "Configuration file found."
+
+# Clean up generated files
+clean:
+	@echo "Cleaning up results..."
+	@rm -rf results
+[?2004hroot@112c7107e917:/home/user/netmon# make report
+[?2004lConfiguration file found.
+Running ping checks...
+Running port checks...
+Generating aggregated report...
+Report generated: results/status.json
+Monitoring report complete!
+[?2004hroot@112c7107e917:/home/user/netmon# ls -la results/
+[?2004ltotal 20
+drwxr-xr-x 2 root root 4096 Apr 29 00:43 [0m[01;34m.[0m
+drwxrwxrwx 1 root root 4096 Apr 29 00:43 [34;42m..[0m
+-rw-r--r-- 1 root root   51 Apr 29 00:43 ping.txt
+-rw-r--r-- 1 root root  192 Apr 29 00:43 ports.txt
+-rw-r--r-- 1 root root  457 Apr 29 00:43 status.json
+[?2004hroot@112c7107e917:/home/user/netmon# cat results/status.json
+[?2004l{
+  "hosts": {
+    "192.168.1.1": {
+      "ping": "down",
+      "ports": {
+        "22": "closed",
+        "80": "closed",
+        "443": "closed"
+      }
+    },
+    "192.168.1.2": {
+      "ping": "down",
+      "ports": {
+        "22": "closed",
+        "80": "closed",
+        "443": "closed"
+      }
+    },
+    "10.0.0.1": {
+      "ping": "down",
+      "ports": {
+        "22": "closed",
+        "80": "closed",
+        "443": "closed"
+      }
+    }
+  }
+}[?2004hroot@112c7107e917:/home/user/netmon# mv hosts.conf hosts.conf.backup
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# make report
+[?2004lError: hosts.conf not found. Cannot proceed.
+make: *** [Makefile:24: check-config] Error 1
+[?2004hroot@112c7107e917:/home/user/netmon# mv hosts.conf.backup hosts.conf
+[?2004l[?2004hroot@112c7107e917:/home/user/netmon# echo '--- Setup Complete! ---'
+[?2004l--- Setup Complete! ---
+[?2004hroot@112c7107e917:/home/user/netmon# echo '=== Final verification ==='
+[?2004l=== Final verification ===
+[?2004hroot@112c7107e917:/home/user/netmon# ls -la
+[?2004ltotal 36
+drwxrwxrwx 1 root root 4096 Apr 29 00:43 [0m[34;42m.[0m
+drwxrwxrwx 1 root root 4096 Apr 28 23:24 [34;42m..[0m
+-rw-r--r-- 1 root root  850 Apr 29 00:43 Makefile
+-rw-rw-rw- 1 root root  925 Apr 29 00:42 aggregate.py
+-rw-rw-rw- 1 root root   33 Apr 28 23:24 hosts.conf
+drwxr-xr-x 2 root root 4096 Apr 29 00:43 [01;34mresults[0m
+drwxrwxrwx 1 root root 4096 Apr 28 23:24 [34;42mscripts[0m
+[?2004hroot@112c7107e917:/home/user/netmon# echo ''
+[?2004l
+[?2004hroot@112c7107e917:/home/user/netmon# echo 'Available make targets:'
+[?2004lAvailable make targets:
+[?2004hroot@112c7107e917:/home/user/netmon# grep '^[a-z-]*:' Makefile | cut -d: -f1
+[?2004lreport
+check-config
+clean
+[?2004hroot@112c7107e917:/home/user/netmon# 

@@ -1,0 +1,40 @@
+Current terminal state:
+New Terminal Output:
+
+root@9ee7a2f4e93f:/home/user/pipeline# echo '=== COMPARISON: OLD vs NEW ==='
+=== COMPARISON: OLD vs NEW ===
+root@9ee7a2f4e93f:/home/user/pipeline# echo 'OLD save_checkpoint (BROKEN):'; grep -A 2 'def save_checkpoint' process.py.backup
+OLD save_checkpoint (BROKEN):
+def save_checkpoint(batch_num):
+    # BUG: not using context manager, buffer may not flush
+    # BUG: saving batch_num but calling it 'last_line'
+root@9ee7a2f4e93f:/home/user/pipeline# echo ''; echo 'NEW save_checkpoint (FIXED):'; grep -A 4 'def save_checkpoint' process.py
+
+NEW save_checkpoint (FIXED):
+def save_checkpoint(line_num):
+    # FIX: Use context manager and flush to ensure write to disk
+    with open('.checkpoint', 'w') as f:
+        json.dump({'last_line': line_num}, f)
+        f.flush()
+root@9ee7a2f4e93f:/home/user/pipeline# echo ''; echo 'OLD SQL (BROKEN):'; grep -A 1 'INSERT OR REPLACE' process.py.backup
+
+OLD SQL (BROKEN):
+        # BUG: INSERT OR REPLACE overwrites instead of accumulating on resume
+        conn.execute('INSERT OR REPLACE INTO summary VALUES (?, ?, ?)',
+                     (cat, data['total'], data['count']))
+root@9ee7a2f4e93f:/home/user/pipeline# echo ''; echo 'NEW SQL (FIXED):'; grep -A 4 'INSERT INTO summary' process.py | head -6
+
+NEW SQL (FIXED):
+            INSERT INTO summary (category, total_value, count) VALUES (?, ?, ?)
+            ON CONFLICT(category) DO UPDATE SET
+                total_value = total_value + excluded.total_value,
+                count = count + excluded.count
+        ''', (cat, data['total'], data['count']))
+root@9ee7a2f4e93f:/home/user/pipeline# echo ''; echo '=== TASK COMPLETE ==='; echo 'The checkpoint mechanism now works correctly!'
+
+=== TASK COMPLETE ===
+The checkpoint mechanism now works correctly!
+root@9ee7a2f4e93f:/home/user/pipeline#
+
+
+Are you sure you want to mark the task as complete? This will trigger your solution to be graded and you won't be able to make any further corrections. If so, include "task_complete": true in your JSON response again.

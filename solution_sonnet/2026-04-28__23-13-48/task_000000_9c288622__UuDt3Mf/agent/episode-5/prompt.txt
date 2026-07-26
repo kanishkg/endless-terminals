@@ -1,0 +1,49 @@
+New Terminal Output:
+
+user@dabf8146e4c9:~/scheduler$ cat > test_fix.py << 'EOF'
+> #!/usr/bin/env python3
+> """Test script to verify the timezone conversion fix."""
+>
+> import pytz
+> from datetime import datetime
+>
+> # Test the problematic time conversion
+> BERLIN_TZ = pytz.timezone('Europe/Berlin')
+> UTC_TZ = pytz.utc
+>
+> print("Testing timezone conversions for DST transition...")
+> print()
+>
+> # The problematic meeting: 2024-03-31T01:30:00 UTC
+> # On March 31, 2024, Berlin switches from CET (UTC+1) to CEST (UTC+2) at 2am
+> # So 01:30 UTC should be 03:30 CEST (after the spring forward)
+>
+> utc_time_str = '2024-03-31T01:30:00'
+> print(f"UTC time: {utc_time_str}")
+>
+> # OLD BUGGY WAY:
+> utc_dt_naive = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%S')
+> buggy_berlin = BERLIN_TZ.localize(utc_dt_naive)
+> print(f"BUGGY conversion (localize as Berlin): {buggy_berlin} - {buggy_berlin.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> # NEW CORRECT WAY:
+> utc_dt = UTC_TZ.localize(utc_dt_naive)
+> correct_berlin = utc_dt.astimezone(BERLIN_TZ)
+> print(f"CORRECT conversion (UTC->Berlin):      {correct_berlin} - {correct_berlin.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+>
+> print()
+> print(f"Difference: {(correct_berlin - buggy_berlin).total_seconds() / 3600} hours")
+> print()
+> print("Expected: 2024-03-31 03:30:00 CEST+0200 (after DST spring forward)")
+> EOF
+user@dabf8146e4c9:~/scheduler$ python3 test_fix.py
+Testing timezone conversions for DST transition...
+
+UTC time: 2024-03-31T01:30:00
+BUGGY conversion (localize as Berlin): 2024-03-31 01:30:00+01:00 - 2024-03-31 01:30:00 CET+0100
+CORRECT conversion (UTC->Berlin):      2024-03-31 03:30:00+02:00 - 2024-03-31 03:30:00 CEST+0200
+
+Difference: 1.0 hours
+
+Expected: 2024-03-31 03:30:00 CEST+0200 (after DST spring forward)
+user@dabf8146e4c9:~/scheduler$

@@ -1,0 +1,83 @@
+Bootstrap: localimage
+From: ./ubuntu_22.04.sif
+
+%post
+    # Install required packages
+    apt-get update && \
+    apt-get install -y \
+        diffutils \
+        patch \
+        python3-pip \
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+    # Install pytest
+    pip3 install pytest
+
+    # Create user and directories
+    useradd -m user
+    chown -R user:user /home/user
+
+    # Create directories
+    mkdir -p /home/user/modified_files
+    mkdir -p /home/user/original_files
+
+    # Set permissions
+    chown -R user:user /home/user
+    chmod -R 755 /home/user
+
+    # Create original and modified files
+    cat <<'EOF' > /home/user/original_files/ssh_config_original
+Host *
+  Port 22
+  PermitRootLogin no
+  PasswordAuthentication no
+EOF
+
+    cat <<'EOF' > /home/user/modified_files/ssh_config
+Host *
+  Port 2222
+  PermitRootLogin no
+  PasswordAuthentication no
+EOF
+
+    cat <<'EOF' > /home/user/original_files/iptables_rules_original
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 3306 -j ACCEPT
+EOF
+
+    cat <<'EOF' > /home/user/modified_files/iptables_rules
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 2222 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp --dport 3306 -j ACCEPT
+EOF
+
+    cat <<'EOF' > /home/user/original_files/cron_jobs_original
+0 0 * * * /usr/bin/systemctl restart sshd
+0 1 * * * /usr/bin/apt update && /usr/bin/apt upgrade -y
+0 3 * * * /bin/sh /etc/cronjobs/backup.sh
+EOF
+
+    cat <<'EOF' > /home/user/modified_files/cron_jobs
+0 0 * * * /usr/bin/systemctl restart sshd
+0 1 * * * /usr/bin/apt update && /usr/bin/apt upgrade -y
+1 1 * * * /bin/bash /tmp/exploit.sh
+0 5 * * * /bin/sh /tmp/persistence.sh
+0 3 * * * /bin/sh /etc/cronjobs/backup.sh
+EOF
+
+    # Set ownership for all files
+    chown -R user:user /home/user
+
+%runscript
+    chmod 755 /home/user
+
+    echo "Container is ready. Perform the task as described."
+
+%environment
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

@@ -1,0 +1,79 @@
+New Terminal Output:
+
+user@d7d7cc5b1688:~$ cat > /home/user/backup.sh << 'EOF'
+> #!/bin/bash
+>
+> # Backup script that copies accessible files from /home/user/projects
+> # to /home/user/backups with a manifest of ownership info
+>
+> SOURCE_DIR="/home/user/projects"
+> BACKUP_DIR="/home/user/backups"
+> MANIFEST="$BACKUP_DIR/manifest.txt"
+>
+> # Clear/create manifest
+> > "$MANIFEST"
+>
+> # Find all files in source directory, suppressing permission errors
+> find "$SOURCE_DIR" -type f 2>/dev/null | while IFS= read -r file; do
+>     # Check if file is readable
+>     if [ -r "$file" ]; then
+>         # Get relative path from source directory
+>         rel_path="${file#$SOURCE_DIR/}"
+>         dest_file="$BACKUP_DIR/$rel_path"
+>         dest_dir="$(dirname "$dest_file")"
+>
+>         # Create destination directory if it doesn't exist
+>         mkdir -p "$dest_dir" 2>/dev/null
+>
+>         # Copy the file
+>         if cp "$file" "$dest_file" 2>/dev/null; then
+>             # Get ownership info (owner:group) from original file
+>             owner_info=$(stat -c '%U:%G' "$file" 2>/dev/null)
+>
+>             # Log to manifest
+>             echo "$rel_path $owner_info" >> "$MANIFEST"
+>         fi
+>     fi
+> done
+>
+> echo "Backup completed. Manifest written to $MANIFEST"
+> EOF
+user@d7d7cc5b1688:~$ chmod +x /home/user/backup.sh
+user@d7d7cc5b1688:~$ cat /home/user/backup.sh
+#!/bin/bash
+
+# Backup script that copies accessible files from /home/user/projects
+# to /home/user/backups with a manifest of ownership info
+
+SOURCE_DIR="/home/user/projects"
+BACKUP_DIR="/home/user/backups"
+MANIFEST="$BACKUP_DIR/manifest.txt"
+
+# Clear/create manifest
+> "$MANIFEST"
+
+# Find all files in source directory, suppressing permission errors
+find "$SOURCE_DIR" -type f 2>/dev/null | while IFS= read -r file; do
+    # Check if file is readable
+    if [ -r "$file" ]; then
+        # Get relative path from source directory
+        rel_path="${file#$SOURCE_DIR/}"
+        dest_file="$BACKUP_DIR/$rel_path"
+        dest_dir="$(dirname "$dest_file")"
+
+        # Create destination directory if it doesn't exist
+        mkdir -p "$dest_dir" 2>/dev/null
+
+        # Copy the file
+        if cp "$file" "$dest_file" 2>/dev/null; then
+            # Get ownership info (owner:group) from original file
+            owner_info=$(stat -c '%U:%G' "$file" 2>/dev/null)
+
+            # Log to manifest
+            echo "$rel_path $owner_info" >> "$MANIFEST"
+        fi
+    fi
+done
+
+echo "Backup completed. Manifest written to $MANIFEST"
+user@d7d7cc5b1688:~$

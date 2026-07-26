@@ -1,0 +1,86 @@
+[?2004huser@3b3a8954a24b:~$ asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004huser@3b3a8954a24b:~$ clear
+[?2004l[H[J[?2004huser@3b3a8954a24b:~$ cd /home/user/project
+[?2004l[?2004huser@3b3a8954a24b:~/project$ pwd
+[?2004l/home/user/project
+[?2004huser@3b3a8954a24b:~/project$ ls -la
+[?2004ltotal 52
+drwxr-xr-x 1 user user 4096 Apr 29 10:39 .
+drwxrwxrwx 1 root root 4096 Apr 29 10:40 ..
+drwxr-xr-x 1 user user 4096 Apr 29 10:39 .git
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file1.txt
+-rw-r--r-- 1 user user   22 Apr 29 10:39 file10.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file2.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file3.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file4.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file5.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file6.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file7.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file8.txt
+-rw-r--r-- 1 user user   21 Apr 29 10:39 file9.txt
+[?2004huser@3b3a8954a24b:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+cd /srv/repos/project
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@3b3a8954a24b:~/project$ file .git
+[?2004lbash: file: command not found
+[?2004huser@3b3a8954a24b:~/project$ git config --list --show-origin
+[?2004l[?1h=file:.git/config        core.repositoryformatversion=0[m
+file:.git/config        core.filemode=true[m
+file:.git/config        core.bare=false[m
+file:.git/config        core.logallrefupdates=true[m
+file:.git/config        remote.origin.url=/home/user/project.git[m
+file:.git/config        remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*[m
+[K[?1l>[?2004huser@3b3a8954a24b:~/project$ cp .git/hooks/pre-push .git/hooks/pre-push.backup
+[?2004l[?2004huser@3b3a8954a24b:~/project$ cat > .git/hooks/pre-push << 'EOF'
+[?2004l[?2004h> #!/bin/bash
+[?2004l[?2004h> HASH=$(git rev-parse --verify HEAD)
+[?2004l[?2004h> echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+[?2004l[?2004h> exit 0
+[?2004l[?2004h> EOF
+[?2004l[?2004huser@3b3a8954a24b:~/project$ chmod +x .git/hooks/pre-push
+[?2004l[?2004huser@3b3a8954a24b:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@3b3a8954a24b:~/project$ bash .git/hooks/pre-push
+[?2004l[?2004huser@3b3a8954a24b:~/project$ echo "Exit code: $?"
+[?2004lExit code: 0
+[?2004huser@3b3a8954a24b:~/project$ tail -n 3 /var/log/git-hooks.log 2>/dev/null || echo "Log file not accessible or doesn't exist yet"
+[?2004lWed Apr 29 10:40:50 UTC 2026: push verified, HEAD=c89908540ea51ca63e2fb96cd8be86c1d00dd607
+[?2004huser@3b3a8954a24b:~/project$ git status
+[?2004lOn branch main
+nothing to commit, working tree clean
+[?2004huser@3b3a8954a24b:~/project$ git remote -v
+[?2004lorigin	/home/user/project.git (fetch)
+origin	/home/user/project.git (push)
+[?2004huser@3b3a8954a24b:~/project$ git push origin main 2>&1
+[?2004lEverything up-to-date
+[?2004huser@3b3a8954a24b:~/project$ echo "Push exit code: $?"
+[?2004lPush exit code: 0
+[?2004huser@3b3a8954a24b:~/project$ tail -n 3 /var/log/git-hooks.log 2>/dev/null
+[?2004lWed Apr 29 10:40:50 UTC 2026: push verified, HEAD=c89908540ea51ca63e2fb96cd8be86c1d00dd607
+Wed Apr 29 10:40:56 UTC 2026: push verified, HEAD=c89908540ea51ca63e2fb96cd8be86c1d00dd607
+[?2004huser@3b3a8954a24b:~/project$ echo "=== OLD HOOK (backup) ==="
+[?2004l=== OLD HOOK (backup) ===
+[?2004huser@3b3a8954a24b:~/project$ cat .git/hooks/pre-push.backup
+[?2004l#!/bin/bash
+cd /srv/repos/project
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@3b3a8954a24b:~/project$ echo ""
+[?2004l
+[?2004huser@3b3a8954a24b:~/project$ echo "=== NEW HOOK (fixed) ==="
+[?2004l=== NEW HOOK (fixed) ===
+[?2004huser@3b3a8954a24b:~/project$ cat .git/hooks/pre-push
+[?2004l#!/bin/bash
+HASH=$(git rev-parse --verify HEAD)
+echo "$(date): push verified, HEAD=$HASH" >> /var/log/git-hooks.log
+exit 0
+[?2004huser@3b3a8954a24b:~/project$ 

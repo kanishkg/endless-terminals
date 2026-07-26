@@ -1,0 +1,168 @@
+New Terminal Output:
+
+user@599ad7bbd9a1:~$ grep -E '^AST-[0-9]+,' /home/user/inventory/assets.csv | cut -d',' -f1 | sort | uniq -d | head -10
+AST-00300
+AST-00301
+AST-00302
+AST-00303
+AST-00304
+AST-00305
+AST-00306
+AST-00307
+AST-00308
+AST-00309
+user@599ad7bbd9a1:~$ cat > /home/user/inventory/process_assets.py << 'EOF'
+> import csv
+> import json
+> import re
+> from datetime import datetime
+> from collections import defaultdict
+>
+> def parse_date(date_str):
+>     """Parse date from multiple formats and return ISO 8601 string."""
+>     date_str = date_str.strip()
+>
+>     # Try different date formats
+>     formats = [
+>         '%Y-%m-%d',      # ISO format: 2021-03-22
+>         '%m/%d/%Y',      # US format: 02/12/2017
+>         '%d.%m.%Y',      # European format: 17.07.2016
+>     ]
+>
+>     for fmt in formats:
+>         try:
+>             dt = datetime.strptime(date_str, fmt)
+>             return dt.date().isoformat()
+>         except ValueError:
+>             continue
+>
+>     return None
+>
+> def parse_price(price_str):
+>     """Parse price and convert to cents (integer)."""
+>     try:
+>         # Remove dollar signs, commas, and whitespace
+>         cleaned = price_str.strip().replace('$', '').replace(',', '')
+>
+>         # Convert to float first, then to cents
+>         price_float = float(cleaned)
+>
+>         # Check if positive
+>         if price_float <= 0:
+>             return None
+>
+>         # Convert to cents
+>         price_cents = int(round(price_float * 100))
+>         return price_cents
+>     except (ValueError, AttributeError):
+>         return None
+>
+> def is_serial_number(s):
+>     """Check if a string looks like a serial number."""
+>     return bool(re.match(r'^SN-[A-Z]+-\d+$', s.strip()))
+>
+> def process_row(row, row_num):
+>     """Process a single row and return (record, error) tuple."""
+>     try:
+>         asset_id = row.get('id', '').strip()
+>         name = row.get('name', '').strip()
+>         serial = row.get('serial', '').strip()
+>         purchase_date_raw = row.get('purchase_date', '').strip()
+>         price_raw = row.get('price', '').strip()
+>         location = row.get('location', '').strip()
+>
+>         # Check for swapped name and serial
+>         if is_serial_number(name) and not is_serial_number(serial):
+>             name, serial = serial, name
+>
+>         # Validate required fields
+>         if not asset_id:
+>             return None, "Missing asset ID"
+>
+>         if not name:
+>             return None, "Missing name"
+>
+>         if not serial:
+>             return None, "Missing serial number"
+>
+>         if not is_serial_number(serial):
+>             return None, f"Invalid serial number format: {serial}"
+>
+>         # Parse date
+>         purchase_date = parse_date(purchase_date_raw)
+>         if not purchase_date:
+>             return None, f"Invalid date format: {purchase_date_raw}"
+>
+>         # Parse price
+>         price_cents = parse_price(price_raw)
+>         if price_cents is None:
+>             return None, f"Invalid or non-positive price: {price_raw}"
+>
+>         if not location:
+>             return None, "Missing location"
+>
+>         record = {
+>             'id': asset_id,
+>             'name': name,
+>             'serial': serial,
+>             'purchase_date': purchase_date,
+>             'price_cents': price_cents,
+>             'location': location
+>         }
+>
+>         return record, None
+>
+>     except Exception as e:
+>         return None, f"Processing error: {str(e)}"
+>
+> def main():
+>     input_file = '/home/user/inventory/assets.csv'
+>     output_file = '/home/user/inventory/assets.json'
+>     rejected_file = '/home/user/inventory/rejected.json'
+>
+>     # Store records by ID to handle duplicates
+>     records_by_id = {}
+>     rejected = []
+>
+>     with open(input_file, 'r', encoding='utf-8') as f:
+>         reader = csv.DictReader(f)
+>
+>         for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
+>             record, error = process_row(row, row_num)
+>
+>             if error:
+>                 rejected.append({
+>                     'original_row': dict(row),
+>                     'reason': error,
+>                     'row_number': row_num
+>                 })
+>             else:
+>                 asset_id = record['id']
+>
+>                 # Handle duplicates: keep the one with the latest purchase date
+>                 if asset_id in records_by_id:
+>                     existing = records_by_id[asset_id]
+>                     if record['purchase_date'] > existing['purchase_date']:
+>                         records_by_id[asset_id] = record
+>                 else:
+>                     records_by_id[asset_id] = record
+>
+>     # Convert to list and sort by ID for consistency
+>     valid_records = sorted(records_by_id.values(), key=lambda x: x['id'])
+>
+>     # Write output files
+>     with open(output_file, 'w', encoding='utf-8') as f:
+>         json.dump(valid_records, f, indent=2)
+>
+>     with open(rejected_file, 'w', encoding='utf-8') as f:
+>         json.dump(rejected, f, indent=2)
+>
+>     print(f"Processed {len(valid_records)} valid records")
+>     print(f"Rejected {len(rejected)} invalid records")
+>     print(f"Output written to {output_file}")
+>     print(f"Rejected records written to {rejected_file}")
+>
+> if __name__ == '__main__':
+>     main()
+> EOF
+user@599ad7bbd9a1:~$

@@ -1,0 +1,70 @@
+New Terminal Output:
+
+root@bc528a80626a:/home/user/archive-validator# ls -la src/
+total 16
+drwxr-xr-x 1 user user 4096 Apr 28 23:26 .
+drwxr-xr-x 1 user user 4096 Apr 28 23:26 ..
+-rw-r--r-- 1 user user  903 Apr 28 23:26 checksum.c
+-rw-r--r-- 1 user user 1559 Apr 28 23:26 main.c
+root@bc528a80626a:/home/user/archive-validator# cat src/main.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <archive.h>
+#include <archive_entry.h>
+
+extern int verify_checksum(const char *data, size_t len, const char *expected);
+
+void print_usage(const char *prog) {
+    printf("Usage: %s <archive.tar.gz>\n", prog);
+    printf("\nArchive Validator Tool - validates tar.gz backup archives\n");
+    printf("Options:\n");
+    printf("  --help    Show this help message\n");
+}
+
+int validate_archive(const char *filename) {
+    struct archive *a;
+    struct archive_entry *entry;
+    int r;
+
+    a = archive_read_new();
+    archive_read_support_filter_all(a);
+    archive_read_support_format_all(a);
+
+    r = archive_read_open_filename(a, filename, 10240);
+    if (r != ARCHIVE_OK) {
+        fprintf(stderr, "Error opening archive: %s\n", archive_error_string(a));
+        archive_read_free(a);
+        return 1;
+    }
+
+    printf("Validating archive: %s\n", filename);
+    int entry_count = 0;
+
+    while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+        printf("  Entry: %s\n", archive_entry_pathname(entry));
+        entry_count++;
+        archive_read_data_skip(a);
+    }
+
+    printf("Total entries: %d\n", entry_count);
+    printf("Archive validation complete.\n");
+
+    archive_read_free(a);
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
+    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
+    return validate_archive(argv[1]);
+}
+root@bc528a80626a:/home/user/archive-validator#

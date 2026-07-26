@@ -1,0 +1,43 @@
+New Terminal Output:
+
+root@d1d490ef8e0a:/home/user/monitoring# cp check_yaml.py check_yaml.py.bak
+root@d1d490ef8e0a:/home/user/monitoring# cat > check_yaml.py << 'EOF'
+> #!/usr/bin/env python3
+> import sys
+> import yaml
+>
+> def no_duplicates_constructor(loader, node, deep=False):
+>     """Check for duplicate keys while constructing mapping."""
+>     mapping = {}
+>     for key_node, value_node in node.value:
+>         key = loader.construct_object(key_node, deep=deep)
+>         value = loader.construct_object(value_node, deep=deep)
+>         if key in mapping:
+>             raise yaml.constructor.ConstructorError(
+>                 "while constructing a mapping",
+>                 node.start_mark,
+>                 f"found duplicate key: {key}",
+>                 key_node.start_mark
+>             )
+>         mapping[key] = value
+>     return mapping
+>
+> class SafeLoaderWithDuplicateCheck(yaml.SafeLoader):
+>     pass
+>
+> SafeLoaderWithDuplicateCheck.add_constructor(
+>     yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+>     no_duplicates_constructor
+> )
+>
+> for path in sys.argv[1:]:
+>     try:
+>         with open(path) as f:
+>             yaml.load(f, Loader=SafeLoaderWithDuplicateCheck)
+>         print(f"OK: {path}")
+>     except yaml.YAMLError as e:
+>         print(f"ERROR: {path}: {e}")
+>     except Exception as e:
+>         print(f"ERROR: {path}: {e}")
+> EOF
+root@d1d490ef8e0a:/home/user/monitoring#
